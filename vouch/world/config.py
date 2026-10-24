@@ -9,9 +9,8 @@ COMPANY = "Northlight Labs"
 DOMAIN = "northlightlabs.com"
 FOUNDED = "2021-01"
 
-# Payroll is computed from the start of the earliest tax year the files touch, so
+# Payroll is computed from the start of the tax year containing FIRST_FILE_MONTH, so
 # year-to-date caps are right; files are only written from FIRST_FILE_MONTH on.
-PAYROLL_START = "2025-01"
 FIRST_FILE_MONTH = "2025-09"
 OPEN_MONTH = "2026-09"          # 12 closed months (2025-09 .. 2026-08) + this one
 

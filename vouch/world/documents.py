@@ -92,7 +92,7 @@ def _board_rows(world: World) -> list[dict]:
 def _legacy_history(world: World) -> list[dict]:
     """Payee export from the previous payroll provider, before the current files begin."""
     rows = []
-    for year in range(int(C.FOUNDED[:4]), int(C.PAYROLL_START[:4])):
+    for year in range(int(C.FOUNDED[:4]), int(C.FIRST_FILE_MONTH[:4])):
         for person in world.people:
             for stint in person.stints:
                 months = [k for k in dates.month_range(f"{year}-01", f"{year}-12")

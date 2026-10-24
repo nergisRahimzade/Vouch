@@ -5,7 +5,8 @@ import random
 from pathlib import Path
 
 from vouch.world import config as C
-from vouch.world.documents import Bundle, hr_census, standing_documents
+from vouch.world import payroll
+from vouch.world.documents import Bundle, standing_documents
 from vouch.world.files import write_bundle
 from vouch.world.simulate import World, simulate
 
@@ -17,8 +18,7 @@ def generate(seed: int = C.SEED) -> tuple[World, Bundle]:
     world = simulate(seed)
     rng = random.Random(seed + 1)
     bundle = Bundle(dict(standing_documents(world, rng)))
-    for key in bundle.months():
-        bundle.files[f"months/{key}/hr_census.csv"] = hr_census(world, key)
+    payroll.run(world, bundle)
     return world, bundle
 
 

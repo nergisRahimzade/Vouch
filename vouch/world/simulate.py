@@ -88,6 +88,7 @@ class Grant:
     grant_date: date | None = None         # board approval date = ASC 718 grant date
     board_resolution: str | None = None
     signed_on: date | None = None
+    cancelled_on: date | None = None       # holder left before the board ever approved it
 
 
 @dataclass
@@ -144,6 +145,7 @@ class _Simulator:
         self.changes: list[SalaryChange] = []
         self.accounts: set[str] = set()
         self.names: set[str] = set()
+        self.by_id: dict[str, Person] = {}
 
     # -- helpers -------------------------------------------------------------
     def _change(self, person: Person, effective: date, salary: Decimal, entity: str, reason: str) -> None:
@@ -179,6 +181,7 @@ class _Simulator:
         person.stints.append(Stint(entity, start, None, new_account(entity, self.rng, self.accounts)))
         self._change(person, start, band_salary(entity, department, level, self.rng), entity, "hire")
         self.people.append(person)
+        self.by_id[person.employee_id] = person
         if self.rng.random() < C.GRANT_SHARE_RATE:
             shares = int(C.GRANT_SHARES_BY_LEVEL[level] * self.rng.uniform(0.8, 1.2) / 100) * 100
             self.grants.append(Grant(f"G-{len(self.grants) + 1:05d}", person.employee_id, shares, None,
@@ -223,7 +226,15 @@ class _Simulator:
 
     def board_meeting(self, key: str) -> None:
         meeting = dates.nth_weekday(key, 3, 3)   # third Thursday
-        pending = [g for g in self.grants if g.grant_date is None and g.vest_start <= meeting]
+        pending = []
+        for grant in self.grants:
+            if grant.grant_date is not None or grant.cancelled_on or grant.vest_start > meeting:
+                continue
+            exit_date = self.by_id[grant.employee_id].exit_date
+            if exit_date and exit_date < meeting:
+                grant.cancelled_on = exit_date
+            else:
+                pending.append(grant)
         resolution = f"BR-{key}"
         for grant in pending:
             grant.grant_date = meeting

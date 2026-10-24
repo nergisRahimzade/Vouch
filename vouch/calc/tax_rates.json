@@ -1,0 +1,114 @@
+{
+  "_about": "Statutory payroll rates by entity and tax year. Code reads every rate from here; none are typed into functions. 'checked' says how each value was confirmed: 'official-document' = read from the cited official text on 2026-10-23; 'secondary-confirmed' = matched by two or more reputable secondary sources on 2026-10-23; 'recalled' = from prior knowledge of the official text, not re-read in this session (to be hand-checked, see README).",
+  "US": {
+    "_tax_year": "calendar year; monthly payroll; Form W-4 2020 or later, Single, Step 2 unchecked, no other adjustments",
+    "2025": {
+      "withholding_line_1g": {"value": "8600", "source": "https://www.irs.gov/pub/irs-prior/p15t--2025.pdf", "checked": "recalled"},
+      "withholding_schedule": {
+        "value": [["0", "0.00", "0"], ["6400", "0.00", "0.10"], ["18325", "1192.50", "0.12"], ["54875", "5578.50", "0.22"],
+                  ["109750", "17651.00", "0.24"], ["203700", "40199.00", "0.32"], ["256925", "57231.00", "0.35"],
+                  ["632750", "188769.75", "0.37"]],
+        "columns": ["at_least", "tentative_amount", "rate_over_at_least"],
+        "source": "https://www.irs.gov/pub/irs-prior/p15t--2025.pdf (2025 Percentage Method Tables for Automated Payroll Systems, STANDARD, Single)",
+        "checked": "recalled"},
+      "social_security_rate": {"value": "0.062", "source": "https://www.ssa.gov/oact/cola/cbb.html", "checked": "official-document"},
+      "social_security_wage_base": {"value": "176100", "source": "https://www.ssa.gov/oact/cola/cbb.html", "checked": "secondary-confirmed"},
+      "medicare_rate": {"value": "0.0145", "source": "https://www.irs.gov/taxtopics/tc751", "checked": "recalled"},
+      "additional_medicare_rate": {"value": "0.009", "source": "https://www.irs.gov/businesses/small-businesses-self-employed/questions-and-answers-for-the-additional-medicare-tax", "checked": "recalled"},
+      "additional_medicare_threshold": {"value": "200000", "source": "https://www.irs.gov/businesses/small-businesses-self-employed/questions-and-answers-for-the-additional-medicare-tax", "checked": "recalled"},
+      "futa_rate": {"value": "0.006", "source": "https://www.irs.gov/individuals/international-taxpayers/federal-unemployment-tax", "note": "6.0% less the maximum 5.4% state credit", "checked": "recalled"},
+      "futa_wage_base": {"value": "7000", "source": "https://www.irs.gov/individuals/international-taxpayers/federal-unemployment-tax", "checked": "recalled"}
+    },
+    "2026": {
+      "withholding_line_1g": {"value": "8600", "source": "https://www.irs.gov/pub/irs-pdf/p15t.pdf (Publication 15-T (2026), Worksheet 1A line 1g)", "checked": "official-document"},
+      "withholding_schedule": {
+        "value": [["0", "0.00", "0"], ["7500", "0.00", "0.10"], ["19900", "1240.00", "0.12"], ["57900", "5800.00", "0.22"],
+                  ["113200", "17966.00", "0.24"], ["209275", "41024.00", "0.32"], ["263725", "58448.00", "0.35"],
+                  ["648100", "192979.25", "0.37"]],
+        "columns": ["at_least", "tentative_amount", "rate_over_at_least"],
+        "source": "https://www.irs.gov/pub/irs-pdf/p15t.pdf (2026 Percentage Method Tables for Automated Payroll Systems, STANDARD, Single or Married Filing Separately)",
+        "checked": "official-document"},
+      "social_security_rate": {"value": "0.062", "source": "https://www.ssa.gov/oact/cola/cbb.html", "checked": "secondary-confirmed"},
+      "social_security_wage_base": {"value": "184500", "source": "https://www.ssa.gov/oact/cola/cbb.html", "checked": "secondary-confirmed"},
+      "medicare_rate": {"value": "0.0145", "source": "https://www.irs.gov/taxtopics/tc751", "checked": "recalled"},
+      "additional_medicare_rate": {"value": "0.009", "source": "https://www.irs.gov/businesses/small-businesses-self-employed/questions-and-answers-for-the-additional-medicare-tax", "checked": "recalled"},
+      "additional_medicare_threshold": {"value": "200000", "source": "https://www.irs.gov/businesses/small-businesses-self-employed/questions-and-answers-for-the-additional-medicare-tax", "checked": "recalled"},
+      "futa_rate": {"value": "0.006", "source": "https://www.irs.gov/individuals/international-taxpayers/federal-unemployment-tax", "checked": "recalled"},
+      "futa_wage_base": {"value": "7000", "source": "https://www.irs.gov/individuals/international-taxpayers/federal-unemployment-tax", "checked": "recalled"}
+    }
+  },
+  "UK": {
+    "_tax_year": "6 April to 5 April, keyed by the starting year; monthly period 1 = April; tax code 1257L on a month-1 (non-cumulative) basis; England/NI bands; category A NI",
+    "2025": {
+      "tax_code_number": {"value": "1257", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026", "checked": "recalled"},
+      "basic_rate": {"value": "0.20", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026", "checked": "recalled"},
+      "basic_rate_band": {"value": "37700", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026", "checked": "recalled"},
+      "higher_rate": {"value": "0.40", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026", "checked": "recalled"},
+      "higher_rate_limit": {"value": "125140", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026", "checked": "recalled"},
+      "additional_rate": {"value": "0.45", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026", "checked": "recalled"},
+      "ni_primary_threshold_monthly": {"value": "1048", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026", "checked": "recalled"},
+      "ni_upper_earnings_limit_monthly": {"value": "4189", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026", "checked": "recalled"},
+      "ni_secondary_threshold_monthly": {"value": "417", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026", "checked": "recalled"},
+      "ni_employee_main_rate": {"value": "0.08", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026", "checked": "recalled"},
+      "ni_employee_upper_rate": {"value": "0.02", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026", "checked": "recalled"},
+      "ni_employer_rate": {"value": "0.15", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026", "checked": "recalled"}
+    },
+    "2026": {
+      "tax_code_number": {"value": "1257", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027", "checked": "secondary-confirmed"},
+      "basic_rate": {"value": "0.20", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027", "checked": "secondary-confirmed"},
+      "basic_rate_band": {"value": "37700", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027", "checked": "secondary-confirmed"},
+      "higher_rate": {"value": "0.40", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027", "checked": "recalled"},
+      "higher_rate_limit": {"value": "125140", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027", "checked": "recalled"},
+      "additional_rate": {"value": "0.45", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027", "checked": "recalled"},
+      "ni_primary_threshold_monthly": {"value": "1048", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027", "checked": "secondary-confirmed"},
+      "ni_upper_earnings_limit_monthly": {"value": "4189", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027", "checked": "secondary-confirmed"},
+      "ni_secondary_threshold_monthly": {"value": "417", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027", "checked": "secondary-confirmed"},
+      "ni_employee_main_rate": {"value": "0.08", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027", "checked": "secondary-confirmed"},
+      "ni_employee_upper_rate": {"value": "0.02", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027", "checked": "secondary-confirmed"},
+      "ni_employer_rate": {"value": "0.15", "source": "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027", "checked": "secondary-confirmed"}
+    }
+  },
+  "DE": {
+    "_tax_year": "calendar year; Steuerklasse I, no church tax, no child allowances; statutory health insurance at the average Zusatzbeitrag; no childless surcharge in long-term care",
+    "2025": {
+      "income_tax_tariff": {
+        "value": {"basic_allowance": "12096", "zone2_end": "17443", "zone2_a": "932.30", "zone2_b": "1400",
+                  "zone3_end": "68480", "zone3_a": "176.64", "zone3_b": "2397", "zone3_c": "1015.13",
+                  "zone4_end": "277825", "zone4_rate": "0.42", "zone4_minus": "10911.92",
+                  "zone5_rate": "0.45", "zone5_minus": "19246.67"},
+        "source": "https://www.gesetze-im-internet.de/estg/__32a.html (§ 32a EStG, version for 2025)", "checked": "secondary-confirmed"},
+      "employee_lump_sum": {"value": "1230", "source": "https://www.gesetze-im-internet.de/estg/__9a.html", "checked": "recalled"},
+      "special_expenses_lump_sum": {"value": "36", "source": "https://www.gesetze-im-internet.de/estg/__10c.html", "checked": "recalled"},
+      "solidarity_rate": {"value": "0.055", "source": "https://www.gesetze-im-internet.de/solzg_1995/__4.html", "checked": "recalled"},
+      "solidarity_exemption_limit": {"value": "19950", "source": "https://www.gesetze-im-internet.de/solzg_1995/__3.html", "checked": "recalled"},
+      "solidarity_taper_rate": {"value": "0.119", "source": "https://www.gesetze-im-internet.de/solzg_1995/__4.html", "checked": "recalled"},
+      "pension_rate": {"value": "0.186", "split": "half each", "source": "https://www.deutsche-rentenversicherung.de/DRV/DE/Experten/Zahlen-und-Fakten/Werte-der-Rentenversicherung/werte-der-rentenversicherung.html", "checked": "recalled"},
+      "unemployment_rate": {"value": "0.026", "split": "half each", "source": "https://www.arbeitsagentur.de/unternehmen/finanziell/beitragssatz", "checked": "recalled"},
+      "health_rate": {"value": "0.171", "split": "half each", "note": "14.6% general rate + 2.5% average Zusatzbeitrag", "source": "https://www.bundesgesundheitsministerium.de/beitraege", "checked": "recalled"},
+      "care_rate": {"value": "0.036", "split": "half each", "source": "https://www.bundesgesundheitsministerium.de/beitraege", "checked": "recalled"},
+      "pension_unemployment_ceiling": {"value": "96600", "note": "annual Beitragsbemessungsgrenze, one value for East and West from 2025", "source": "https://www.krankenkassen.de/gesetzliche-krankenkassen/system-gesetzliche-krankenversicherung/sozialversicherung-rechengroessen-beitragsbemessungsgrenze-versicherungspflichtgrenze/rechengroessen-2025/", "checked": "recalled"},
+      "health_care_ceiling": {"value": "66150", "note": "annual Beitragsbemessungsgrenze", "source": "https://www.krankenkassen.de/gesetzliche-krankenkassen/system-gesetzliche-krankenversicherung/sozialversicherung-rechengroessen-beitragsbemessungsgrenze-versicherungspflichtgrenze/rechengroessen-2025/", "checked": "recalled"}
+    },
+    "2026": {
+      "income_tax_tariff": {
+        "value": {"basic_allowance": "12348", "zone2_end": "17799", "zone2_a": "914.51", "zone2_b": "1400",
+                  "zone3_end": "69878", "zone3_a": "173.10", "zone3_b": "2397", "zone3_c": "1034.87",
+                  "zone4_end": "277825", "zone4_rate": "0.42", "zone4_minus": "11135.63",
+                  "zone5_rate": "0.45", "zone5_minus": "19470.38"},
+        "source": "https://www.gesetze-im-internet.de/estg/__32a.html (§ 32a EStG, version from 2026)",
+        "note": "zones 1-3 secondary-confirmed; zone 4/5 constants checked by continuity at the zone boundaries",
+        "checked": "secondary-confirmed"},
+      "employee_lump_sum": {"value": "1230", "source": "https://www.gesetze-im-internet.de/estg/__9a.html", "checked": "recalled"},
+      "special_expenses_lump_sum": {"value": "36", "source": "https://www.gesetze-im-internet.de/estg/__10c.html", "checked": "recalled"},
+      "solidarity_rate": {"value": "0.055", "source": "https://www.gesetze-im-internet.de/solzg_1995/__4.html", "checked": "recalled"},
+      "solidarity_exemption_limit": {"value": "20350", "source": "https://www.gesetze-im-internet.de/solzg_1995/__3.html", "checked": "recalled"},
+      "solidarity_taper_rate": {"value": "0.119", "source": "https://www.gesetze-im-internet.de/solzg_1995/__4.html", "checked": "recalled"},
+      "pension_rate": {"value": "0.186", "split": "half each", "source": "https://www.vdek.com/vertragspartner/arbeitgeber/beitragssaetze.html", "checked": "recalled"},
+      "unemployment_rate": {"value": "0.026", "split": "half each", "source": "https://www.vdek.com/vertragspartner/arbeitgeber/beitragssaetze.html", "checked": "recalled"},
+      "health_rate": {"value": "0.175", "split": "half each", "note": "14.6% general rate + 2.9% average Zusatzbeitrag", "source": "https://lohn-info.de/sozialversicherungsbeitraege2026.html", "checked": "secondary-confirmed"},
+      "care_rate": {"value": "0.036", "split": "half each", "source": "https://www.vdek.com/vertragspartner/arbeitgeber/beitragssaetze.html", "checked": "recalled"},
+      "pension_unemployment_ceiling": {"value": "101400", "note": "annual Beitragsbemessungsgrenze", "source": "https://www.krankenkassen.de/gesetzliche-krankenkassen/system-gesetzliche-krankenversicherung/sozialversicherung-rechengroessen-beitragsbemessungsgrenze-versicherungspflichtgrenze/rechengroessen-2026/", "checked": "secondary-confirmed"},
+      "health_care_ceiling": {"value": "69750", "note": "annual Beitragsbemessungsgrenze", "source": "https://www.vdek.com/vertragspartner/arbeitgeber/beitragssaetze.html", "checked": "secondary-confirmed"}
+    }
+  }
+}
