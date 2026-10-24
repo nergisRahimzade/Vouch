@@ -49,12 +49,20 @@ class Planter:
     def __init__(self, seed: int):
         self.seed = seed
         self.claimed: set[str] = set()
+        self.reserved: dict[str, str] = {}      # employee_id -> the plant a cast person was hired for
 
     def rng(self, plant_id: str) -> random.Random:
         return random.Random(f"{self.seed}:{plant_id}")
 
     def claim(self, employee_id: str) -> None:
         self.claimed.add(employee_id)
+
+    def reserve(self, employee_id: str, plant_id: str) -> None:
+        self.reserved[employee_id] = plant_id
+
+    def free(self, employee_id: str, plant_id: str) -> bool:
+        """Not used by another plant, and not cast for a different one."""
+        return employee_id not in self.claimed and self.reserved.get(employee_id, plant_id) == plant_id
 
 
 def hooks_for(plants: list[Plant]) -> dict[tuple[str, str], list[Callable]]:
@@ -66,12 +74,13 @@ def hooks_for(plants: list[Plant]) -> dict[tuple[str, str], list[Callable]]:
 
 
 # -- helpers -----------------------------------------------------------------
-def steady(ctx: MonthContext, planter: Planter, months_back: int = 0, entity: str | None = None) -> list[tuple[Person, str]]:
+def steady(ctx: MonthContext, planter: Planter, plant_id: str, months_back: int = 0,
+           entity: str | None = None) -> list[tuple[Person, str]]:
     """People in one entity for the whole month and the `months_back` months before it, not used by another plant."""
     first, last = dates.month_start(dates.add_months(ctx.month, -months_back)), dates.month_end(ctx.month)
     out = []
     for person in ctx.world.people:
-        if person.employee_id in planter.claimed or person.hire_date >= first:
+        if not planter.free(person.employee_id, plant_id) or person.hire_date >= first:
             continue
         if person.exit_date and person.exit_date <= last:
             continue
@@ -131,7 +140,7 @@ def bank_change_by_email(plant_id: str, planter: Planter) -> Plant:
     @plant.on(OPEN, "payments")
     def _(ctx: MonthContext) -> None:
         rng = planter.rng(plant_id)
-        person, entity = pick(rng, planter, steady(ctx, planter, months_back=2))
+        person, entity = pick(rng, planter, steady(ctx, planter, plant_id, months_back=2))
         payments = ctx.rows(f"payment_file_{entity}.csv")
         payment = row_of(payments, employee_id=person.employee_id)
         old, new = payment["bank_account"], new_account(entity, rng, ctx.world.bank_accounts_taken)
@@ -163,7 +172,7 @@ def leaver_still_paid(plant_id: str, planter: Planter) -> Plant:
         rng = planter.rng(plant_id)
         exit_month = month(-2)
         leavers = [p for p in ctx.world.people if p.exit_date and dates.month_of(p.exit_date) == exit_month
-                   and len(p.stints) == 1 and p.employee_id not in planter.claimed]
+                   and len(p.stints) == 1 and planter.free(p.employee_id, plant_id)]
         person = pick(rng, planter, leavers)
         entity = person.stints[0].entity
         salary = person.salary_on(person.exit_date)
@@ -195,7 +204,7 @@ def leaver_paid_years_later(plant_id: str, planter: Planter) -> Plant:
         rng = planter.rng(plant_id)
         cutoff = dates.month_start(month(-24))
         leavers = [p for p in ctx.world.people if p.exit_date and p.exit_date < cutoff
-                   and p.employee_id not in planter.claimed]
+                   and planter.free(p.employee_id, plant_id)]
         person = pick(rng, planter, leavers)
         entity = person.stints[-1].entity
         salary = person.salary_on(person.exit_date).annual_salary
@@ -231,7 +240,7 @@ def forfeited_grant_still_expensed(plant_id: str, planter: Planter) -> Plant:
         for grant in ctx.world.grants:
             person = ctx.world.person(grant.employee_id)
             if (person.exit_date and dates.month_of(person.exit_date) == exit_month and grant.grant_date
-                    and grant.grant_date < person.exit_date and person.employee_id not in planter.claimed):
+                    and grant.grant_date < person.exit_date and planter.free(person.employee_id, plant_id)):
                 row = row_of(ctx.rows("equity_report.csv"), grant_id=grant.grant_id)
                 if row["status"] == "forfeited" and row["vested_shares"] == "0":
                     candidates.append(grant)
@@ -290,7 +299,7 @@ def grant_without_board_approval(plant_id: str, planter: Planter) -> Plant:
     def _(ctx: MonthContext) -> None:
         rng = planter.rng(plant_id)
         rows = [r for r in ctx.rows("equity_report.csv") if r["status"] == "pending_approval"
-                and int(r["service_months"]) >= 1 and r["employee_id"] not in planter.claimed]
+                and int(r["service_months"]) >= 1 and planter.free(r["employee_id"], plant_id)]
         if not rows:
             raise RuntimeError("no eligible subject for plant")
         row = rng.choice(rows)
@@ -386,7 +395,7 @@ def backdated_raise(plant_id: str, planter: Planter) -> Plant:
     @plant.on(OPEN, "hr")
     def _(ctx: MonthContext) -> None:
         rng = planter.rng(plant_id)
-        person, entity = pick(rng, planter, steady(ctx, planter, months_back=3))
+        person, entity = pick(rng, planter, steady(ctx, planter, plant_id, months_back=3))
         old = person.salary_on(dates.month_start(OPEN)).annual_salary
         new = (old * Decimal("1.08") / 500).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * 500
         effective = dates.month_start(month(-2))
@@ -436,15 +445,21 @@ def half_cleared_batch(plant_id: str, planter: Planter) -> Plant:
         bank = ctx.rows(f"bank_statement_{entity}.csv")
         salaries = [b for b in bank if b["reference"].startswith("PAY-")]
         payees = {p["payment_id"]: p["employee_id"] for p in ctx.rows(f"payment_file_{entity}.csv")}
-        eligible = [b for b in salaries if payees[b["reference"]] not in planter.claimed]
+        eligible = [b for b in salaries if planter.free(payees[b["reference"]], plant_id)]
         failed = eligible[1::2]
+        cleared = [b for b in salaries if b not in failed]
+        if not failed or not cleared:
+            raise RuntimeError("a half-cleared batch needs both cleared and uncleared lines")
+        unpaid_lines = [{"payment_id": b["reference"], "employee_id": payees[b["reference"]],
+                         "amount": fmt(-Decimal(b["amount"])), "value_date": b["date"]} for b in failed]
         for line in failed:
             bank.remove(line)
+            planter.claim(payees[line["reference"]])
         renumber_bank(bank, entity, run_month)
-        unpaid = sum((-Decimal(b["amount"]) for b in failed), ZERO)
+        unpaid = sum((Decimal(u["amount"]) for u in unpaid_lines), ZERO)
         key(plant, subject={"entity": entity, "batch_id": f"BATCH-{run_month}-{entity}",
                             "lines_in_batch": len(salaries), "lines_eligible": len(eligible),
-                            "unpaid_payment_ids": [b["reference"] for b in failed]},
+                            "lines_cleared": len(cleared), "unpaid_lines": unpaid_lines},
             sources_disagree=[ctx.path(f"bank_statement_{entity}.csv"), ctx.path(f"payment_file_{entity}.csv")],
             trusted_source="bank_statement", expected_outcome="request_only_unpaid_lines",
             expected_behaviour="Request funding and release for the unpaid lines only.",
@@ -466,7 +481,7 @@ def booked_but_never_cleared(plant_id: str, planter: Planter) -> Plant:
         bank = ctx.rows("bank_statement_US.csv")
         payees = {p["payment_id"]: p for p in ctx.rows("payment_file_US.csv")}
         lines = [b for b in bank if b["reference"].startswith("PAY-")
-                 and payees[b["reference"]]["employee_id"] not in planter.claimed]
+                 and planter.free(payees[b["reference"]]["employee_id"], plant_id)]
         line = rng.choice(lines)
         planter.claim(payees[line["reference"]]["employee_id"])
         bank.remove(line)
@@ -501,7 +516,7 @@ def duplicate_payment(plant_id: str, planter: Planter) -> Plant:
     @plant.on(OPEN, "payments")
     def _(ctx: MonthContext) -> None:
         rng = planter.rng(plant_id)
-        person, entity = pick(rng, planter, steady(ctx, planter, months_back=1))
+        person, entity = pick(rng, planter, steady(ctx, planter, plant_id, months_back=1))
         payments = ctx.rows(f"payment_file_{entity}.csv")
         original = row_of(payments, employee_id=person.employee_id)
         duplicate = {**original, "payment_id": next_payment_id(payments, OPEN, entity)}
@@ -524,7 +539,7 @@ def transfer_not_reflected(plant_id: str, planter: Planter) -> Plant:
     @plant.on(OPEN, "hr")
     def _(ctx: MonthContext) -> None:
         rng = planter.rng(plant_id)
-        person, entity = pick(rng, planter, steady(ctx, planter, months_back=2))
+        person, entity = pick(rng, planter, steady(ctx, planter, plant_id, months_back=2))
         new_entity = rng.choice([e for e in C.ENTITIES if e != entity])
         census = row_of(ctx.rows("hr_census.csv"), employee_id=person.employee_id)
         census.update({"entity": new_entity, "entity_since": dates.month_start(OPEN).isoformat(),
@@ -575,13 +590,15 @@ def new_hire_with_leavers_account(plant_id: str, planter: Planter) -> Plant:
     def _(ctx: MonthContext) -> None:
         rng = planter.rng(plant_id)
         start = dates.month_start(OPEN)
-        hires = [p for p in ctx.world.people if p.hire_date >= start and p.employee_id not in planter.claimed]
+        hires = [p for p in ctx.world.people if p.hire_date >= start and planter.free(p.employee_id, plant_id)]
         person = pick(rng, planter, hires)
         entity = person.stints[0].entity
         history = ctx.bundle.files["standing/legacy_payment_history.csv"]
         left_long_ago = {p.employee_id for p in ctx.world.people
                          if p.exit_date and p.exit_date.year < int(C.FIRST_FILE_MONTH[:4])}
-        old = rng.choice([h for h in history if h["entity"] == entity and h["employee_id"] in left_long_ago])
+        old = rng.choice([h for h in history if h["entity"] == entity and h["employee_id"] in left_long_ago
+                          and planter.free(h["employee_id"], plant_id)])
+        planter.claim(old["employee_id"])
         census = row_of(ctx.rows("hr_census.csv"), employee_id=person.employee_id)
         census["bank_account"] = old["bank_account"]
         ctx.master[(person.employee_id, entity)] = old["bank_account"]
@@ -615,28 +632,26 @@ def _last_board_meeting(on_or_before) -> "date":
 
 def castings() -> list[Casting]:
     """The people the main set needs, hired on purpose so every plant finds a subject that fits its
-    exact definition on every seed. Plants still choose by their criteria; a random person may also fit."""
-    def day(month_key: str, n: int):
-        return dates.month_start(month_key) + timedelta(days=n - 1)
-
-    founded = dates.month_start(C.FOUNDED)
+    exact definition on every seed. Plants still choose by their criteria; a random person may also fit.
+    Generator-only: nothing outside vouch.world may import this."""
+    earliest = C.FOUNDED
     if dates.parse_month(OPEN)[1] in C.BOARD_MEETING_MONTHS:
         raise ValueError("MAIN-05 needs an open month without a board meeting")
+    meeting = _last_board_meeting(dates.month_end(month(-1)))
     cast = [
         # MAIN-02: one entity only, leaves in the month before the last closed month.
-        Casting("MAIN-02 leaver payroll was not told about", day(month(-20), 1), day(month(-2), 14)),
+        Casting("MAIN-02", "leaver payroll was not told about", month(-20), exit_month=month(-2)),
         # MAIN-03: left more than two years before the open month.
-        Casting("MAIN-03 leaver who reappears years later", max(founded, day(month(-48), 1)), day(month(-30), 10)),
-        # MAIN-04: approved grant, leaves before the 12-month cliff, three months before the open month.
-        Casting("MAIN-04 leaver before the cliff", day(month(-10), 1), day(month(-3), 15), grant=True),
-        # MAIN-05: joins after the last board meeting, so the grant is still unapproved, with a month of service.
-        Casting("MAIN-05 hire awaiting board approval",
-                _last_board_meeting(dates.month_end(month(-1))) + timedelta(days=1), grant=True),
+        Casting("MAIN-03", "leaver who reappears years later", max(earliest, month(-48)), exit_month=month(-30)),
+        # MAIN-04: approved grant; hired 10 months back and leaves 3 months back, so always before the cliff.
+        Casting("MAIN-04", "leaver before the cliff", month(-10), exit_month=month(-3), grant=True),
+        # MAIN-05: joins after the last board meeting, so the grant is unapproved, with at least a month of service.
+        Casting("MAIN-05", "hire awaiting board approval", dates.month_of(meeting), grant=True, hire_after=meeting),
         # MAIN-14: a hire in the open month ...
-        Casting("MAIN-14 new hire", day(OPEN, 7)),
+        Casting("MAIN-14", "new hire", OPEN),
     ]
     # ... and, in every entity, someone who left before the current files began (legacy payment history).
-    cast += [Casting(f"MAIN-14 earlier leaver ({entity})", max(founded, day(month(-56), 1)), day(month(-34), 5),
+    cast += [Casting("MAIN-14", f"earlier leaver ({entity})", max(earliest, month(-56)), exit_month=month(-34),
                      entity=entity) for entity in C.ENTITIES]
     return cast
 

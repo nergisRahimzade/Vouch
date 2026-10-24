@@ -90,8 +90,13 @@ def test_grant_without_board_approval():
     assert change["expense_month_usd"][1] == key["expected_amount"]["value"]
     only_changed(change, {"status", "grant_date", "fair_value_per_share_usd", "expense_month_usd",
                           "cumulative_expense_usd", "expense_month_local"})
-    after = generate(plants=["MAIN-05"], noise=False).bundle.files[f"months/{OPEN}/equity_report.csv"]
-    assert next(r for r in after if r["grant_id"] == key["subject"]["grant_id"])["board_resolution"] == ""
+    files = generate(plants=["MAIN-05"], noise=False).bundle.files
+    row = next(r for r in files[f"months/{OPEN}/equity_report.csv"] if r["grant_id"] == key["subject"]["grant_id"])
+    # The mistake exists: the platform expenses a live grant whose board approval is blank ...
+    assert row["status"] == "active" and row["board_resolution"] == "" and Decimal(row["expense_month_usd"]) > 0
+    # ... and no board approval or signed grant backs it anywhere.
+    assert key["subject"]["grant_id"] not in {r["grant_id"] for r in files["standing/board_approvals.csv"]}
+    assert key["subject"]["grant_id"] not in {r["grant_id"] for r in files["standing/signed_grants.csv"]}
 
 
 def test_wrong_pension_rate():
@@ -125,9 +130,16 @@ def test_backdated_raise():
     assert len(added) == 1 and added[0]["effective_date"] < dates.month_start(OPEN).isoformat()
     assert added[0]["approved_on"] >= dates.month_start(OPEN).isoformat()
     assert list(d[f"months/{OPEN}/payroll_register_{e}.csv"]["changed"]) == [who]
-    (payment,) = d[f"months/{OPEN}/payment_file_{e}.csv"]["changed"].values()
+    ((payment_id, payment),) = d[f"months/{OPEN}/payment_file_{e}.csv"]["changed"].items()
     only_changed(payment, {"amount"})
     assert Decimal(payment["amount"][1]) > Decimal(payment["amount"][0])
+    # The bank stays consistent with the changed payment: the open month's batch is not released yet,
+    # so no bank line exists for it, at the old amount or the new one, and the statement is unchanged.
+    files = generate(plants=["MAIN-08"], noise=False).bundle.files
+    row = next(r for r in files[f"months/{OPEN}/payment_file_{e}.csv"] if r["payment_id"] == payment_id)
+    assert row["status"] == "pending_release" and row["amount"] == payment["amount"][1]
+    assert payment_id not in {b["reference"] for b in files[f"months/{OPEN}/bank_statement_{e}.csv"]}
+    assert f"months/{OPEN}/bank_statement_{e}.csv" not in d
 
 
 def test_half_cleared_batch():
@@ -135,7 +147,11 @@ def test_half_cleared_batch():
     e, run = key["subject"]["entity"], m(-1)
     assert set(d) == {f"months/{run}/bank_statement_{e}.csv", f"months/{run}/ledger_booked.csv"}
     bank = d[f"months/{run}/bank_statement_{e}.csv"]
-    assert sorted(r["reference"] for r in bank["removed"]) == sorted(key["subject"]["unpaid_payment_ids"])
+    payments = {p["payment_id"]: p for p in clean()[f"months/{run}/payment_file_{e}.csv"]}
+    removed = sorted((r["reference"], payments[r["reference"]]["employee_id"], f"{-Decimal(r['amount']):.2f}")
+                     for r in bank["removed"])
+    assert removed == sorted((u["payment_id"], u["employee_id"], u["amount"]) for u in key["subject"]["unpaid_lines"])
+    assert key["subject"]["lines_cleared"] > 0 and key["subject"]["unpaid_lines"]
     assert not bank["added"]
     for fields in bank["changed"].values():
         only_changed(fields, {"bank_line_id"})
@@ -212,3 +228,5 @@ def test_every_seed_has_a_subject_for_every_plant(seed):
     result = generate(seed=seed)
     assert [p.plant_id for p in result.plants] == [p for p, _ in MAIN_SET]
     assert all(p.key.get("subject") for p in result.plants)
+    batch = next(p.key for p in result.plants if p.plant_id == "MAIN-09")["subject"]
+    assert batch["lines_cleared"] > 0 and len(batch["unpaid_lines"]) > 0

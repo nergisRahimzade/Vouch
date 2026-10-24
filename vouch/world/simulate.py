@@ -101,13 +101,18 @@ class BoardMeeting:
 @dataclass(frozen=True)
 class Casting:
     """A person a planted case needs, hired on purpose so the case has a subject on every seed.
-    Everything not fixed here (name, department, level, salary, grant size) is drawn like any hire;
-    the person is never given a random exit or transfer, which would break the story they are cast for."""
+
+    Only what the case needs is fixed: the hire month, the exit month, the entity and whether a grant
+    is given. Everything else, including the hire and exit days, is drawn exactly as for any hire,
+    so a cast person cannot be told apart from anyone else. Cast people never get a random exit or
+    transfer, which would break the story they are cast for."""
+    plant_id: str                  # the case this person is cast for
     role: str
-    hire_date: date
-    exit_date: date | None = None
+    hire_month: str
+    exit_month: str | None = None
     entity: str | None = None      # None: drawn like any hire
     grant: bool = False            # True: always receives a stock grant at hire
+    hire_after: date | None = None # the hire day is drawn again until it falls after this date
 
 
 @dataclass
@@ -152,7 +157,7 @@ class _Simulator:
     def __init__(self, rng: random.Random, castings: list[Casting]):
         self.rng = rng
         self.castings = castings
-        self.cast: set[str] = set()
+        self.cast: dict[str, str] = {}          # employee_id -> plant_id; never leaves the generator
         self.people: list[Person] = []
         self.grants: list[Grant] = []
         self.meetings: list[BoardMeeting] = []
@@ -184,14 +189,22 @@ class _Simulator:
         return [p for p in self.people if p.employed_on(d)]
 
     # -- monthly events ------------------------------------------------------
+    def _hire_day(self, key: str) -> date:
+        return dates.month_start(key) if self.rng.random() < 0.5 else \
+            dates.month_start(key) + timedelta(days=self.rng.randint(1, dates.days_in_month(key) - 1))
+
+    def _exit_day(self, key: str) -> date:
+        return dates.month_start(key) + timedelta(days=self.rng.randint(0, dates.days_in_month(key) - 1))
+
     def hire(self, key: str, casting: Casting | None = None) -> None:
         entity = _weighted(self.rng, C.ENTITY_WEIGHTS)
         department = _weighted(self.rng, C.DEPARTMENT_WEIGHTS)
         level = _weighted(self.rng, C.LEVEL_WEIGHTS)
-        start = dates.month_start(key) if self.rng.random() < 0.5 else \
-            dates.month_start(key) + timedelta(days=self.rng.randint(1, dates.days_in_month(key) - 1))
+        start = self._hire_day(key)
         if casting:
-            entity, start = casting.entity or entity, casting.hire_date
+            entity = casting.entity or entity
+            while casting.hire_after and start <= casting.hire_after:
+                start = self._hire_day(key)
         first, last = self._unique_name(entity)
         person = Person(f"NL-{len(self.people) + 1:05d}", first, last, department, level, start)
         person.stints.append(Stint(entity, start, None, new_account(entity, self.rng, self.accounts)))
@@ -199,9 +212,10 @@ class _Simulator:
         self.people.append(person)
         self.by_id[person.employee_id] = person
         if casting:
-            self.cast.add(person.employee_id)
-            person.exit_date = casting.exit_date
-            person.stints[-1].end = casting.exit_date
+            self.cast[person.employee_id] = casting.plant_id
+            if casting.exit_month:
+                person.exit_date = self._exit_day(casting.exit_month)
+                person.stints[-1].end = person.exit_date
         if self.rng.random() < C.GRANT_SHARE_RATE or (casting and casting.grant):
             shares = int(C.GRANT_SHARES_BY_LEVEL[level] * self.rng.uniform(0.8, 1.2) / 100) * 100
             self.grants.append(Grant(f"G-{len(self.grants) + 1:05d}", person.employee_id, shares, None,
@@ -213,7 +227,7 @@ class _Simulator:
             if person.employee_id in self.cast:
                 continue
             if person.hire_date < first and self.rng.random() < C.MONTHLY_EXIT_RATE:
-                person.exit_date = first + timedelta(days=self.rng.randint(0, dates.days_in_month(key) - 1))
+                person.exit_date = self._exit_day(key)
                 person.stints[-1].end = person.exit_date
 
     def transfers(self, key: str) -> None:
@@ -236,7 +250,7 @@ class _Simulator:
         effective = dates.month_start(key)
         cutoff = date(effective.year - 1, 10, 1)
         for person in self._active(effective):
-            if person.hire_date >= cutoff or person.exit_date:
+            if person.hire_date >= cutoff or (person.exit_date and dates.month_of(person.exit_date) <= key):
                 continue
             current = person.salary_on(effective)
             raise_pct = Decimal(self.rng.randint(20, 60)) / 1000
@@ -267,10 +281,16 @@ class _Simulator:
             grant.signed_on = meeting + timedelta(days=self.rng.randint(3, 14))
         self.meetings.append(BoardMeeting(resolution, meeting, [g.grant_id for g in pending]))
 
+    def _hire_batch(self, key: str, count: int) -> None:
+        """This month's hires, with any cast people at random places in the order."""
+        slots: list[Casting | None] = [None] * count + [c for c in self.castings if c.hire_month == key]
+        self.rng.shuffle(slots)
+        for casting in slots:
+            self.hire(key, casting)
+
     def run(self) -> World:
         months = dates.month_range(C.FOUNDED, C.OPEN_MONTH)
-        for _ in range(C.START_HEADCOUNT):
-            self.hire(C.FOUNDED)
+        self._hire_batch(C.FOUNDED, C.START_HEADCOUNT)
         for index, key in enumerate(months):
             if index > 0:
                 self.exits(key)
@@ -279,15 +299,17 @@ class _Simulator:
                     self.annual_review(key)
                 target = C.START_HEADCOUNT + (C.TARGET_HEADCOUNT - C.START_HEADCOUNT) * index / (len(months) - 1)
                 active = len(self._active(dates.month_end(key)))
-                for _ in range(max(0, round(target - active + self.rng.uniform(-1.5, 1.5)))):
-                    self.hire(key)
-            for casting in self.castings:
-                if dates.month_of(casting.hire_date) == key:
-                    self.hire(key, casting)
+                self._hire_batch(key, max(0, round(target - active + self.rng.uniform(-1.5, 1.5))))
             if dates.parse_month(key)[1] in C.BOARD_MEETING_MONTHS:
                 self.board_meeting(key)
         return World(self.people, self.grants, self.meetings, self.changes, self.accounts)
 
 
 def simulate(seed: int = C.SEED, castings: list[Casting] | None = None) -> World:
-    return _Simulator(random.Random(seed), castings or []).run()
+    return simulate_with_cast(seed, castings)[0]
+
+
+def simulate_with_cast(seed: int = C.SEED, castings: list[Casting] | None = None) -> tuple[World, dict[str, str]]:
+    """The world, plus which plant each cast person was hired for (generator-internal)."""
+    simulator = _Simulator(random.Random(seed), castings or [])
+    return simulator.run(), dict(simulator.cast)

@@ -54,7 +54,7 @@ def duplicate_hr_row(noise_id: str, planter: Planter) -> Plant:
     def _(ctx: MonthContext) -> None:
         rng = planter.rng(noise_id)
         census = ctx.rows("hr_census.csv")
-        active = [r for r in census if r["status"] == "active" and r["employee_id"] not in planter.claimed]
+        active = [r for r in census if r["status"] == "active" and planter.free(r["employee_id"], noise_id)]
         row = rng.choice(active)
         planter.claim(row["employee_id"])
         census.insert(census.index(row) + 1, dict(row))
@@ -77,7 +77,7 @@ def bank_line_after_month_end(noise_id: str, planter: Planter) -> Plant:
         bank = ctx.rows(f"bank_statement_{entity}.csv")
         payees = {p["payment_id"]: p["employee_id"] for p in ctx.rows(f"payment_file_{entity}.csv")}
         line = rng.choice([b for b in bank if b["reference"].startswith("PAY-")
-                           and payees[b["reference"]] not in planter.claimed])
+                           and planter.free(payees[b["reference"]], noise_id)])
         planter.claim(payees[line["reference"]])
         bank.remove(line)
         renumber_bank(bank, entity, run_month)
