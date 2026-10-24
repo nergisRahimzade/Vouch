@@ -57,10 +57,9 @@ def load_world(conn: sqlite3.Connection, root: Path) -> dict:
             (path, kind, month, entity, digest, manifest.get(path), len(content), len(rows), content, loaded_at))
         conn.executemany("INSERT INTO source_rows (doc_id, row_no, data) VALUES (?, ?, ?)",
                          [(cursor.lastrowid, n, json.dumps(row, ensure_ascii=False)) for n, row in enumerate(rows, 1)])
-    company = json.loads(conn.execute("SELECT content FROM documents WHERE kind = 'company'").fetchone()[0])
     months = [r[0] for r in conn.execute("SELECT DISTINCT month FROM documents WHERE month IS NOT NULL ORDER BY month")]
-    conn.executemany("INSERT INTO periods (period, status) VALUES (?, ?)",
-                     [(m, "open" if m == company["open_month"] else "locked") for m in months])
+    # Every period starts open so history can be loaded; the rebuild then locks the closed ones.
+    conn.executemany("INSERT INTO periods (period, status) VALUES (?, 'open')", [(m,) for m in months])
     return {"documents": len(files), "manifest_mismatches": mismatches}
 
 
