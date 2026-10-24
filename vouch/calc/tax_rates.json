@@ -180,15 +180,15 @@
       },
       "futa_rate": {
         "value": "0.006",
-        "source": "https://www.irs.gov/individuals/international-taxpayers/federal-unemployment-tax",
-        "checked": "recalled",
-        "note": "statutory rate and base unchanged since 2011; 2026 Form 940 instructions not yet read"
+        "source": "https://www.irs.gov/taxtopics/tc759 (IRS Tax Topic 759: 'The FUTA tax rate is 6.0%' ... 'If you're entitled to the maximum 5.4% credit, the FUTA tax rate after credit is 0.6%')",
+        "checked": "official-document",
+        "note": "6.0% less the maximum 5.4% state credit, read 2026-10-24; confirmed by the human (6.0% on the first $7,000). Rate and base are set by statute and unchanged for 2026. No credit reduction is modelled: the 2026 credit-reduction states are announced in November 2026, and Vouch models no particular state"
       },
       "futa_wage_base": {
         "value": "7000",
-        "source": "https://www.irs.gov/individuals/international-taxpayers/federal-unemployment-tax",
-        "checked": "recalled",
-        "note": "statutory rate and base unchanged since 2011; 2026 Form 940 instructions not yet read"
+        "source": "https://www.irs.gov/taxtopics/tc759 (IRS Tax Topic 759: 'The tax applies to the first $7,000 you paid to each employee as wages during the year')",
+        "checked": "official-document",
+        "note": "read 2026-10-24; confirmed by the human"
       }
     }
   },
