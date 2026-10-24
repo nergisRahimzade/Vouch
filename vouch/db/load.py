@@ -19,7 +19,7 @@ JSON_ROWS = {"inbox": "emails", "rulings": "rulings", "pay_policy": "rules", "fi
 
 
 def describe(path: str) -> tuple[str, str | None, str | None]:
-    """(kind, month, entity) from a path such as months/2026-03/payroll_register_US.csv."""
+    """(kind, month, entity) from a path such as months/YYYY-MM/payroll_register_US.csv."""
     stem = Path(path).stem
     month = MONTH_DIR.match(path)
     entity = ENTITY_SUFFIX.search(stem)
