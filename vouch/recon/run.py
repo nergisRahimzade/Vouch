@@ -5,6 +5,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 
+from vouch.recon import rulings
 from vouch.recon.checks import run_checks
 from vouch.recon.findings import Findings
 from vouch.recon.sources import Sources
@@ -28,7 +29,9 @@ CREATE TABLE IF NOT EXISTS findings (
 def reconcile(conn: sqlite3.Connection) -> Findings:
     """Run the checks and store the result for the open month. Running twice replaces, never duplicates."""
     src = Sources(conn)
+    rulings.store_from_documents(conn)
     findings = run_checks(src)
+    rulings.attach(findings, rulings.past(conn, src.open_month))
     conn.executescript(SCHEMA)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with conn:
