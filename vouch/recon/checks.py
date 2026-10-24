@@ -276,7 +276,8 @@ def register_vs_engine(src: Sources, out: Findings) -> None:
                         {"employee_id": row["employee_id"], "entity": entity, "component": component},
                         f"{component} on the register is {fmt(paid)}; the statutory calculation gives {fmt(value)}",
                         [Evidence.of(row, f"{component} {fmt(paid)}"),
-                         Evidence("tax_rates", "vouch/calc/tax_rates.json", (), f"{component} {fmt(value)}")],
+                         Evidence("pay_function", "vouch.calc.pay.calculate_pay", (),
+                                  f"{component} {fmt(value)} ({'; '.join(result.citations[:3])}...)")],
                         ["FIN-09"], value - paid, row["currency"], "statutory amount minus register amount",
                         "recompute_and_draft_correction", "finance_manager", src.person_with_role("finance_manager"),
                         merge_key=f"{row['employee_id']}:{component}"))

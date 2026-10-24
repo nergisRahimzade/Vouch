@@ -19,7 +19,7 @@ TRUST = {
                                                    "grant terms and approval"),
     "cash": ("bank_statement", "the bank is the record of cash actually moved"),
     "rates": ("pay_policy", "the company pay policy is the record for contribution rates"),
-    "statutory": ("tax_rates", "statutory rates from the official sources, computed by the one pay function"),
+    "statutory": ("pay_function", "statutory rates from the official sources, computed by the one pay function"),
     "one_payment": ("payroll_register", "the register sets one net payment per person, entity and month"),
     "approval": ("finance_policy", "the finance and controls policy decides who may approve what"),
     "fx": ("exchange_rate_policy", "each month is translated at its recorded monthly average rate"),
