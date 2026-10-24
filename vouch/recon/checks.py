@@ -593,7 +593,19 @@ def equity_vs_grants(src: Sources, hr: dict[str, dict[str, Row]], out: Findings)
                         "correct_stock_expense", "stock_admin", src.person_with_role("stock_admin"),
                         merge_key=grant))
             if row["local_currency"] != "USD":
-                policy = fx.month_average(row["local_currency"], month)
+                try:
+                    policy = fx.month_average(row["local_currency"], month)
+                except fx.MissingFxRate as missing:
+                    out.add(Finding(
+                        "equity_vs_grants", "fx_rate_missing", month, row["entity"], "fx",
+                        {"entity": row["entity"], "period": month, "currency": row["local_currency"]},
+                        f"No complete recorded rate for {row['local_currency']} in {month}: the translation is held",
+                        [Evidence.of(row, f"platform translated at {row['fx_rate']}"),
+                         Evidence("exchange_rates", "vouch/reference/fx_oxr_usd.csv", (), str(missing))],
+                        ["FIN-02"], ZERO, row["local_currency"], "translation held; no amount converted",
+                        "hold_conversion_until_the_rate_is_recorded", "controller",
+                        src.person_with_role("controller"), merge_key=f"{row['entity']}:{month}"))
+                    continue
                 gap = row.amount("expense_month_local") - fx.to_local(expense, policy)
                 if gap or row["fx_rate"] != str(policy.rate):
                     item = fx_gap[(row["entity"], row["local_currency"], str(policy.rate), policy.citation)]

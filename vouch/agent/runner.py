@@ -93,17 +93,27 @@ def run_close(conn: sqlite3.Connection, policy) -> dict:
     toolbox.call("list_cases", {})
     failures = {}
     for case in cases:
-        status = conn.execute("SELECT status FROM cases WHERE case_id = ?", (case["finding_id"],)).fetchone()[0]
-        started = _work_started(conn, case["finding_id"])
-        if status != "open" and started:
-            audit.log(conn, VOUCH, "case_skipped", case["finding_id"], "done",
-                      f"already {status}; earlier work found and kept", {"work": started})
+        cid = case["finding_id"]
+        status = conn.execute("SELECT status FROM cases WHERE case_id = ?", (cid,)).fetchone()[0]
+        if status == "resolved":
+            audit.log(conn, VOUCH, "case_skipped", cid, "done", "already resolved; nothing left to do")
             continue
+        started = _work_started(conn, cid)
+        if started:
+            # Someone (an earlier run, or a colleague) started this case: keep what is done, finish the rest.
+            audit.log(conn, VOUCH, "earlier_work_found", cid, "done",
+                      f"found earlier work ({', '.join(started)}); finishing only what is missing", {"work": started})
+        tool_calls = len(toolbox.corpus)
         try:
-            policy.work(toolbox.cases[case["finding_id"]], toolbox)
+            policy.work(toolbox.cases[cid], toolbox)
         except PolicyFailed as failure:
-            failures[case["finding_id"]] = str(failure)
-            gates.set_case(conn, VOUCH, case["finding_id"], "held", f"held: {failure}", {"failure": str(failure)})
+            failures[cid] = str(failure)
+            gates.set_case(conn, VOUCH, cid, "held", f"held: {failure}", {"failure": str(failure)})
+            continue
+        broken = [json.loads(r)["error"] for r in toolbox.corpus[tool_calls:] if json.loads(r).get("tool_error")]
+        if broken:
+            failures[cid] = broken[0]
+            gates.set_case(conn, VOUCH, cid, "held", f"held: {broken[0]}", {"tool_errors": broken})
     conn.commit()
     _step(conn, 5, "work_cases", f"{len(cases) - len(failures)} cases worked, {len(failures)} held after a failure",
           {"failures": failures})

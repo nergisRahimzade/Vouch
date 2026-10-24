@@ -65,3 +65,10 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause (generator):** a person had an annual review effective 1 April and an entity transfer effective 14 April. The simulation records transfers before reviews, so the salary list was out of date order. `Person.salary_on()` took the last change in list order, not the latest by effective date, so the new entity paid the old entity's raised salary. The review also recorded the transfer salary as its "previous salary". The reconciliation was right to flag it.
 - **What changed:** `salary_on()` picks the latest change by effective date, and a change's previous salary is the one in effect the day before. No check, test or threshold changed.
 - **Kind of problem handled:** any two salary events in one month recorded out of date order. Clean worlds on 12 seeds now give 0 cases; with plants, exactly the 14 planted cases.
+
+## 2026-10-24 — a missing exchange rate crashed the reconciliation
+
+- **Failing test:** `tests/test_g6_recover.py::test_a_missing_exchange_rate_holds_the_conversion` (`MissingFxRate` raised out of `run_close`).
+- **Root cause:** the equity FX comparison in `vouch/recon/checks.py` asked for the month's average rate without allowing for it to be missing. One missing month stopped the whole close.
+- **What changed:** a missing rate is now a case of its own (`fx_rate_missing`, FIN-02), and the comparison for that entity and month is skipped. Nothing is translated with a guessed or older rate. Drafting already held the conversion the same way.
+- **Kind of problem handled:** any month or currency without a complete set of recorded rates, in reconciliation as well as in drafting.

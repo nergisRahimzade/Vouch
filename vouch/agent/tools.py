@@ -128,6 +128,10 @@ class Toolbox:
                 result = {"ok": False, "refused": True, "rule": refusal.rule, "error": refusal.reason}
             except (KeyError, ValueError, templates.CannotDraft, questions.BadQuestion, fx.MissingFxRate) as error:
                 result = {"ok": False, "error": f"{type(error).__name__}: {error}"}
+            except Exception as error:      # a broken tool is reported and logged, never guessed around
+                self.conn.rollback()
+                result = {"ok": False, "tool_error": True,
+                          "error": f"the {name} tool failed ({type(error).__name__}: {error}); hold the case"}
         result.setdefault("warnings", [])
         text = json.dumps(result, default=str, ensure_ascii=False)
         self.corpus.append(text)
