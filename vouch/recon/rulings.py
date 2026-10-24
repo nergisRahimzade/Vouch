@@ -49,8 +49,10 @@ def store_from_documents(conn: sqlite3.Connection) -> int:
     return added
 
 
-def past(conn: sqlite3.Connection, before: str) -> list[dict]:
-    rows = conn.execute("SELECT * FROM rulings WHERE period < ? ORDER BY decided_on, ruling_id", (before,))
+def past(conn: sqlite3.Connection, before: str | None = None) -> list[dict]:
+    """Every stored ruling. A ruling is stored when it is decided, so all of them are in the past,
+    including rejections recorded during the current close."""
+    rows = conn.execute("SELECT * FROM rulings ORDER BY decided_on, ruling_id")
     return [dict(r) for r in rows]
 
 

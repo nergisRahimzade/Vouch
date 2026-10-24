@@ -71,3 +71,12 @@ def recon(world, db_path, tmp_path_factory):
     records = stored(conn)
     conn.close()
     return records, answer_key.load(world.root.parent / "sealed")
+
+
+@pytest.fixture
+def controls_db(scratch_db):
+    """A private database copy with the controls tables in place."""
+    from vouch.controls import gates
+    gates.ensure(scratch_db)
+    scratch_db.commit()
+    return scratch_db

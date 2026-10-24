@@ -23,6 +23,21 @@ The generator plants 14 mistakes (some in the open month, some in earlier closed
 
 **Materiality (FIN-01):** a measurement difference strictly below the threshold for its currency (USD 50, GBP 40, EUR 45) is explained and logged; at or above it, it is a case. This applies only where two sources measure the same amount differently (rates, rounding, a payment against its net pay). Control exceptions, such as an unknown person, a duplicate, changed bank details, a missing approval or a self-approval, are always cases, whatever the amount.
 
+## Controls
+
+Limits live in code (`vouch/controls`), not in a prompt. Every write checks the actor's role, and a refusal is logged before it is raised.
+
+| Role | Can do |
+| --- | --- |
+| Vouch (agent) | Read everything, draft entries, open cases, place holds, ask questions, request approval or funding |
+| Controller | Approve and post entries, reopen a closed month, final sign-off |
+| Finance manager | First approval on entries |
+| HR | Confirm employment and bank details (with a call-back) |
+| Treasury | Release payments |
+| Stock admin | Confirm grants and board approvals |
+
+Rules enforced: the requester can't approve; whoever keyed a change can't approve it; an entry at or above the large-entry limit needs two different approvers, one of them the controller; closed months are locked; a bank change needs HR plus a call-back; there is no expense for a grant without board approval; duplicates are refused; and a held payment can't be released. A draft becomes posted only through an approved request, and the database itself refuses any other path.
+
 ## Exchange rates
 
 Rates are recorded daily USD rates from [Open Exchange Rates](https://openexchangerates.org), one per business day, snapshotted in `vouch/reference/fx_oxr_usd.csv`. Builds read only the snapshot, so they work offline and come out the same every time. **Policy (FIN-02, chosen by the human for simplicity):** each month is closed at that month's average rate, the mean of its business-day rates, for expenses and balances alike, so no separate month-end rate is used. A month can't close until every business day in it has a recorded rate, and an older rate is never reused. Every converted amount names its rate, the month and the business days it came from (`fx_rate_basis` in the files, `fx_basis` in the ledger). The ledger refuses a converted line that doesn't.
