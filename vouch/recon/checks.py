@@ -332,7 +332,7 @@ def register_vs_payments(src: Sources, hr: dict[str, dict[str, Row]], out: Findi
                 for extra in ordered[len(owed):] if owed else []:
                     original = ordered[0]
                     out.add(Finding(
-                        "register_vs_payments", "duplicate_payment", month, entity, "one_payment",
+                        "register_vs_payments", "duplicate_payment", month, entity, "duplicate_payment",
                         {"employee_id": emp, "payment_id": extra["payment_id"],
                          "original_payment_id": original["payment_id"]},
                         "The payment file pays the same register row twice",
@@ -429,6 +429,13 @@ def _ledger_cash_lines(src: Sources):
     return [(r, sources[(r["entry_id"], r["line_no"])]) for r in rows]
 
 
+def _booked_as(src: Sources) -> dict[tuple[str, int], tuple[str, int]]:
+    """(entry, line) -> (path, row) of the booked-ledger row a history line was loaded from."""
+    return {(s["entry_id"], s["line_no"]): (s["path"], s["row_no"]) for s in src.conn.execute(
+        """SELECT s.entry_id, s.line_no, d.path, s.row_no FROM line_sources s JOIN documents d USING (doc_id)
+           WHERE s.role = 'booked_as'""")}
+
+
 def payments_vs_bank(src: Sources, out: Findings) -> None:
     bank = defaultdict(list)
     for row in src.rows("bank_statement"):
@@ -506,7 +513,7 @@ def payments_vs_bank(src: Sources, out: Findings) -> None:
 
 
 def bank_vs_ledger(src: Sources, out: Findings) -> None:
-    booked_bank_rows = set()
+    booked_bank_rows, booked_as = set(), _booked_as(src)
     for line, evidence in _ledger_cash_lines(src):
         kinds = {e["kind"] for e in evidence}
         amount = Decimal(line["debit"]) - Decimal(line["credit"])
@@ -518,6 +525,7 @@ def bank_vs_ledger(src: Sources, out: Findings) -> None:
         payment = next((e for e in evidence if e["kind"] == "payment_file"), None)
         row = next((r for r in src.rows("payment_file") if payment and (r.doc_id, r.row_no) ==
                     (payment["doc_id"], payment["row_no"])), None)
+        booked = booked_as.get((line["entry_id"], line["line_no"]))
         out.add(Finding(
             "bank_vs_ledger", "cash_booked_but_not_in_bank", line["period"], line["entity"], "cash",
             {"entry_id": line["entry_id"], **({"payment_id": row["payment_id"], "employee_id": row["employee_id"]}
@@ -525,7 +533,9 @@ def bank_vs_ledger(src: Sources, out: Findings) -> None:
             "The ledger books cash leaving that the bank never shows",
             [Evidence("journal", f"journal:{line['entry_id']}", (line["line_no"],), f"cash {fmt(amount)}"),
              Evidence("bank_statement", f"months/{line['period']}/bank_statement_{line['entity']}.csv", (),
-                      "no matching line")] + ([Evidence.of(row, f"payment {row['payment_id']} released")] if row else []),
+                      "no matching line")]
+            + ([Evidence("ledger_booked", booked[0], (booked[1],), f"booked as cash {fmt(amount)}")] if booked else [])
+            + ([Evidence.of(row, f"payment {row['payment_id']} released")] if row else []),
             ["FIN-06"], -amount, src.currency(line["entity"]), "cash booked without a bank line",
             "trust_bank_keep_reconciling_item_open", "treasury", src.person_with_role("treasury"),
             merge_key=line["entry_id"]))
@@ -643,10 +653,10 @@ def equity_vs_grants(src: Sources, hr: dict[str, dict[str, Row]], out: Findings)
             if grant in signed else ZERO
         reverse = reference.amount("cumulative_expense_usd") - correct
         out.add(Finding(
-            "equity_vs_grants", "forfeiture_not_recorded", rows[0].month, rows[0]["entity"], "grant",
+            "equity_vs_grants", "forfeiture_not_recorded", rows[0].month, rows[0]["entity"], "employment",
             {"grant_id": grant, "employee_id": rows[0]["employee_id"], "exit_date": h["exit_date"]},
             f"HR shows the holder left on {h['exit_date']}; the platform still treats the grant as live",
-            [Evidence.of(r, f"{r.month}: status {r['status']}, expense {r['expense_month_usd']}") for r in rows[:3]]
+            [Evidence.of(r, f"{r.month}: status {r['status']}, expense {r['expense_month_usd']}") for r in rows]
             + [Evidence.of(h, f"left on {h['exit_date']}")],
             ["FIN-07", "FIN-05", "FIN-09"], reverse, "USD",
             f"cumulative expense to {reference.month} minus the vested value at exit",

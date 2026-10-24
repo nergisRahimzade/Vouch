@@ -21,6 +21,8 @@ TRUST = {
     "rates": ("pay_policy", "the company pay policy is the record for contribution rates"),
     "statutory": ("pay_function", "statutory rates from the official sources, computed by the one pay function"),
     "one_payment": ("payroll_register", "the register sets one net payment per person, entity and month"),
+    "duplicate_payment": ("payment_file", "the first line for a payment in the payment file is the payment; a later "
+                                          "line repeating it is rejected (FIN-08)"),
     "approval": ("finance_policy", "the finance and controls policy decides who may approve what"),
     "fx": ("exchange_rate_policy", "each month is translated at its recorded monthly average rate"),
     "ledger": ("journal", "every booked line must rest on evidence that agrees with it"),

@@ -90,6 +90,12 @@ def _load_dotenv() -> None:
                 os.environ["ANTHROPIC_API_KEY"] = line.split("=", 1)[1].strip().strip('"')
 
 
+def api_key_available() -> bool:
+    """Whether the real model can be called (key in the environment or in .env)."""
+    _load_dotenv()
+    return bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+
 class ModelPolicy:
     mode = "model"
 

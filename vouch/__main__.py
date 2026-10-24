@@ -1,9 +1,11 @@
 """python -m vouch rebuild              build the world from the seed and load it
-   python -m vouch close [--scripted]   run the open month's close (the real model by default)"""
+   python -m vouch close [--scripted]   run the open month's close (the real model by default)
+   python -m vouch score [...]          score the agent on a fresh copy of the company (see vouch.evaluator)"""
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from vouch.db import DEFAULT_DB, connect
@@ -28,6 +30,11 @@ def main() -> None:
     w.add_argument("case_id")
     w.add_argument("--question", default="Why did you do this?")
     w.add_argument("--scripted", action="store_true")
+    sub.add_parser("score", help="score the agent against the hidden key (python -m vouch score --help)")
+    if sys.argv[1:2] == ["score"]:                       # everything after 'score' belongs to the evaluator
+        from vouch.evaluator.__main__ import main as evaluate
+        evaluate(sys.argv[1:])
+        return
     args = parser.parse_args()
     if args.command in ("colleagues", "audit"):
         from vouch.agent.colleagues import ModelColleagues, ScriptedColleagues, auditor_review, respond

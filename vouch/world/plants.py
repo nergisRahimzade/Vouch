@@ -547,10 +547,11 @@ def transfer_not_reflected(plant_id: str, planter: Planter) -> Plant:
         census.update({"entity": new_entity, "entity_since": dates.month_start(OPEN).isoformat(),
                        "bank_account": new_account(new_entity, rng, ctx.world.bank_accounts_taken)})
         head = next(d["name"] for d in C.DIRECTORY if d.get("department") == person.department)
+        has_grant = any(g.employee_id == person.employee_id for g in ctx.world.grants)   # else the platform has no row
         key(plant, subject={"employee_id": person.employee_id, "hr_entity": new_entity, "payroll_entity": entity,
                             "department": person.department},
-            sources_disagree=[ctx.path("hr_census.csv"), ctx.path(f"payroll_register_{entity}.csv"),
-                              ctx.path("equity_report.csv")],
+            sources_disagree=[ctx.path("hr_census.csv"), ctx.path(f"payroll_register_{entity}.csv")]
+            + ([ctx.path("equity_report.csv")] if has_grant else []),
             trusted_source="hr_census", expected_outcome="hold_and_ask_department_head",
             expected_behaviour="Hold the pay and stock expense for this person and ask the department head to confirm the transfer.",
             ask={"role": "department_head", "person": head}, rules=["PAY-07", "FIN-09"], precedents=[],

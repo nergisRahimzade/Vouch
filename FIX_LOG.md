@@ -79,3 +79,24 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause:** the transfer question to a department head promised "release the hold" on a "no". Department heads cannot release holds, so the answer could not be carried out.
 - **What changed:** `questions.ask` refuses a question whose promised step the answering role cannot take (checked against the role permissions). The scripted playbook's transfer question now sends a "no" to the controller.
 - **Kind of problem handled:** any question to any role now promises only what that role is allowed to do.
+
+## 2026-10-24 — findings cited less evidence than they rested on
+
+- **Failing test:** the Layer 7 evidence measure (`python -m vouch.evaluator score --scripted`): MAIN-04 did not cite the open month's equity report, MAIN-10 did not cite the booked-ledger file.
+- **Root cause:** the forfeiture finding in `vouch/recon/checks.py` cited only the first three platform rows, so a forfeiture left unrecorded for longer lost its later months. The cash-booked-but-not-in-bank finding cited the journal line but not the booked-ledger row that line was loaded from.
+- **What changed:** the forfeiture finding cites every platform row that still treats the grant as live. A finding about a booked history line also cites the booked-ledger row behind it (`booked_as`).
+- **Kind of problem handled:** any finding whose evidence spans more than three months, and any finding about a line of the ledger as booked.
+
+## 2026-10-24 — two kinds of finding trusted a different source than the key (approved by the human)
+
+- **Failing test:** the Layer 7 evidence measure: MAIN-04 trusted the signed grant documents instead of HR; MAIN-11 trusted the payroll register instead of the payment file.
+- **Root cause:** a forfeiture is decided by the holder's exit date, which HR owns, but the finding was filed under the grant fact. A duplicate payment is the payment file against itself, but it was filed under the register's one-payment fact.
+- **What changed (approved by the human):** forfeiture findings use the employment fact (HR). A new trust entry, `duplicate_payment`, trusts the payment file's first line for a payment and rejects the repeat (FIN-08). The register stays trusted for net-pay amounts.
+- **Kind of problem handled:** every forfeiture and every duplicate payment now names the system of record from the spec's trust table.
+
+## 2026-10-24 — MAIN-12's key listed a source that had nothing on the person (approved by the human)
+
+- **Failing test:** the Layer 7 evidence measure: MAIN-12 did not cite the open month's equity report.
+- **Root cause:** the plant always listed the equity report as a source that disagrees, but on this seed the person it chose has no stock grant, so the report has no row for them. Vouch could not cite it.
+- **What changed (answer key, with the human's approval):** the plant lists the equity report only when the person holds a grant. The planted mistake itself is unchanged.
+- **Kind of problem handled:** any planted transfer, whether or not the person holds a grant.
