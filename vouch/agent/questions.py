@@ -35,6 +35,9 @@ def ask(conn: sqlite3.Connection, case_id: str, to_role: str, to_person: str, fa
     for label, step in (("yes", if_yes), ("no", if_no), ("partial", if_partial)):
         if step not in NEXT_STEPS:
             missing.append(f"a known next step for {label} (got {step!r})")
+        elif step == "release_hold" and "release_hold" not in gates.PERMISSIONS.get(to_role, set()):
+            missing.append(f"a next step the {to_role} can take for {label} (the {to_role} cannot release holds; "
+                           "use escalate_to_controller)")
     if missing:
         raise BadQuestion("a question must name " + ", ".join(missing))
     duplicate = conn.execute("SELECT question_id FROM questions WHERE case_id = ? AND to_role = ? AND fact_needed = ? "

@@ -23,6 +23,19 @@ The generator plants 14 mistakes (some in the open month, some in earlier closed
 
 **Materiality (FIN-01):** a measurement difference strictly below the threshold for its currency (USD 50, GBP 40, EUR 45) is explained and logged; at or above it, it is a case. This applies only where two sources measure the same amount differently (rates, rounding, a payment against its net pay). Control exceptions, such as an unknown person, a duplicate, changed bank details, a missing approval or a self-approval, are always cases, whatever the amount.
 
+## The agent
+
+```bash
+python -m vouch close                 # the close, run by Claude (claude-opus-5-5) through typed tools
+python -m vouch close --scripted      # a fixed playbook for fast tests only; every run is labelled "scripted"
+python -m vouch colleagues            # demo: Claude plays the approvers (scripted fallback: --scripted)
+python -m vouch audit                 # demo: an auditor asks Vouch to defend cases
+python -m vouch why <case-id>         # Vouch defends a decision from the audit trail only
+python -m vouch.controls verify       # check the audit trail's hash chain
+```
+
+Code runs a fixed checklist: load, run payroll per entity, run stock expense, reconcile, work each case, draft entries, request approvals, report. The model decides what to do with each case (hold, ask whom, draft, request) and explains it. Code does all the math: the model never types an amount or a name. Every tool call goes to the audit trail. Every number, date, rule and name in a report, a case decision or a defence must match a tool result; otherwise it is rejected. A tool error, a missing rate, a model timeout or refusal, or a colleague's half-finished work ends in a held case with a plain reason. Instructions found in emails are treated as data and reported as suspicious. Each run records the model, the date, its token use and its cost.
+
 ## Controls
 
 Limits live in code (`vouch/controls`), not in a prompt. Every write checks the actor's role, and a refusal is logged before it is raised.

@@ -72,3 +72,10 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause:** the equity FX comparison in `vouch/recon/checks.py` asked for the month's average rate without allowing for it to be missing. One missing month stopped the whole close.
 - **What changed:** a missing rate is now a case of its own (`fx_rate_missing`, FIN-02), and the comparison for that entity and month is skipped. Nothing is translated with a guessed or older rate. Drafting already held the conversion the same way.
 - **Kind of problem handled:** any month or currency without a complete set of recorded rates, in reconciliation as well as in drafting.
+
+## 2026-10-24 — a question promised a step its answerer may not take
+
+- **Failing test:** `tests/test_g8_colleagues.py::test_the_demo_runs_with_model_colleagues` (`Refused (ROLE): department_head is not allowed to release_hold`).
+- **Root cause:** the transfer question to a department head promised "release the hold" on a "no". Department heads cannot release holds, so the answer could not be carried out.
+- **What changed:** `questions.ask` refuses a question whose promised step the answering role cannot take (checked against the role permissions). The scripted playbook's transfer question now sends a "no" to the controller.
+- **Kind of problem handled:** any question to any role now promises only what that role is allowed to do.

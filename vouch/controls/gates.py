@@ -202,6 +202,9 @@ def reopen_period(conn, actor: Actor, period: str, reason: str) -> None:
 def release_payment(conn, actor: Actor, payment_id: str, note: str = "") -> None:
     require(conn, actor, "release_payment", payment_id)
     holds = active_holds(conn, "payment", payment_id)
+    payee = conn.execute("SELECT employee_id FROM v_payment_file WHERE payment_id = ?", (payment_id,)).fetchone()
+    if payee:                                          # a hold on the person stops all of their payments
+        holds += active_holds(conn, "person", payee[0])
     if holds:
         refuse(conn, actor, "release_payment", payment_id, "PAY-06" if "bank" in holds[0]["reason"].lower() else "FIN-06",
                f"payment is held: {holds[0]['reason']}", {"hold": holds[0]["hold_id"]})

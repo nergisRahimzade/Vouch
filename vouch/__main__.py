@@ -19,11 +19,33 @@ def main() -> None:
     c = sub.add_parser("close", help="run the open month's close")
     c.add_argument("--scripted", action="store_true", help="fixed playbook instead of the model (fast tests only)")
     c.add_argument("--effort", default="medium", choices=["low", "medium", "high", "xhigh", "max"])
+    g = sub.add_parser("colleagues", help="demo: simulated approvers answer questions and decide requests")
+    g.add_argument("--scripted", action="store_true", help="scripted colleagues instead of the model")
+    a = sub.add_parser("audit", help="demo: the auditor asks Vouch to defend a few cases")
+    a.add_argument("--scripted", action="store_true")
+    a.add_argument("--cases", type=int, default=3)
     w = sub.add_parser("why", help="ask Vouch to defend how it handled a case, from the audit trail")
     w.add_argument("case_id")
     w.add_argument("--question", default="Why did you do this?")
     w.add_argument("--scripted", action="store_true")
     args = parser.parse_args()
+    if args.command in ("colleagues", "audit"):
+        from vouch.agent.colleagues import ModelColleagues, ScriptedColleagues, auditor_review, respond
+        from vouch.agent.policy import ModelPolicy, ScriptedPolicy
+        conn = connect(args.db)
+        policy = ScriptedPolicy() if args.scripted else ModelPolicy()
+        colleagues = ScriptedColleagues() if args.scripted else ModelColleagues(policy, conn)
+        if args.command == "colleagues":
+            result = respond(conn, colleagues)
+            print(f"{result['mode']} colleagues: {len(result['answered'])} questions answered, "
+                  f"{len(result['decided'])} decisions, {len(result['posted'])} entries posted by the controller, "
+                  f"{result['released']} payments released, {len(result['refused'])} refused by the controls")
+            for item in result["answered"]:
+                print(f"  {item['question']}: {item['answer']} -> {item['next_step']}")
+        else:
+            for item in auditor_review(conn, colleagues, policy, args.cases):
+                print(f"Q ({item['case_id']}): {item['question']}\nA: {item['answer'] or item['problems']}\n")
+        return
     if args.command == "why":
         from vouch.agent.defend import why
         from vouch.agent.policy import ModelPolicy, ScriptedPolicy

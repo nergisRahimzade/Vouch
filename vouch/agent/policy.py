@@ -101,10 +101,11 @@ class ModelPolicy:
         self.model, self.effort, self.usage = model, effort, Usage()
         self.tools = [{**spec, "strict": True} for spec in SPECS]
 
-    def _create(self, **kwargs):
+    def _create(self, output_format: dict | None = None, **kwargs):
+        output_config = {"effort": self.effort, **({"format": output_format} if output_format else {})}
         try:
             response = self.client.beta.messages.create(
-                model=self.model, max_tokens=16000, output_config={"effort": self.effort},
+                model=self.model, max_tokens=16000, output_config=output_config,
                 betas=["server-side-fallback-2026-07-01"], fallbacks="default", **kwargs)
         except self.anthropic.APITimeoutError as error:
             raise PolicyFailed(f"the model did not answer in time ({error})") from error
@@ -181,7 +182,7 @@ PLAYBOOK = {
                         _ask("hr", "Is the HR exit date correct?", "keep_hold", "release_hold")],
     "entity_differs_from_hr": [Step("hold", {"target_kind": "person", "ref": "employee_id"}),
                                _ask("department_head", "Has this person moved entity, and from which date?",
-                                    "keep_hold", "release_hold")],
+                                    "keep_hold", "escalate_to_controller")],
     "grant_without_board_approval": [Step("hold", {"target_kind": "grant", "ref": "grant_id"}),
                                      _ask("stock_admin", "Did the board approve this grant, and in which resolution?",
                                           "release_hold", "keep_hold")],
