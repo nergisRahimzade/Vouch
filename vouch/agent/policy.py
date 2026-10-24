@@ -118,6 +118,22 @@ def model_tools() -> list[dict]:
     return tools
 
 
+def _cache_conversation(messages: list[dict]) -> None:
+    """Mark the end of the conversation so far as cacheable, and clear the marker from earlier turns.
+
+    Every turn re-sends the whole conversation (the case, each tool result, each reply). Without a marker it
+    is billed at the full input rate each time; with one, everything the API has already seen is read from its
+    cache at a tenth of the rate and only the new turn is billed in full. The words sent are identical, so the
+    model sees exactly what it saw before. Only the newest user message is marked (the API allows four markers;
+    the instructions and tools use one)."""
+    for message in messages:
+        if message["role"] == "user" and isinstance(message["content"], list):
+            for block in message["content"]:
+                block.pop("cache_control", None)
+    last = next(m for m in reversed(messages) if m["role"] == "user")
+    last["content"][-1]["cache_control"] = {"type": "ephemeral"}
+
+
 class ModelPolicy:
     mode = "model"
 
@@ -159,9 +175,11 @@ class ModelPolicy:
         return response
 
     def work(self, case: dict, toolbox: Toolbox) -> str:
-        messages = [{"role": "user", "content": CASE_PROMPT.format(case=json.dumps(case, indent=1, default=str))}]
+        messages = [{"role": "user", "content": [
+            {"type": "text", "text": CASE_PROMPT.format(case=json.dumps(case, indent=1, default=str))}]}]
         system = [{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}]
         for _ in range(MAX_TURNS):
+            _cache_conversation(messages)
             response = self._create(system=system, tools=self.tools, messages=messages)
             messages.append({"role": "assistant", "content": response.content})
             calls = [b for b in response.content if b.type == "tool_use"]
