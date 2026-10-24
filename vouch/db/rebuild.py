@@ -53,6 +53,9 @@ def report(result: dict) -> str:
         f"subledgers: {result['payroll_rows']} payroll rows, {result['equity_rows']} equity rows; "
         f"roll-up to the ledger: {result['rollup_differences']} differences over {result['periods_booked']} booked periods",
     ]
+    if result.get("rows_set_aside"):
+        lines.append(f"WARNING: {result['rows_set_aside']} source rows have blank or non-numeric fields; they are left "
+                     "out of the subledgers and reconciliation holds each one as a case")
     if result["manifest_mismatches"]:
         lines.append(f"WARNING: {len(result['manifest_mismatches'])} files differ from the manifest")
     return "\n".join(lines)

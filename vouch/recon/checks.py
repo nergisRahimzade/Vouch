@@ -12,7 +12,7 @@ from vouch.calc import fx, stock
 from vouch.calc.pay import EMPLOYEE_COMPONENTS, EMPLOYER_COMPONENTS, YTD_KEYS, calculate_pay
 from vouch.money import ZERO, cents, fmt
 from vouch.recon.findings import Evidence, Finding, Findings
-from vouch.recon.sources import Row, Sources
+from vouch.recon.sources import Row, Sources, row_problems
 
 LIVE_GRANT = {"active", "fully_vested"}
 ENDED_GRANT = {"forfeited", "vested_and_left", "cancelled"}
@@ -28,6 +28,75 @@ def _days(first: date, last: date) -> int:
 
 def _action_for_money(src: Sources, month: str, open_action: str, closed_action: str) -> str:
     return closed_action if src.is_closed(month) else open_action
+
+
+# -- rows that cannot be used as they are -----------------------------------------
+ASK_ABOUT_ROW = {"hr_census": "hr", "payroll_register": "hr", "payment_file": "treasury", "bank_statement": "treasury",
+                 "equity_report": "stock_admin"}
+
+
+def _row_subject(row: Row) -> dict:
+    return {"row": f"{row.path}#{row.row_no}",
+            **{k: row.get(k) for k in ("employee_id", "payment_id", "grant_id", "bank_line_id") if row.get(k)}}
+
+
+def _row_money(src: Sources, row: Row) -> tuple[Decimal, str]:
+    """The row's own amount when it is a usable number; zero when the amount is what is missing."""
+    usable = [k for k in ("net_pay", "amount", "expense_month_usd")
+              if row.get(k) and not row_problems(row.kind, {k: row.get(k)})]
+    entity = row.entity or row.get("entity")
+    return (Decimal(row[usable[0]]) if usable else ZERO,
+            row.get("currency") or (src.currency(entity) if entity in src.entities else "USD"))
+
+
+def rows_set_aside(src: Sources, out: Findings) -> None:
+    """Incomplete rows, and exact repeats in money files: held with a plain reason, never computed or paid from."""
+    for row, problems in src.incomplete:
+        amount, currency = _row_money(src, row)
+        role = ASK_ABOUT_ROW[row.kind]
+        out.add(Finding(
+            "row_integrity", "source_row_incomplete", row.month or src.open_month, row.entity or row.get("entity") or None,
+            "row_layout", _row_subject(row),
+            f"A {row.kind} row cannot be used: {'; '.join(problems)}. Nothing is computed or paid from it until it "
+            "is complete",
+            [Evidence.of(row, "; ".join(problems)),
+             Evidence("file_layout", row.path, (), "the file defines these fields for every row")],
+            ["FIN-09"], amount, currency, "amount on the row, held until the row is complete",
+            "hold_until_the_row_is_complete", role, src.person_with_role(role), merge_key=f"{row.path}#{row.row_no}"))
+    for repeat, earlier in src.repeats:
+        amount, currency = _row_money(src, repeat)
+        role = ASK_ABOUT_ROW[repeat.kind]
+        out.add(Finding(
+            "row_integrity", "repeated_source_row", repeat.month or src.open_month, repeat.entity, "repeated_row",
+            _row_subject(repeat),
+            f"A {repeat.kind} row repeats row {earlier.row_no} exactly; the repeat is held and counted once",
+            [Evidence.of(earlier, "first row"), Evidence.of(repeat, f"the same row again (row {repeat.row_no})")],
+            ["FIN-08"], amount, currency, "amount on the repeated row, not counted twice", "hold_and_ask_about_the_repeat",
+            role, src.person_with_role(role), merge_key=f"{repeat.path}#{repeat.row_no}"))
+
+
+def net_pay_not_positive(src: Sources, out: Findings, flagged: set) -> None:
+    """A register row whose net pay is zero or negative: nothing can be paid, so it is held with a plain reason."""
+    for row in src.rows("payroll_register"):
+        net = row.amount("net_pay")
+        if net > 0:
+            continue
+        flagged.add((row.month, row["employee_id"]))
+        entity, keys = row.entity, YTD_KEYS[row.entity]
+        base = {k: row.amount("gross_pay") if k == "gross" else Decimal(row[f"period_{k}"]) for k in keys}
+        result = calculate_pay(entity, int(row["tax_year"]), int(row["tax_period"]), row.amount("gross_pay"),
+                               {k: Decimal(row[f"ytd_{k}"]) - base[k] for k in keys},
+                               employer_pension_rate=src.pension_rate(entity),
+                               days=(int(row["days_paid"]), int(row["days_in_month"])))
+        out.add(Finding(
+            "register_integrity", "net_pay_not_positive", row.month, entity, "statutory",
+            {"employee_id": row["employee_id"], "entity": entity},
+            f"The register's net pay is {fmt(net)}: zero or negative pay cannot be paid; held until payroll explains it",
+            [Evidence.of(row, f"gross {row['gross_pay']}, net {fmt(net)}"),
+             Evidence("pay_function", "vouch.calc.pay.calculate_pay", (), f"net {fmt(result.net)} for this gross")],
+            ["PAY-01", "FIN-09"], net, row["currency"], "net pay on the register",
+            "hold_payment_and_ask_payroll", "finance_manager", src.person_with_role("finance_manager"),
+            merge_key=f"{row['employee_id']}:net"))
 
 
 # -- HR census helpers ---------------------------------------------------------
@@ -124,11 +193,12 @@ def hr_vs_register(src: Sources, hr: dict[str, dict[str, Row]], out: Findings, f
                         ["PAY-02", "FIN-09"], gross - expected, currency, "gross paid minus gross for HR's days",
                         _action_for_money(src, month, "hold_and_correct", "draft_correction_in_open_month"),
                         "hr", src.person_with_role("hr"), merge_key=emp))
-        # Employed per HR in this month but paid by no entity at all.
+        # Employed per HR in this month but paid by no entity at all (a register row set aside is already a case).
+        set_aside = src.set_aside_people("payroll_register", month)
         for emp, h in hr[month].items():
             start, end = dates.month_start(month), dates.month_end(month)
             employed = _d(h["hire_date"]) <= end and (not h["exit_date"] or _d(h["exit_date"]) >= start)
-            if employed and not paid_in.get(emp):
+            if employed and not paid_in.get(emp) and emp not in set_aside:
                 out.add(Finding(
                     "hr_vs_register", "employee_not_paid", month, h["entity"], "employment",
                     {"employee_id": emp, "entity": h["entity"]},
@@ -317,8 +387,12 @@ def register_vs_payments(src: Sources, hr: dict[str, dict[str, Row]], out: Findi
             payments = defaultdict(list)
             for row in src.rows("payment_file", month, entity):
                 payments[row["employee_id"]].append(row)
+            register_aside, payments_aside = src.set_aside_people("payroll_register", month), \
+                src.set_aside_people("payment_file", month)
             for emp, rows in sorted(payments.items()):
                 owed = register.get(emp, [])
+                if not owed and emp in register_aside:
+                    continue                                   # the register row is set aside: already a case
                 if not owed:
                     out.add(Finding(
                         "register_vs_payments", "payment_without_register_row", month, entity, "one_payment",
@@ -373,7 +447,7 @@ def register_vs_payments(src: Sources, hr: dict[str, dict[str, Row]], out: Findi
                         merge_key=payment["payment_id"]))
             for emp, rows in register.items():
                 for reg in rows:
-                    if reg.amount("net_pay") > 0 and not payments.get(emp):
+                    if reg.amount("net_pay") > 0 and not payments.get(emp) and emp not in payments_aside:
                         out.add(Finding(
                             "register_vs_payments", "net_pay_without_payment", month, entity, "one_payment",
                             {"employee_id": emp}, "Net pay is owed but the payment file has no payment",
@@ -693,12 +767,14 @@ def approvals_vs_policy(src: Sources, out: Findings) -> None:
                 "refuse_and_route_to_controller", "controller", controller, merge_key=row["request_id"]))
 
 
-ALL_CHECKS = ("hr_vs_register", "salary_vs_register", "register_vs_engine", "register_vs_payments",
+ALL_CHECKS = ("row_integrity", "register_integrity", "hr_vs_register","salary_vs_register", "register_vs_engine", "register_vs_payments",
               "bank_account_history", "payments_vs_bank", "bank_vs_ledger", "equity_vs_grants", "approvals_vs_policy")
 
 
 def run_checks(src: Sources) -> Findings:
     out, flagged = Findings(), set()
+    rows_set_aside(src, out)
+    net_pay_not_positive(src, out, flagged)
     hr = hr_by_month(src, out)
     hr_vs_register(src, hr, out, flagged)
     salary_vs_register(src, out, flagged)

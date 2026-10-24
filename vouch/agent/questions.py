@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
+from vouch.agent.untrusted import instruction_flags
 from vouch.controls import approvals, audit, clock, gates
 from vouch.controls.gates import VOUCH, Refused
 from vouch.db.periods import Actor
@@ -80,8 +81,16 @@ def answer(conn: sqlite3.Connection, question_id: str, by: Actor, reply: str, no
     conn.execute("UPDATE questions SET status = 'answered', answer = ?, answered_by = ?, note = ?, answered_at = ? "
                  "WHERE question_id = ?", (reply, by.name, note, clock.now(conn), question_id))
     audit.log(conn, by, "answer", question["case_id"], "done", note, {"question": question_id, "answer": reply})
-    step = question[f"if_{reply}"]
     case_id = question["case_id"]
+    flags = instruction_flags(note)
+    if flags:                         # the note is data: only the yes/no/partial reply decides the next step
+        audit.log(conn, VOUCH, "suspicious_instruction", question_id, "done",
+                  "instruction found in a colleague's note; treated as data and not acted on",
+                  {"question": question_id, "case": case_id, "by": by.name, "words": flags})
+    conflict = conflicting_answers(conn, case_id, by.name, reply)
+    if conflict:
+        return _send_conflict_to_controller(conn, case_id, question_id, reply, by, conflict)
+    step = question[f"if_{reply}"]
     if step == "release_hold":
         for hold in gates.active_holds(conn):
             if hold["case_id"] == case_id:
@@ -108,6 +117,32 @@ def answer(conn: sqlite3.Connection, question_id: str, by: Actor, reply: str, no
         approvals.request(conn, VOUCH, "accrual", case_id, {"case": case_id, "escalated_from": question_id},
                           case_id=case_id, reason="escalated after an answer")
     return {"question": question_id, "answer": reply, "next_step": step}
+
+
+def conflicting_answers(conn, case_id: str, by: str, reply: str) -> list[dict]:
+    """Earlier answers on the same case from someone else that say the opposite (yes against no)."""
+    if reply not in ("yes", "no"):
+        return []
+    opposite = "no" if reply == "yes" else "yes"
+    return [dict(r) for r in conn.execute(
+        "SELECT question_id, answered_by, answer, note FROM questions WHERE case_id = ? AND status = 'answered' "
+        "AND answer = ? AND answered_by <> ?", (case_id, opposite, by))]
+
+
+def _send_conflict_to_controller(conn, case_id: str, question_id: str, reply: str, by: Actor,
+                                 conflict: list[dict]) -> dict:
+    """Two people disagree: no promised step is taken, anything released is held again, and the
+    controller decides."""
+    for hold in conn.execute("SELECT * FROM holds WHERE case_id = ? AND released_at IS NOT NULL", (case_id,)).fetchall():
+        gates.place_hold(conn, VOUCH, case_id, hold["target_kind"], hold["target_ref"],
+                         f"held again: answers disagree ({hold['reason']})", {"conflict": question_id})
+    who = "; ".join(f"{c['answered_by']} said {c['answer']} ({c['question_id']})" for c in conflict)
+    reason = f"answers disagree: {who}; {by.name} said {reply} ({question_id}); sent to the controller"
+    gates.set_case(conn, VOUCH, case_id, "held", reason, {"question": question_id, "conflict": conflict})
+    approvals.request(conn, VOUCH, "accrual", case_id,
+                      {"case": case_id, "conflict": [c["question_id"] for c in conflict] + [question_id]},
+                      case_id=case_id, reason=reason)
+    return {"question": question_id, "answer": reply, "next_step": "escalate_to_controller", "conflict": conflict}
 
 
 def follow_up(conn: sqlite3.Connection) -> list[dict]:

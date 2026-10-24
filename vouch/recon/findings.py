@@ -23,6 +23,10 @@ TRUST = {
     "one_payment": ("payroll_register", "the register sets one net payment per person, entity and month"),
     "duplicate_payment": ("payment_file", "the first line for a payment in the payment file is the payment; a later "
                                           "line repeating it is rejected (FIN-08)"),
+    "row_layout": ("file_layout", "a row must carry every field its file defines before anything is computed or "
+                                  "paid from it"),
+    "repeated_row": ("the first of the repeated rows", "a row that repeats an earlier one exactly is the same item; "
+                                                       "it is counted once and the repeat is held (FIN-08)"),
     "approval": ("finance_policy", "the finance and controls policy decides who may approve what"),
     "fx": ("exchange_rate_policy", "each month is translated at its recorded monthly average rate"),
     "ledger": ("journal", "every booked line must rest on evidence that agrees with it"),

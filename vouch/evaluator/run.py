@@ -273,7 +273,9 @@ def render(report: dict) -> str:
                  + "; handled differently: " + (", ".join(c["handled_differently"]) or "none"))
     if report["set"] == "main":
         d = report["demo"]
-        lines.append(f"  Demo scenario      {'PASSED' if d['passed'] else 'NOT PASSED'}: {d['longest_in_a_row']} "
+        lines.append(f"  Demo scenario      not checked: {report['runs']} run(s), needs {d['needed']} (use --demo)"
+                     if report["runs"] < d["needed"] else
+                     f"  Demo scenario      {'PASSED' if d['passed'] else 'NOT PASSED'}: {d['longest_in_a_row']} "
                      f"run(s) in a row at target (needs {d['needed']})")
     last = report["per_run"][-1] if report["per_run"] else {"plants": {}}
     for plant_id in m["caught"]["missed"]:

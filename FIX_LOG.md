@@ -100,3 +100,24 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause:** the plant always listed the equity report as a source that disagrees, but on this seed the person it chose has no stock grant, so the report has no row for them. Vouch could not cite it.
 - **What changed (answer key, with the human's approval):** the plant lists the equity report only when the person holds a grant. The planted mistake itself is unchanged.
 - **Kind of problem handled:** any planted transfer, whether or not the person holds a grant.
+
+## 2026-10-24 — one blank field in a payroll file crashed the whole rebuild
+
+- **Failing test:** `tests/test_e6_hard_cases.py::test_zero_net_pay_a_repeated_row_and_a_missing_field_are_each_held_with_a_plain_reason` (`decimal.InvalidOperation` in `vouch/db/subledger.py` during `rebuild`).
+- **Root cause:** the subledgers and every check assumed each amount field holds a number. A row with a blank or non-numeric field stopped the load before anything could be held, and nothing in reconciliation looked for such rows.
+- **What changed:** `vouch/db/rows.py` decides whether a monthly row can be used (every field filled unless optional, every non-text field a number). The subledgers leave unusable rows out and the rebuild reports them. `Sources` sets them aside, so no check, tool or draft computes from them, and reconciliation opens a `source_row_incomplete` case for each one, naming the missing fields. An exact repeat of a row in a money file is set aside and counted once (`repeated_source_row`). A register row with zero or negative net pay is a `net_pay_not_positive` case and the person is left out of the accrual. Knock-on cases (employee not paid, payment without a register row) are not opened for a row already set aside.
+- **Kind of problem handled:** any incomplete or repeated row in the HR census, payroll register, payment file, bank statement or equity report, and any zero or negative net pay, in any month.
+
+## 2026-10-24 — two colleagues could disagree and the first answer won
+
+- **Failing test:** `tests/test_e6_hard_cases.py::test_when_two_people_disagree_nothing_is_released_and_the_controller_decides` (written for hard case "two people disagree").
+- **Root cause:** `questions.answer` carried out the step promised for each answer on its own, so a "yes" from one person released a hold that another person had just said "no" to.
+- **What changed:** before carrying out a step, `questions.answer` looks for an earlier answer on the same case from someone else that says the opposite. If there is one, no promised step is taken, anything already released is held again by Vouch, the case is held and the controller gets a request to decide.
+- **Kind of problem handled:** any two people giving opposite answers on one case, in either order.
+
+## 2026-10-24 — instructions in colleagues' notes were not flagged
+
+- **Failing test:** `tests/test_e6_hard_cases.py::test_an_instruction_in_a_note_is_ignored_and_flagged` (hard case "instruction hidden in an email or note").
+- **Root cause:** only emails were scanned for instructions. A note on an answer or an approval was free text that nobody checked; it never changed a step, but it was not reported either.
+- **What changed:** the instruction detector moved to `vouch/agent/untrusted.py`. An answer whose note carries an instruction is logged as suspicious, and the close report lists every such note, from answers and approval decisions, next to suspicious emails.
+- **Kind of problem handled:** instructions in any colleague's free-text note.

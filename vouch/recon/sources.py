@@ -10,6 +10,7 @@ from decimal import Decimal
 from functools import cached_property
 
 from vouch import dates
+from vouch.db.rows import MONEY_FILES, OPTIONAL, row_problems  # noqa: F401 (re-exported)
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,26 @@ class Sources:
                                                r["entity"], json.loads(r["data"])))
         for r in conn.execute("SELECT kind, content FROM documents WHERE month IS NULL AND path LIKE '%.json'"):
             self.content[r["kind"]] = json.loads(r["content"])
+        # Rows set aside: incomplete ones, and exact repeats in money files. rows() never returns them;
+        # reconciliation turns each into a case.
+        self.incomplete: list[tuple[Row, list[str]]] = []
+        self.repeats: list[tuple[Row, Row]] = []                      # (repeat, the earlier row it repeats)
+        for kind in OPTIONAL:
+            first: dict[tuple, Row] = {}
+            for row in self.by_kind.get(kind, []):
+                problems = row_problems(kind, row.data)
+                if problems:
+                    self.incomplete.append((row, problems))
+                    continue
+                key = (row.doc_id, json.dumps(row.data, sort_keys=True))
+                if kind in MONEY_FILES and key in first:
+                    self.repeats.append((row, first[key]))
+                first.setdefault(key, row)
+        self.set_aside = {(r.doc_id, r.row_no) for r, _ in self.incomplete + self.repeats}
+
+    def set_aside_people(self, kind: str, month: str | None) -> set[str]:
+        """Employees with a row of this kind set aside in this month."""
+        return {r.get("employee_id") for r, _ in self.incomplete + self.repeats if r.kind == kind and r.month == month}
 
     # -- company and policies ---------------------------------------------------
     @cached_property
@@ -91,7 +112,8 @@ class Sources:
     # -- monthly sources --------------------------------------------------------
     def rows(self, kind: str, month: str | None = None, entity: str | None = None) -> list[Row]:
         return [r for r in self.by_kind.get(kind, [])
-                if (month is None or r.month == month) and (entity is None or r.entity == entity)]
+                if (month is None or r.month == month) and (entity is None or r.entity == entity)
+                and (r.doc_id, r.row_no) not in self.set_aside]
 
     @cached_property
     def entities(self) -> list[str]:

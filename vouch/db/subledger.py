@@ -8,6 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from decimal import Decimal
 
+from vouch.db.rows import row_problems
 from vouch.money import ZERO, cents, fmt
 
 SCHEMA = """
@@ -65,10 +66,15 @@ def create_tables(conn: sqlite3.Connection) -> None:
 
 
 def build(conn: sqlite3.Connection) -> dict:
-    payroll = 0
+    """Rows that cannot be used (a blank or non-numeric field) are left out and counted; reconciliation
+    makes each one a case."""
+    payroll, set_aside = 0, 0
     for r in conn.execute("""SELECT d.doc_id, r.row_no, d.month, d.entity, r.data FROM documents d
             JOIN source_rows r USING (doc_id) WHERE d.kind = 'payroll_register'""").fetchall():
         row = json.loads(r["data"])
+        if row_problems("payroll_register", row):
+            set_aside += 1
+            continue
         amounts = _register_amounts(row)
         conn.execute("INSERT INTO payroll_subledger VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                      (r["doc_id"], r["row_no"], r["month"], r["entity"], row["employee_id"], row["department"],
@@ -79,13 +85,16 @@ def build(conn: sqlite3.Connection) -> dict:
     for r in conn.execute("""SELECT d.doc_id, r.row_no, d.month, r.data FROM documents d
             JOIN source_rows r USING (doc_id) WHERE d.kind = 'equity_report'""").fetchall():
         row = json.loads(r["data"])
+        if row_problems("equity_report", row):
+            set_aside += 1
+            continue
         rate, basis = rates.get((r["month"], row["entity"]), (None, None))
         local = fmt(cents(Decimal(row["expense_month_usd"]) * Decimal(rate))) if rate else None
         conn.execute("INSERT INTO equity_subledger VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                      (r["doc_id"], r["row_no"], r["month"], row["entity"], row["grant_id"], row["employee_id"],
                       row["department"], row["status"], row["expense_month_usd"], rate, basis, local))
         equity += 1
-    return {"payroll_rows": payroll, "equity_rows": equity}
+    return {"payroll_rows": payroll, "equity_rows": equity, "rows_set_aside": set_aside}
 
 
 @dataclass(frozen=True)

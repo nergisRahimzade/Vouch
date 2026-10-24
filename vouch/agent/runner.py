@@ -25,7 +25,8 @@ from vouch.money import ZERO, fmt
 from vouch.recon.run import reconcile
 from vouch.recon.sources import Sources
 
-NOT_OWED = {"paid_not_in_hr", "paid_after_exit", "entity_differs_from_hr"}   # people left out of the accrual
+NOT_OWED = {"paid_not_in_hr", "paid_after_exit", "entity_differs_from_hr",     # people left out of the accrual
+            "net_pay_not_positive"}
 
 
 def ensure(conn: sqlite3.Connection) -> None:
@@ -212,6 +213,16 @@ def suspicious_emails(src: Sources) -> list[dict]:
     return out
 
 
+def suspicious_notes(conn) -> list[dict]:
+    """Colleagues' free-text notes (answers and approval decisions) that carry instructions: reported, never acted on."""
+    notes = [(r["question_id"], r["answered_by"], r["note"]) for r in conn.execute(
+        "SELECT question_id, answered_by, note FROM questions WHERE note IS NOT NULL")]
+    for r in conn.execute("SELECT request_id, approvals, note FROM approval_requests"):
+        notes += [(r["request_id"], a["actor"], a.get("note", "")) for a in json.loads(r["approvals"])]
+        notes += [(r["request_id"], "decision", r["note"])] if r["note"] else []
+    return [{"ref": ref, "by": by, "words": instruction_flags(text)} for ref, by, text in notes if instruction_flags(text)]
+
+
 def _facts(conn, src, policy, cases, drafted, held_conversions, findings) -> dict:
     case_list = []
     for case in cases:
@@ -231,4 +242,5 @@ def _facts(conn, src, policy, cases, drafted, held_conversions, findings) -> dic
             "pending_requests": [dict(r) for r in conn.execute(
                 "SELECT request_id, kind, subject_ref, amount, currency, assigned_role FROM approval_requests WHERE "
                 "status IN ('pending', 'escalated')")],
-            "suspicious_emails": [e["email_id"] for e in suspicious]}
+            "suspicious_emails": [e["email_id"] for e in suspicious],
+            "suspicious_notes": sorted({n["ref"] for n in suspicious_notes(conn)})}

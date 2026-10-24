@@ -51,8 +51,8 @@ def row(report: dict) -> dict:
             "Money correct": _measure(m["money_correct"]) + ("" if m["money_correct"]["books_balance"]
                                                             else ", books do not balance"),
             "Never": str(m["never"]["count"]),
-            "Demo (5 in a row)": ("passed" if demo.get("passed") else f"not passed ({demo.get('longest_in_a_row', 0)})")
-            if report["set"] == "main" else "-"}
+            "Demo (5 in a row)": "-" if report["set"] != "main" else "not checked" if report["runs"] < run.DEMO_RUNS
+            else "passed" if demo.get("passed") else f"not passed ({demo.get('longest_in_a_row', 0)} in a row)"}
 
 
 def render(reports: list[dict]) -> str:
