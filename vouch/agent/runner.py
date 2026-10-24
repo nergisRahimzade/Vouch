@@ -84,7 +84,7 @@ def run_close(conn: sqlite3.Connection, policy) -> dict:
     findings = reconcile(conn)
     cases = [f.to_record() for f in findings.cases()]
     for case in cases:
-        gates.open_case(conn, VOUCH, case["finding_id"], month, case["kind"], case["summary"])
+        gates.open_case(conn, VOUCH, case["finding_id"], month, case["kind"], case["summary"], case)
     _step(conn, 4, "reconcile", f"{len(cases)} cases, {len(findings.explained())} explained differences",
           {"cases": [c["finding_id"] for c in cases]})
 

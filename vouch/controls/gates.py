@@ -65,13 +65,16 @@ def large_entry_limit(conn, currency: str) -> Decimal:
 
 
 # -- cases and holds ------------------------------------------------------------
-def open_case(conn, actor: Actor, case_id: str, close_period: str, kind: str, summary: str) -> None:
+def open_case(conn, actor: Actor, case_id: str, close_period: str, kind: str, summary: str,
+              finding: dict | None = None) -> None:
+    """Open a case. The finding behind it goes into the audit trail, so the case can later be
+    defended from the trail alone."""
     require(conn, actor, "open_case", case_id)
     now = clock.now(conn)
     cursor = conn.execute("INSERT OR IGNORE INTO cases VALUES (?, ?, ?, 'open', ?, ?, ?, '')",
                           (case_id, close_period, kind, summary, now, now))
     if cursor.rowcount:
-        audit.log(conn, actor, "open_case", case_id, "done", summary, {"finding": case_id})
+        audit.log(conn, actor, "open_case", case_id, "done", summary, {"finding": finding or case_id})
 
 
 def set_case(conn, actor: Actor, case_id: str, status: str, note: str, basis: dict | None = None) -> None:

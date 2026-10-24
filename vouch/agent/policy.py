@@ -50,6 +50,13 @@ headings. Say what was closed, what is held and why, who was asked, and what wai
 uncertain, say so."""
 
 
+DEFEND_SYSTEM = """You are Vouch answering why you handled a case the way you did. Answer only from the audit records
+given: what data you compared and what each source said, which source you trusted and why, which rules and
+precedents applied, who you asked and when, what you held or drafted, and what is still waiting. Cite dates, amounts,
+rule IDs and names exactly as they appear in the records. If the records do not show something, say they do not.
+Plain English, a short paragraph or a few bullet points."""
+
+
 class PolicyFailed(RuntimeError):
     """The policy could not finish a case; the case is held with this plain reason."""
 
@@ -138,6 +145,15 @@ class ModelPolicy:
             prompt += "\nYour previous draft was rejected by the claim check: " + "; ".join(problems) + \
                       ". Remove or correct every one of those claims."
         response = self._create(system=REPORT_SYSTEM, messages=[{"role": "user", "content": prompt}])
+        return " ".join(b.text for b in response.content if b.type == "text").strip()
+
+    def defend(self, question: str, rows: list[dict], problems: list[str] | None = None) -> str:
+        prompt = (f"Question: {question}\n<audit_records>\n{json.dumps(rows, indent=1, default=str)}\n"
+                  "</audit_records>")
+        if problems:
+            prompt += ("\nYour previous answer was rejected by the claim check: " + "; ".join(problems)
+                       + ". Answer again citing only what the records contain.")
+        response = self._create(system=DEFEND_SYSTEM, messages=[{"role": "user", "content": prompt}])
         return " ".join(b.text for b in response.content if b.type == "text").strip()
 
 
@@ -237,6 +253,34 @@ class ScriptedPolicy:
     def _request_entry(self, toolbox: Toolbox, cid: str) -> dict:
         return toolbox.call("request_approval", {"case_id": cid, "kind": "entry", "subject_ref": f"VCH-{cid}",
                                                  "note": "correction drafted from the sources"})
+
+    def defend(self, question: str, rows: list[dict], problems: list[str] | None = None) -> str:
+        """Built only from the case's audit rows."""
+        lines = []
+        for row in rows:
+            basis = row["basis"]
+            if row["action"] == "open_case" and isinstance(basis.get("finding"), dict):
+                f = basis["finding"]
+                compared = "; ".join(f"{e['source']} says {e['says']}" for e in f["evidence"])
+                lines.append(f"On {row['at']} I opened the case: {f['summary']}. Compared: {compared}. "
+                             f"Trusted {f['trusted_source']} because {f['trust_reason']}. Rules: {', '.join(f['rules'])}. "
+                             f"Amount: {f['amount']} {f['currency']} ({f['amount_basis']}).")
+                for precedent in f.get("precedents", []):
+                    lines.append(f"Precedent {precedent['ruling_id']} ({precedent['decision']} by "
+                                 f"{precedent['decided_by']}): {precedent['precedent']}")
+            elif row["action"] == "place_hold":
+                lines.append(f"On {row['at']} {row['actor']} held {row['target']}: {row['reason']}.")
+            elif row["action"] == "ask":
+                lines.append(f"On {row['at']} I asked {basis['to']} ({basis['role']}): {row['reason']}")
+            elif row["action"] == "request_approval":
+                lines.append(f"On {row['at']} I requested approval {basis['request']} from {', '.join(basis['needs'])}.")
+            elif row["action"] == "draft_entry":
+                lines.append(f"On {row['at']} I drafted {row['target']}: {row['reason']}.")
+            elif row["action"] in ("answer", "approve", "reject", "release_hold"):
+                lines.append(f"On {row['at']} {row['actor']} ({row['role']}) recorded {row['action']}: {row['reason']}.")
+            elif row["action"].startswith("case_") and basis.get("decision"):
+                lines.append(f"Decision on {row['at']}: {row['reason']}")
+        return "\n".join(lines) or "The audit trail shows the case was opened but nothing else yet."
 
     def report(self, facts: dict, problems: list[str] | None = None) -> str:
         lines = [f"Close of {facts['close_period']} ({facts['mode']} run). {facts['cases']} cases, "
