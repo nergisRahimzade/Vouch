@@ -101,3 +101,16 @@ Entries 1–7 were written after the fact. Their times come from the changed fil
 - Pushed `dashboard` (`60c6225`, `bf21181`) and created `efficiency` from it for the cost and speed work.
 - Opened PR #1, `dashboard` → `layer7-e3-consistency`: https://github.com/nergisRahimzade/Vouch/pull/1. It lists the dashboard and the six live-agent fixes.
 - The efficiency PR will target `dashboard`, and GitHub moves it to `layer7-e3-consistency` once PR #1 is merged.
+
+## 12. 2026-10-24, 17:05 · branch `efficiency` · Phase 0: spending guard
+
+**What a live run will cost is now shown before it starts, shown while it runs, and capped.**
+- **Estimate, from measured data only.** New `vouch/agent/cost.py`. The estimate for a live close is the last finished live close in the same database; if there is none, it is the figure measured on 2026-10-24 ($3.48), and the page says so. A live score is shown as runs × that.
+- **Asked before spending.** The dashboard shows "Estimated $X (basis)… Spending cap $Y" with *Confirm and start* / *Cancel* before any live close, colleagues round or score. `python -m vouch close` and `python -m vouch score` print the same and ask `[y/N]`; a non-terminal must pass `--yes`.
+- **Spending cap per run** (default $6.00, allowed $0.25–$50; `--budget` on the command line, a field on the page). `ModelPolicy` stops before a call if the run has already spent the cap. The cases not yet worked are held with a plain reason, and the run ends as `failed` with "report not written" and its real cost. Nothing is guessed. A score records its per-run cap on the report.
+- **Cost shown while running.** The runner saves the run's tokens and cost after every case, so the Overview shows "$x of $cap" as it goes. Before, the cost was saved only at the end (the earlier hang left it at $0.00). Colleagues and "Ask why" now report their real cost too.
+- **Defaults:** effort stays "medium"; the Score button defaults to the main set, with a note that a live score is at least 3 full closes.
+- **Why (track):** "Would you hire it?": limited access and honest accounting extend to money. Spec ground rule 5: never show a number a run didn't produce; every figure names its source.
+- **Tests:** `tests/test_x_cost_guard.py` (8, all with a stand-in client that bills known tokens, so none spends money): cap stops calls and holds the rest, cost saved mid-run, estimate from the last live run, bad caps refused, estimate endpoint, CLI will not start unasked (close and score).
+- **Also fixed (bug in my dashboard, PR #1):** with several requests at once the page could get random 500 errors ("SQLite objects created in a thread can only be used in that same thread"), because the server opens and uses a request's connection on different threads. `vouch.db.connect` now lets a connection cross threads; code that shares one between threads takes turns. Found when a repeated render check failed 4 times in 6. Tests: the page asking for many things at once; a connection used from another thread. After the fix: 0 errors in 6 repeats.
+- **Verified:** 58 tests in the affected areas pass; every dashboard view renders against a live server 6 times with no server errors. No live API call was made in this phase.

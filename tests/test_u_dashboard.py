@@ -217,3 +217,25 @@ def test_u6_sandbox_rebuilds_the_clean_company_and_its_close_opens_no_case(tmp_p
     client.post("/api/jobs/close", json={"mode": "scripted"})
     _wait(app)
     assert client.get("/api/overview").json()["cases"]["total"] == 0
+
+
+def test_the_page_can_ask_for_many_things_at_once(closed):
+    """The page polls and loads several views at the same moment. Each request's connection is opened and
+    used on different server threads, which SQLite refuses unless connections may cross threads."""
+    from concurrent.futures import ThreadPoolExecutor
+    client, _ = closed
+    paths = ["/api/overview", "/api/audit", "/api/inbox", "/api/cases", "/api/ledger", "/api/status",
+             "/api/estimate", "/api/audit/verify", "/api/results"] * 12
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        codes = list(pool.map(lambda p: client.get(p).status_code, paths))
+    assert codes == [200] * len(paths)
+
+
+def test_a_connection_can_be_used_from_another_thread(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from vouch.db import connect
+    conn = connect(tmp_path / "t.db")
+    conn.execute("CREATE TABLE t (x)")
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        assert pool.submit(lambda: conn.execute("SELECT COUNT(*) FROM t").fetchone()[0]).result() == 0
+    conn.close()

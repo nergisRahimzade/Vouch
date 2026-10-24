@@ -49,6 +49,7 @@ class AsRole(BaseModel):
 class Why(BaseModel):
     question: str = "Why did you do this?"
     mode: str = "scripted"
+    budget_usd: float | None = None
 
 
 class RebuildJob(BaseModel):
@@ -58,10 +59,12 @@ class RebuildJob(BaseModel):
 class CloseJob(BaseModel):
     mode: str = "scripted"
     effort: str = "medium"
+    budget_usd: float | None = None
 
 
 class ModeJob(BaseModel):
     mode: str = "scripted"
+    budget_usd: float | None = None
 
 
 class FollowUpJob(BaseModel):
@@ -73,6 +76,7 @@ class ScoreJob(BaseModel):
     runs: int = 3
     mode: str = "scripted"
     effort: str = "medium"
+    budget_usd: float | None = None
 
 
 # -- helpers -------------------------------------------------------------------------
@@ -158,9 +162,17 @@ def _require_mode(mode: str) -> None:
                                  "which every result labels as scripted")
 
 
-def _policy(mode: str, effort: str = "medium"):
+def _budget(value):
+    from vouch.agent.cost import DEFAULT_BUDGET_USD, clamp_budget
+    try:
+        return DEFAULT_BUDGET_USD if value is None else clamp_budget(value)
+    except ValueError as error:
+        raise HTTPException(400, str(error))
+
+
+def _policy(mode: str, effort: str = "medium", budget=None):
     from vouch.agent.policy import ModelPolicy, ScriptedPolicy
-    return ScriptedPolicy() if mode == "scripted" else ModelPolicy(effort=effort)
+    return ScriptedPolicy() if mode == "scripted" else ModelPolicy(effort=effort, budget_usd=_budget(budget))
 
 
 # -- the app -------------------------------------------------------------------------
@@ -195,6 +207,19 @@ def create_app(db: Path = DEFAULT_DB, world: Path = DEFAULT_WORLD, results: Path
     def status():
         from vouch.agent.policy import MODEL, api_key_available
         return {"db": db.exists(), "model_available": api_key_available(), "model": MODEL, **jobs.snapshot()}
+
+    @app.get("/api/estimate")
+    def estimate(runs: int = Query(3, ge=1, le=20)):
+        """What a live run is expected to cost, and where the figure comes from."""
+        from vouch.agent.cost import DEFAULT_BUDGET_USD, MAX_BUDGET_USD, MIN_BUDGET_USD, estimate_close, estimate_score
+        conn = _open(db) if db.exists() and not jobs.rebuilding else None
+        try:
+            return {"close": estimate_close(conn), "score": estimate_score(conn, runs),
+                    "default_budget": str(DEFAULT_BUDGET_USD), "min_budget": str(MIN_BUDGET_USD),
+                    "max_budget": str(MAX_BUDGET_USD)}
+        finally:
+            if conn:
+                conn.close()
 
     @app.get("/api/overview")
     def overview(conn=Depends(get_conn)):
@@ -320,8 +345,9 @@ def create_app(db: Path = DEFAULT_DB, world: Path = DEFAULT_WORLD, results: Path
     def defend(case_id: str, body: Why, conn=Depends(get_conn), _=Depends(idle)):
         from vouch.agent.defend import why
         _require_mode(body.mode)
-        result = why(conn, case_id, body.question, _policy(body.mode))
-        return {**result, "mode": body.mode}
+        policy = _policy(body.mode, budget=body.budget_usd)
+        result = why(conn, case_id, body.question, policy)
+        return {**result, "mode": body.mode, "cost_usd": str(policy.usage.cost(policy.model or ""))}
 
     # ---- human review ----
     @app.get("/api/inbox")
@@ -549,13 +575,14 @@ def create_app(db: Path = DEFAULT_DB, world: Path = DEFAULT_WORLD, results: Path
     @app.post("/api/jobs/close")
     def job_close(body: CloseJob):
         _require_mode(body.mode)
+        budget = _budget(body.budget_usd)
 
         def work(log):
             from vouch.agent.runner import run_close
             conn = _open(db)
             try:
                 log(f"close started ({'SCRIPTED playbook, not the model' if body.mode == 'scripted' else 'live model'})")
-                result = run_close(conn, _policy(body.mode, body.effort))
+                result = run_close(conn, _policy(body.mode, body.effort, budget))
             finally:
                 conn.close()
             log(f"{result['run_id']}: {result['cases']} cases, {len(result['drafts'])} drafts, "
@@ -567,6 +594,7 @@ def create_app(db: Path = DEFAULT_DB, world: Path = DEFAULT_WORLD, results: Path
     @app.post("/api/jobs/colleagues")
     def job_colleagues(body: ModeJob, conn=Depends(get_conn)):
         _require_mode(body.mode)
+        budget = _budget(body.budget_usd)
         if not _has(conn, "findings") or not conn.execute("SELECT 1 FROM agent_runs").fetchone():
             raise HTTPException(409, "there is nothing for colleagues to answer yet: run the close first")
 
@@ -574,10 +602,13 @@ def create_app(db: Path = DEFAULT_DB, world: Path = DEFAULT_WORLD, results: Path
             from vouch.agent.colleagues import ModelColleagues, ScriptedColleagues, respond
             conn = _open(db)
             try:
-                colleagues = ScriptedColleagues() if body.mode == "scripted" else ModelColleagues(_policy("model"), conn)
+                policy = _policy(body.mode, budget=budget)
+                colleagues = ScriptedColleagues() if body.mode == "scripted" else ModelColleagues(policy, conn)
                 result = respond(conn, colleagues)
             finally:
                 conn.close()
+            if body.mode == "model":
+                log(f"cost ${policy.usage.cost(policy.model)} (cap ${policy.budget})")
             log(f"{result['mode']} colleagues: {len(result['answered'])} questions answered, {len(result['decided'])} "
                 f"decisions, {len(result['posted'])} entries posted, {result['released']} payments released, "
                 f"{len(result['refused'])} refused by the controls")
@@ -618,10 +649,13 @@ def create_app(db: Path = DEFAULT_DB, world: Path = DEFAULT_WORLD, results: Path
             raise HTTPException(400, f"set is one of {', '.join(run.SETS)}")
         if body.runs < run.MIN_RUNS:
             raise HTTPException(400, f"a score rests on at least {run.MIN_RUNS} runs")
+        budget = _budget(body.budget_usd)
 
         def work(log):
-            log(f"scoring the {body.set} set over {body.runs} runs on fresh copies of the company")
-            report = run.score(body.set, body.runs, body.mode, results_dir=results, effort=body.effort)
+            log(f"scoring the {body.set} set over {body.runs} runs on fresh copies of the company "
+                f"(spending cap ${budget} per run)")
+            report = run.score(body.set, body.runs, body.mode, results_dir=results, effort=body.effort,
+                               budget_usd=budget)
             for line in run.render(report).splitlines():
                 log(line)
             return {"report_file": report.get("report_file"), "status": report["status"]}

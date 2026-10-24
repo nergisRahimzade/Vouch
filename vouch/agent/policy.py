@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 
+from vouch.agent.cost import DEFAULT_BUDGET_USD
 from vouch.agent.tools import SPECS, Toolbox
 
 MODEL = "claude-opus-5-5"
@@ -61,18 +63,24 @@ class PolicyFailed(RuntimeError):
     """The policy could not finish a case; the case is held with this plain reason."""
 
 
+class BudgetReached(PolicyFailed):
+    """The run's spending cap was reached: no further model call is made, and what is left is held."""
+
+
 @dataclass
 class Usage:
     input_tokens: int = 0
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def add(self, usage) -> None:
-        self.input_tokens += usage.input_tokens or 0
-        self.output_tokens += usage.output_tokens or 0
-        self.cache_read_tokens += getattr(usage, "cache_read_input_tokens", 0) or 0
-        self.cache_write_tokens += getattr(usage, "cache_creation_input_tokens", 0) or 0
+        with self._lock:                    # several cases may be worked at once
+            self.input_tokens += usage.input_tokens or 0
+            self.output_tokens += usage.output_tokens or 0
+            self.cache_read_tokens += getattr(usage, "cache_read_input_tokens", 0) or 0
+            self.cache_write_tokens += getattr(usage, "cache_creation_input_tokens", 0) or 0
 
     def cost(self, model: str) -> Decimal:
         p = PRICES.get(model)
@@ -113,15 +121,23 @@ def model_tools() -> list[dict]:
 class ModelPolicy:
     mode = "model"
 
-    def __init__(self, model: str = MODEL, effort: str = "medium", client=None, timeout: float = 180.0):
+    def __init__(self, model: str = MODEL, effort: str = "medium", client=None, timeout: float = 180.0,
+                 budget_usd: Decimal | float | str | None = DEFAULT_BUDGET_USD):
         import anthropic
         _load_dotenv()
         self.anthropic = anthropic
         self.client = client or anthropic.Anthropic(timeout=timeout, max_retries=2)
         self.model, self.effort, self.usage = model, effort, Usage()
+        self.budget = None if budget_usd is None else Decimal(str(budget_usd))
         self.tools = model_tools()
 
+    def spent(self) -> Decimal:
+        return self.usage.cost(self.model)
+
     def _create(self, output_format: dict | None = None, **kwargs):
+        if self.budget is not None and self.spent() >= self.budget:
+            raise BudgetReached(f"the spending cap of ${self.budget} for this run was reached "
+                                f"(${self.spent()} spent); no further model call was made")
         output_config = {"effort": self.effort, **({"format": output_format} if output_format else {})}
         try:
             response = self.client.beta.messages.create(

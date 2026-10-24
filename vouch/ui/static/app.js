@@ -154,7 +154,7 @@ function stepDot(step) {
 function runLabel(run) {
   if (!run) return "No close has run yet";
   const how = run.mode === "scripted" ? "SCRIPTED playbook (not the model)" : `live model ${run.model}`;
-  return `${run.run_id} · ${how} · started ${when(run.started_at)} UTC · cost $${run.cost_usd}`;
+  return `${run.run_id} · ${how} · started ${when(run.started_at)} UTC · cost $${run.cost_usd}${run.mode === "model" && run.budget_usd ? ` of $${run.budget_usd} cap` : ""}`;
 }
 
 async function renderOverview() {
@@ -173,7 +173,7 @@ async function renderOverview() {
   panel.innerHTML = `
     <div class="kpis">
       <div class="kpi"><div class="l">Close of ${esc(o.company.open_month)}</div><div class="v num">${stepsDone} of 8</div>
-        <div class="s">${o.run ? `${esc(o.run.run_id)} · ${o.run.mode === "scripted" ? '<span class="warn">scripted</span>' : `model ${esc(o.run.model)}`}` : "not run yet"}</div></div>
+        <div class="s">${o.run ? `${esc(o.run.run_id)} · ${o.run.mode === "scripted" ? '<span class="warn">scripted</span>' : `model ${esc(o.run.model)} · $${esc(o.run.cost_usd)}${o.run.budget_usd ? ` of $${esc(o.run.budget_usd)} cap` : ""}`}` : "not run yet"}</div></div>
       <div class="kpi"><div class="l">Open cases</div><div class="v num">${open}</div>
         <div class="s">${st.held || 0} held · ${st.waiting || 0} waiting · ${st.resolved || 0} resolved</div></div>
       <div class="kpi"><div class="l">Waiting on a person</div><div class="v num ${waitingCount ? "warn" : ""}">${waitingCount}</div>
@@ -437,7 +437,7 @@ async function renderCaseDetail() {
         <div class="why" style="margin-bottom:6px">Ask Vouch to defend this case. It answers only from this case's audit trail, and the claim check rejects anything the trail does not show.</div>
         <div class="form"><input type="text" id="whyQ" value="Why did you do this, and what did you rely on?" aria-label="Question" style="flex:1;min-width:200px">
           ${modeSelect("whyMode")}<button class="btn pri" id="whyBtn">Ask why</button></div>
-        ${why ? `<div style="margin-top:10px">${why.ok ? `<div class="answer">${esc(why.answer)}</div><div class="why" style="margin-top:4px">${pill("accepted", "Claim check passed")} ${why.mode === "scripted" ? "scripted answer" : "answered by the model"} · cites audit rows ${esc((why.rows || []).slice(0, 12).join(", "))}${(why.rows || []).length > 12 ? "…" : ""}</div>`
+        ${why ? `<div style="margin-top:10px">${why.ok ? `<div class="answer">${esc(why.answer)}</div><div class="why" style="margin-top:4px">${pill("accepted", "Claim check passed")} ${why.mode === "scripted" ? "scripted answer" : `answered by the model · cost $${esc(why.cost_usd)}`} · cites audit rows ${esc((why.rows || []).slice(0, 12).join(", "))}${(why.rows || []).length > 12 ? "…" : ""}</div>`
           : `<div class="refusal">${why.error ? esc(why.error) : `The answer was rejected by the claim check: ${esc((why.problems || []).join("; "))}`}</div>`}</div>` : ""}
       </div></div>
       <div><div class="why" style="margin-bottom:6px">Audit trail for this case (${d.trail.length} rows)</div>
@@ -546,15 +546,21 @@ async function renderResults() {
 // ---------- run & sandbox ----------
 async function renderRun() {
   const kept = {};                                   // keep what the person typed across live refreshes
-  ["runEffort", "fuDays", "scoreSet", "scoreRuns"].forEach((id) => { if ($(id)) kept[id] = $(id).value; });
+  ["runEffort", "runBudget", "fuDays", "scoreSet", "scoreRuns"].forEach((id) => { if ($(id)) kept[id] = $(id).value; });
+  const est = await api("/api/estimate").catch(() => null);
   const status = S.status || await api("/api/status");
   const job = status.job, live = status.model_available, busy = status.running;
   const panel = $("p-run");
+  const pending = S.pendingRun;
   panel.innerHTML = `
+    ${pending ? `<div class="banner warn" role="alert" style="flex-direction:column;align-items:flex-start"><div><b>${esc(pending.title)}</b></div><div>${pending.text}</div>
+      <div class="row-actions"><button class="btn pri" id="confirmRun">Confirm and start</button><button class="btn" id="cancelRun">Cancel</button></div></div>` : ""}
     <div class="banner ${live ? "info" : "warn"}">${live ? `<b>Live model available</b> (${esc(status.model)}). Scripted mode stays available for fast checks and is labelled everywhere it is used.`
       : `<b>No ANTHROPIC_API_KEY found</b> (environment or .env), so only the scripted playbook can run. Everything it produces is labelled scripted.`}</div>
     <div class="form"><label>Who works the close <select id="runMode"><option value="scripted" ${S.mode === "scripted" ? "selected" : ""}>Scripted playbook</option><option value="model" ${S.mode === "model" ? "selected" : ""} ${live ? "" : "disabled"}>Live model</option></select></label>
-      <label>Effort <select id="runEffort">${["low", "medium", "high", "xhigh", "max"].map((e) => `<option ${e === "medium" ? "selected" : ""}>${e}</option>`).join("")}</select></label></div>
+      <label>Effort <select id="runEffort">${["low", "medium", "high", "xhigh", "max"].map((e) => `<option ${e === "medium" ? "selected" : ""}>${e}</option>`).join("")}</select></label>
+      <label>Spending cap per live run $ <input type="number" id="runBudget" value="${esc(est?.default_budget || "6.00")}" step="0.5" min="${esc(est?.min_budget || "0.25")}" max="${esc(est?.max_budget || "50")}" style="width:90px"></label>
+      <span class="why">${est ? `A live close is expected to cost about $${esc(est.close.usd)} (${esc(est.close.basis)}). If the cap is reached, the remaining cases are held with a plain reason.` : ""}</span></div>
     <div class="grid2 even">
       <div class="card"><h2>Run the month</h2><div class="body" style="display:flex;flex-direction:column;gap:14px">
         <div class="row-actions"><button class="btn pri" data-job="close" ${busy ? "disabled" : ""}>Run the close</button><span class="why">Load, payroll, stock, reconcile, work each case, draft, request approvals, report.</span></div>
@@ -572,7 +578,7 @@ async function renderRun() {
       <div class="form"><label>Set <select id="scoreSet"><option value="main">Main</option><option value="heldout">Held-out</option><option value="clean">Clean</option></select></label>
         <label>Runs <input type="number" id="scoreRuns" value="3" min="3" max="10" style="width:64px"></label>
         <button class="btn pri" data-job="score" ${busy ? "disabled" : ""}>Score</button>
-        <span class="why">Each run uses a fresh copy of the company. The dashboard's own database is not touched. A live-model score takes a while and costs money.</span></div>
+        <span class="why">Each run uses a fresh copy of the company. The dashboard's own database is not touched. A live score is at least 3 full closes${est ? `, about $${esc(est.score.usd)} at 3 runs` : ""}: score one set at a time.</span></div>
     </div></div>
     <div class="card"><h2>${job ? `${esc(job.label)} ${pill(job.status)}` : "No job has run in this session"}${job ? `<span class="mono muted" style="font-weight:400">${esc(when(job.started_at))}${job.finished_at ? ` → ${esc(when(job.finished_at).slice(11))}` : ""} UTC</span>` : ""}</h2>
       <div class="body">${job ? `${job.error ? `<div class="refusal" style="margin-bottom:10px">${esc(job.error)}</div>` : ""}<pre class="log" id="jobLog">${esc(job.log.map((l) => l.text).join("\n"))}</pre>` : '<span class="muted">Job output appears here.</span>'}</div></div>`;
@@ -580,21 +586,42 @@ async function renderRun() {
   const log = $("jobLog"); if (log) log.scrollTop = log.scrollHeight;
   $("runMode").addEventListener("change", (e) => { S.mode = e.target.value; store("vouch.mode", S.mode); });
   const run = async (path, body) => {
+    S.pendingRun = null;
     try { await post(path, body); notice("Started. Progress shows here and on the Overview.", "info"); await poll(); }
-    catch (error) { notice(esc(error.message), "bad"); }
+    catch (error) { notice(esc(error.message), "bad"); renderRun(); }
   };
-  panel.querySelectorAll("[data-job]").forEach((b) => b.addEventListener("click", () => {
+  $("confirmRun")?.addEventListener("click", () => run(pending.path, pending.body));
+  $("cancelRun")?.addEventListener("click", () => { S.pendingRun = null; renderRun(); });
+  const askFirst = async (title, path, body, text) => { S.pendingRun = { title, path, body, text }; await renderRun(); };
+  panel.querySelectorAll("[data-job]").forEach((b) => b.addEventListener("click", async () => {
     const kind = b.dataset.job, mode = $("runMode").value, effort = $("runEffort").value;
-    if (kind === "close") run("/api/jobs/close", { mode, effort });
-    if (kind === "colleagues") run("/api/jobs/colleagues", { mode });
-    if (kind === "follow-up") run("/api/jobs/follow-up", { business_days: Number($("fuDays").value) });
-    if (kind === "score") run("/api/jobs/score", { set: $("scoreSet").value, runs: Number($("scoreRuns").value), mode, effort });
+    const budget_usd = Number($("runBudget").value), live = mode === "model";
+    const cap = `Spending cap $${budget_usd.toFixed(2)}${kind === "score" ? " per run" : ""}: when it is reached, no more model calls are made and the rest is held with a plain reason.`;
+    if (kind === "follow-up") return run("/api/jobs/follow-up", { business_days: Number($("fuDays").value) });
+    if (kind === "close") {
+      const body = { mode, effort, budget_usd };
+      return live ? askFirst("Start the live close?", "/api/jobs/close", body, `The live model will work every case. Estimated $${esc(est.close.usd)} (${esc(est.close.basis)}). ${cap}`)
+        : run("/api/jobs/close", body);
+    }
+    if (kind === "colleagues") {
+      const body = { mode, budget_usd };
+      return live ? askFirst("Start the live colleagues round?", "/api/jobs/colleagues", body, `The live model will play each colleague. Its cost has not been measured yet; the run reports its real cost when it finishes. ${cap}`)
+        : run("/api/jobs/colleagues", body);
+    }
+    if (kind === "score") {
+      const runs = Number($("scoreRuns").value), set = $("scoreSet").value, body = { set, runs, mode, effort, budget_usd };
+      if (!live) return run("/api/jobs/score", body);
+      const e = await api(`/api/estimate?runs=${runs}`);
+      return askFirst(`Start a live score of the ${cap_(set)} set?`, "/api/jobs/score", body, `${runs} full closes on fresh copies of the company. Estimated $${esc(e.score.usd)} (${esc(e.score.basis)}). ${cap}`);
+    }
   }));
   panel.querySelectorAll("[data-rebuild]").forEach((b) => b.addEventListener("click", () => {
     S.audit.verify = null; S.cases.sel = null; S.ledger.sel = null; S.review.outcomes = {};
     run("/api/jobs/rebuild", { variant: b.dataset.rebuild });
   }));
 }
+
+function cap_(text) { return String(text).charAt(0).toUpperCase() + String(text).slice(1); }
 
 // ---------- roles and polling ----------
 async function loadPeople() {

@@ -142,3 +142,10 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause:** `questions.answer` raised `Refused` directly instead of going through `gates.refuse`, which logs (and commits) the refusal before raising it.
 - **What changed:** both checks call `gates.refuse` with the rule and the question. Test added to `tests/test_u_dashboard.py`.
 - **Kind of problem handled:** every refusal now goes through the one gate that logs it; no `raise Refused(` is left outside `gates.py` and the tool dispatcher (which logs its own refusals).
+
+## 2026-10-24 — the dashboard sometimes answered 500: a connection used from another thread
+
+- **Failing check:** repeating the dashboard render check against a live server failed in 4 of 6 runs; the server log showed `sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread` (HTTP 500 on the ledger, case and other endpoints).
+- **Root cause:** the page loads several views at once; for each request the server opens the database connection in one worker thread and uses it in another, and `sqlite3` refuses that by default. It showed only under concurrent requests, which is why the earlier single-request checks passed.
+- **What changed:** `vouch.db.connect` opens connections with `check_same_thread=False`. Each request still uses its connection one call at a time; code that shares a connection between threads (the parallel close, later) takes turns with a lock. Tests: `test_the_page_can_ask_for_many_things_at_once`, `test_a_connection_can_be_used_from_another_thread`.
+- **Kind of problem handled:** any connection opened and used on different threads, by the server or by the close.

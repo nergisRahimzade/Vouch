@@ -31,6 +31,17 @@ NOT_OWED = {"paid_not_in_hr", "paid_after_exit", "entity_differs_from_hr"}   # p
 def ensure(conn: sqlite3.Connection) -> None:
     gates.ensure(conn)
     conn.executescript(Path(__file__).with_name("schema.sql").read_text(encoding="utf-8"))
+    if "budget_usd" not in [r[1] for r in conn.execute("PRAGMA table_info(agent_runs)")]:
+        conn.execute("ALTER TABLE agent_runs ADD COLUMN budget_usd TEXT")       # databases made before the cap
+    conn.commit()
+
+
+def _save_usage(conn, run_id: str, policy) -> None:
+    """The run's tokens and cost so far, so the dashboard shows what a live run is spending as it goes."""
+    usage = policy.usage
+    conn.execute("UPDATE agent_runs SET input_tokens = ?, output_tokens = ?, cache_read_tokens = ?, cost_usd = ? "
+                 "WHERE run_id = ?", (usage.input_tokens, usage.output_tokens, usage.cache_read_tokens,
+                                      str(usage.cost(policy.model or "")), run_id))
     conn.commit()
 
 
@@ -44,9 +55,11 @@ def run_close(conn: sqlite3.Connection, policy) -> dict:
     src = Sources(conn)
     month = src.open_month
     run_id = f"RUN-{conn.execute('SELECT COUNT(*) FROM agent_runs').fetchone()[0] + 1:03d}"
-    conn.execute("INSERT INTO agent_runs (run_id, close_period, mode, model, started_at, status) VALUES (?, ?, ?, ?, ?, "
-                 "'running')", (run_id, month, policy.mode, policy.model,
-                                datetime.now(timezone.utc).isoformat(timespec="seconds")))
+    budget = getattr(policy, "budget", None)
+    conn.execute("INSERT INTO agent_runs (run_id, close_period, mode, model, started_at, status, budget_usd) VALUES "
+                 "(?, ?, ?, ?, ?, 'running', ?)", (run_id, month, policy.mode, policy.model,
+                                                   datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                                                   None if budget is None else str(budget)))
     audit.log(conn, VOUCH, "close_started", month, "done", f"{policy.mode} run {run_id}",
               {"run": run_id, "mode": policy.mode, "model": policy.model})
 
@@ -109,11 +122,13 @@ def run_close(conn: sqlite3.Connection, policy) -> dict:
         except PolicyFailed as failure:
             failures[cid] = str(failure)
             gates.set_case(conn, VOUCH, cid, "held", f"held: {failure}", {"failure": str(failure)})
+            _save_usage(conn, run_id, policy)
             continue
         broken = [json.loads(r)["error"] for r in toolbox.corpus[tool_calls:] if json.loads(r).get("tool_error")]
         if broken:
             failures[cid] = broken[0]
             gates.set_case(conn, VOUCH, cid, "held", f"held: {broken[0]}", {"tool_errors": broken})
+        _save_usage(conn, run_id, policy)
     conn.commit()
     _step(conn, 5, "work_cases", f"{len(cases) - len(failures)} cases worked, {len(failures)} held after a failure",
           {"failures": failures})
