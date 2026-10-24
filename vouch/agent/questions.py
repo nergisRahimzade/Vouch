@@ -91,7 +91,14 @@ def answer(conn: sqlite3.Connection, question_id: str, by: Actor, reply: str, no
         gates.set_case(conn, VOUCH, case_id, "held", f"{by.name} answered {reply}: {note}; the hold stays",
                        {"question": question_id})
     elif step == "draft_correction":
-        result = draft(case_id) if draft else None
+        from vouch.agent.templates import CannotDraft
+        try:
+            result = draft(case_id) if draft else None
+        except CannotDraft as cannot:           # a promise made before it was checked: hold, say why, never guess
+            gates.set_case(conn, VOUCH, case_id, "held", f"{by.name} answered {reply}; the promised correction "
+                           f"cannot be drafted ({cannot}); held for the controller",
+                           {"question": question_id, "cannot_draft": str(cannot)})
+            return {"question": question_id, "answer": reply, "next_step": "keep_hold"}
         gates.set_case(conn, VOUCH, case_id, "held", f"{by.name} answered {reply}; correction drafted and sent for "
                        "approval", {"question": question_id, "draft": result})
     elif step == "resolve_case":

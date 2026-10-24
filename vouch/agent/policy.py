@@ -96,6 +96,20 @@ def api_key_available() -> bool:
     return bool(os.environ.get("ANTHROPIC_API_KEY"))
 
 
+MAX_STRICT_TOOLS = 20          # the API refuses a request with more strict tools than this
+READ_PREFIXES = ("get_", "list_", "read_")
+
+
+def model_tools() -> list[dict]:
+    """The tools as sent to the model. Strict schemas go where the model's input reaches a calculation or a
+    control (compute and act tools); read tools take one identifier and answer 'not found' when it is wrong."""
+    tools = [{**spec, "strict": not spec["name"].startswith(READ_PREFIXES)} for spec in SPECS]
+    strict = sum(t["strict"] for t in tools)
+    if strict > MAX_STRICT_TOOLS:
+        raise ValueError(f"{strict} strict tools; the model API accepts at most {MAX_STRICT_TOOLS}")
+    return tools
+
+
 class ModelPolicy:
     mode = "model"
 
@@ -105,7 +119,7 @@ class ModelPolicy:
         self.anthropic = anthropic
         self.client = client or anthropic.Anthropic(timeout=timeout, max_retries=2)
         self.model, self.effort, self.usage = model, effort, Usage()
-        self.tools = [{**spec, "strict": True} for spec in SPECS]
+        self.tools = model_tools()
 
     def _create(self, output_format: dict | None = None, **kwargs):
         output_config = {"effort": self.effort, **({"format": output_format} if output_format else {})}

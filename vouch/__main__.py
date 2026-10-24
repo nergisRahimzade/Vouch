@@ -1,6 +1,7 @@
 """python -m vouch rebuild              build the world from the seed and load it
    python -m vouch close [--scripted]   run the open month's close (the real model by default)
-   python -m vouch score [...]          score the agent on a fresh copy of the company (see vouch.evaluator)"""
+   python -m vouch score [...]          score the agent on a fresh copy of the company (see vouch.evaluator)
+   python -m vouch ui [--port 8000]     the dashboard (see vouch.ui)"""
 from __future__ import annotations
 
 import argparse
@@ -31,11 +32,18 @@ def main() -> None:
     w.add_argument("--question", default="Why did you do this?")
     w.add_argument("--scripted", action="store_true")
     sub.add_parser("score", help="score the agent against the hidden key (python -m vouch score --help)")
+    u = sub.add_parser("ui", help="the dashboard: audit trail, human review, cases, ledger, results")
+    u.add_argument("--host", default="127.0.0.1")
+    u.add_argument("--port", type=int, default=8000)
     if sys.argv[1:2] == ["score"]:                       # everything after 'score' belongs to the evaluator
         from vouch.evaluator.__main__ import main as evaluate
         evaluate(sys.argv[1:])
         return
     args = parser.parse_args()
+    if args.command == "ui":
+        from vouch.ui.server import serve
+        serve(args.host, args.port, args.db)
+        return
     if args.command in ("colleagues", "audit"):
         from vouch.agent.colleagues import ModelColleagues, ScriptedColleagues, auditor_review, respond
         from vouch.agent.policy import ModelPolicy, ScriptedPolicy

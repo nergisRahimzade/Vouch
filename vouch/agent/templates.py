@@ -128,15 +128,21 @@ def stock_expense(src: Sources, entity: str, exclude_grants: set[str]) -> Entry:
 
 
 # -- corrections for cases ------------------------------------------------------
-def correction(src: Sources, case: dict) -> Entry:
+def cannot_correct(src: Sources, case: dict) -> str | None:
+    """Why no correcting entry can be drafted for this case, or None when one can."""
     kind = case["kind"]
-    builder = {"paid_after_exit": _recovery, "contribution_rate_differs_from_policy": _pension_shortfall,
-               "forfeiture_not_recorded": _forfeiture_reversal, "backdated_salary_change": _arrears}.get(kind)
-    if builder is None:
-        raise CannotDraft(f"a {kind} case is settled by a hold, a question or a request, not an entry")
+    if kind not in CORRECTIONS:
+        return f"a {kind} case is settled by a hold, a question or a request, not an entry"
     if kind == "paid_after_exit" and not src.is_closed(case["period"]):
-        raise CannotDraft("the payment has not left yet; hold it instead of drafting a recovery")
-    return builder(src, case)
+        return "the payment has not left yet; hold it instead of drafting a recovery"
+    return None
+
+
+def correction(src: Sources, case: dict) -> Entry:
+    reason = cannot_correct(src, case)
+    if reason:
+        raise CannotDraft(reason)
+    return CORRECTIONS[case["kind"]](src, case)
 
 
 def _evidence_rows(src: Sources, case: dict, kind: str) -> list[Row]:
@@ -206,3 +212,7 @@ def _arrears(src: Sources, case: dict) -> Entry:
     amount = Decimal(case["amount"])
     return _entry(f"VCH-{case['finding_id']}", entity, src.open_month, memo,
                   _lines({("6000", department): amount}, {("2100", None): amount}, refs, memo), corrects=case["period"])
+
+
+CORRECTIONS = {"paid_after_exit": _recovery, "contribution_rate_differs_from_policy": _pension_shortfall,
+               "forfeiture_not_recorded": _forfeiture_reversal, "backdated_salary_change": _arrears}

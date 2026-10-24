@@ -265,6 +265,12 @@ class Toolbox:
 
     def t_ask(self, case_id, to_role, fact_needed, sources_disagree, if_yes, if_no, if_partial):
         case = self.case(case_id)
+        if "draft_correction" in (if_yes, if_no, if_partial):     # promise only a step that can be carried out
+            reason = templates.cannot_correct(self.src, case)
+            if reason:
+                raise questions.BadQuestion(f"a question cannot promise draft_correction here: {reason}; "
+                                            "promise a step that can be carried out (keep_hold, "
+                                            "escalate_to_controller, resolve_case, ...)")
         department = case["subject"].get("department")
         person = self.src.person_with_role(to_role, department if to_role == "department_head" else None)
         question = questions.ask(self.conn, case_id, to_role, person, fact_needed, sources_disagree, if_yes, if_no,

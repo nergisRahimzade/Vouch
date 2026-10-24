@@ -100,3 +100,31 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause:** the plant always listed the equity report as a source that disagrees, but on this seed the person it chose has no stock grant, so the report has no row for them. Vouch could not cite it.
 - **What changed (answer key, with the human's approval):** the plant lists the equity report only when the person holds a grant. The planted mistake itself is unchanged.
 - **Kind of problem handled:** any planted transfer, whether or not the person holds a grant.
+
+## 2026-10-24 — the dashboard named the held-out set
+
+- **Failing test:** `tests/test_w6_heldout.py::test_nothing_outside_the_generator_and_evaluator_knows_about_the_heldout_set` (`vouch/ui/jobs.py`).
+- **Root cause:** the dashboard's sandbox built the generator command itself, with the held-out flag spelled out, so code outside the generator and evaluator knew about the held-out set.
+- **What changed:** the evaluator now owns the one function that turns a set name into the generator's command (`vouch.evaluator.run.build_command`), and both `prepare()` and the dashboard's rebuild use it. The dashboard takes set names from `run.SETS` and asks `run.unavailable()` before building. The test is unchanged.
+- **Kind of problem handled:** any new caller that needs to build a set (a UI, a script) goes through the evaluator, so only the generator and evaluator know how the held-out set is built.
+
+## 2026-10-24 — every live case failed: too many strict tools
+
+- **Failing check:** the first live close (through the dashboard) held all 14 cases with "the model API returned an error (400)". No test caught it, because every agent test uses a stand-in client.
+- **Root cause:** the agent sent all 21 tools with strict schemas; the model API accepts at most 20 strict tools per request, so every case request was refused before the model saw it. The report, the defence and the colleagues worked, because those calls send no tools.
+- **What changed:** `vouch/agent/policy.py` builds the tool list with `model_tools()`: strict schemas for the compute and act tools (where the model's input reaches a calculation or a control), plain schemas for the read tools (`get_*`, `list_*`, `read_*`, one identifier each, answering "not found" when it is wrong). It raises a plain error if the strict count ever exceeds the limit. New test `tests/test_g2_model_tools.py`; no existing test changed.
+- **Kind of problem handled:** any request whose tool list the API would refuse; adding read tools no longer pushes the agent over the limit, and adding act tools fails loudly at start-up instead of holding every case.
+
+## 2026-10-24 — a question promised a correction no entry could make
+
+- **Failing check:** the live colleagues round crashed with `CannotDraft: a entity_differs_from_hr case is settled by a hold, a question or a request, not an entry`.
+- **Root cause:** the model asked a department head about an entity transfer and promised "draft_correction" on a yes. No correcting entry exists for that kind of case, but `ask` accepted the promise, so the yes answer ran a step that could not be carried out, and the exception stopped the whole round.
+- **What changed:** `templates.cannot_correct()` says, from one table of correctable kinds, whether a correcting entry can be drafted for a case. The `ask` tool refuses a question that promises `draft_correction` where none can be drafted, and tells the model which steps it can promise instead. `questions.answer` holds the case with a plain reason if such a promise was made before this check existed. New tests in `tests/test_g3_promises.py`; no existing test changed.
+- **Kind of problem handled:** every question's promised steps can now be carried out, for every kind of case (alongside the existing check that the answerer can release a hold); a promise that cannot be kept ends in a held case, never a crash.
+
+## 2026-10-24 — the dashboard's reset failed while the database was open elsewhere
+
+- **Failing check:** Reset in the dashboard: `PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'vouch.db'` (a second dashboard was using the same database).
+- **Root cause:** the reset deleted `vouch.db` and built a new one. Windows refuses to delete a file another program has open.
+- **What changed:** the dashboard builds the new company in `vouch.db.rebuild` and copies it into `vouch.db` with SQLite's backup, so the live file is never deleted. New test `test_u6_reset_works_while_another_program_holds_the_database_open`.
+- **Kind of problem handled:** a reset while any other program (a second dashboard, a database viewer, a CLI command) holds the database open.
