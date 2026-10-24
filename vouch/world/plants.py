@@ -18,7 +18,7 @@ from vouch.money import ZERO, cents, fmt
 from vouch.world import config as C
 from vouch.world.banking import new_account
 from vouch.world.payroll import MonthContext, register_row
-from vouch.world.simulate import Person, band_salary
+from vouch.world.simulate import Casting, Person, band_salary
 
 OPEN = C.OPEN_MONTH
 ROLE_NAME = {d["role"]: d["name"] for d in C.DIRECTORY}
@@ -155,27 +155,16 @@ def bank_change_by_email(plant_id: str, planter: Planter) -> Plant:
 
 def leaver_still_paid(plant_id: str, planter: Planter) -> Plant:
     """Payroll was never told about an exit and paid the leaver for the next full month."""
-    paid_months = dates.month_range(month(-3), month(-1))   # the month after the exit, latest fit wins
-    plant = Plant(plant_id, "leaver_still_paid", paid_months[-1])
-    chosen: dict = {}
+    paid_month = month(-1)
+    plant = Plant(plant_id, "leaver_still_paid", paid_month)
 
-    @plant.on(paid_months[0], "register")
+    @plant.on(paid_month, "register")
     def _(ctx: MonthContext) -> None:
         rng = planter.rng(plant_id)
-        for paid_month in reversed(paid_months):
-            exit_month = dates.add_months(paid_month, -1)
-            leavers = [p for p in ctx.world.people if p.exit_date and dates.month_of(p.exit_date) == exit_month
-                       and len(p.stints) == 1 and p.employee_id not in planter.claimed]
-            if leavers:
-                chosen.update(person=pick(rng, planter, leavers), paid_month=paid_month)
-                plant.month = paid_month
-                return
-        raise RuntimeError("no eligible subject for plant")
-
-    def pay_leaver(ctx: MonthContext) -> None:
-        if chosen.get("paid_month") != ctx.month:
-            return
-        person, paid_month = chosen["person"], ctx.month
+        exit_month = month(-2)
+        leavers = [p for p in ctx.world.people if p.exit_date and dates.month_of(p.exit_date) == exit_month
+                   and len(p.stints) == 1 and p.employee_id not in planter.claimed]
+        person = pick(rng, planter, leavers)
         entity = person.stints[0].entity
         salary = person.salary_on(person.exit_date)
         row = register_row(entity, paid_month, person.employee_id, person.name, person.department,
@@ -194,9 +183,6 @@ def leaver_still_paid(plant_id: str, planter: Planter) -> Plant:
                                    "independent-arithmetic"),
             net_paid=amount(Decimal(row["net_pay"]), currency(entity), "net pay that left the bank",
                             "engine-output-pending-hand-check"))
-
-    for paid_month in paid_months:
-        plant.on(paid_month, "register")(pay_leaver)
     return plant
 
 
@@ -230,38 +216,29 @@ def leaver_paid_years_later(plant_id: str, planter: Planter) -> Plant:
 
 
 def forfeited_grant_still_expensed(plant_id: str, planter: Planter) -> Plant:
-    """The equity platform never recorded an exit and kept expensing a grant that was (partly) forfeited."""
-    window = dates.month_range(month(-10), month(-2))      # exit month: the first of these with a fit
-    plant = Plant(plant_id, "forfeited_grant_still_expensed", window[0])
+    """The equity platform never recorded an exit before the cliff and kept expensing the grant."""
+    exit_month = month(-3)
+    plant = Plant(plant_id, "forfeited_grant_still_expensed", exit_month)
     chosen: dict = {}
 
     def platform_row(ctx: MonthContext) -> dict:
         return row_of(ctx.rows("equity_report.csv"), grant_id=chosen["grant"].grant_id)
 
-    def choose(ctx: MonthContext) -> None:
-        if chosen:
-            return
+    @plant.on(exit_month, "equity")
+    def _(ctx: MonthContext) -> None:
+        rng = planter.rng(plant_id)
         candidates = []
         for grant in ctx.world.grants:
             person = ctx.world.person(grant.employee_id)
-            if (person.exit_date and dates.month_of(person.exit_date) == ctx.month and grant.grant_date
+            if (person.exit_date and dates.month_of(person.exit_date) == exit_month and grant.grant_date
                     and grant.grant_date < person.exit_date and person.employee_id not in planter.claimed):
                 row = row_of(ctx.rows("equity_report.csv"), grant_id=grant.grant_id)
-                if row["status"] == "forfeited":
-                    candidates.append((grant, int(row["service_months"])))
-        if candidates:
-            grant, months_at_exit = planter.rng(plant_id).choice(candidates)
-            total = cents(Decimal(grant.shares) * grant.fair_value_per_share)
-            vested_months = min(months_at_exit, grant.vest_months) if months_at_exit >= grant.cliff_months else 0
-            chosen.update(grant=grant, months_at_exit=months_at_exit,
-                          correct_cumulative=cents(total * vested_months / grant.vest_months))
-            planter.claim(grant.employee_id)
-            plant.month = ctx.month
-        elif ctx.month == window[-1]:
+                if row["status"] == "forfeited" and row["vested_shares"] == "0":
+                    candidates.append(grant)
+        if not candidates:
             raise RuntimeError("no eligible subject for plant")
-
-    for month_key in window:
-        plant.on(month_key, "equity")(choose)
+        chosen["grant"] = rng.choice(candidates)
+        planter.claim(chosen["grant"].employee_id)
 
     def straight_line(grant, month_key: str) -> Decimal:
         """Cumulative USD expense at month end for a holder still employed (plain arithmetic)."""
@@ -271,8 +248,6 @@ def forfeited_grant_still_expensed(plant_id: str, planter: Planter) -> Plant:
         return cents(total * min(months, grant.vest_months) / grant.vest_months), months
 
     def keep_expensing(ctx: MonthContext) -> None:
-        if not chosen:
-            return
         grant, row = chosen["grant"], platform_row(ctx)
         cumulative, months = straight_line(grant, ctx.month)
         expense = cumulative - straight_line(grant, dates.add_months(ctx.month, -1))[0]
@@ -282,7 +257,7 @@ def forfeited_grant_still_expensed(plant_id: str, planter: Planter) -> Plant:
                     "expense_month_local": fmt(cents(expense * Decimal(row["fx_rate"])))})
         chosen.setdefault("months", {})[ctx.month] = {"expense_usd": fmt(expense), "cumulative_usd": fmt(cumulative)}
 
-    for month_key in dates.month_range(window[0], OPEN):
+    for month_key in dates.month_range(exit_month, OPEN):
         plant.on(month_key, "equity")(keep_expensing)
 
     @plant.on(OPEN, "ledger")
@@ -290,20 +265,17 @@ def forfeited_grant_still_expensed(plant_id: str, planter: Planter) -> Plant:
         grant, person = chosen["grant"], ctx.world.person(chosen["grant"].employee_id)
         row = platform_row(ctx)
         booked_cum = Decimal(chosen["months"][month(-1)]["cumulative_usd"])
-        correct = chosen["correct_cumulative"]
         key(plant, subject={"grant_id": grant.grant_id, "employee_id": grant.employee_id, "entity": row["entity"],
-                            "exit_date": person.exit_date.isoformat(), "platform_months": chosen["months"],
-                            "service_months_at_exit": chosen["months_at_exit"],
-                            "correct_cumulative_usd": fmt(correct)},
-            sources_disagree=[f"months/{k}/equity_report.csv" for k in dates.month_range(plant.month, OPEN)]
-            + [f"months/{plant.month}/hr_census.csv"],
+                            "exit_date": person.exit_date.isoformat(), "platform_months": chosen["months"]},
+            sources_disagree=[f"months/{k}/equity_report.csv" for k in dates.month_range(exit_month, OPEN)]
+            + [f"months/{exit_month}/hr_census.csv"],
             trusted_source="hr_census", expected_outcome="reverse_expense",
             expected_behaviour="Reverse the stock expense recognised for the forfeited grant and book nothing more.",
             ask={"role": "stock_admin", "person": ROLE_NAME["stock_admin"]}, rules=["FIN-07", "FIN-05", "FIN-09"],
             precedents=[],
-            expected_amount=amount(booked_cum - correct, "USD",
-                                   "cumulative expense booked to the end of the last closed month minus the vested "
-                                   "value at exit (zero before the cliff; total x service months / 48 after it)",
+            expected_amount=amount(booked_cum, "USD",
+                                   "cumulative expense booked to the end of the last closed month; correct "
+                                   "cumulative is zero because the holder left before the cliff",
                                    "independent-arithmetic"),
             open_month_expense_to_block=amount(Decimal(row["expense_month_usd"]), "USD",
                                                "platform expense for the open month", "copied-from-source"))
@@ -318,14 +290,14 @@ def grant_without_board_approval(plant_id: str, planter: Planter) -> Plant:
     def _(ctx: MonthContext) -> None:
         rng = planter.rng(plant_id)
         rows = [r for r in ctx.rows("equity_report.csv") if r["status"] == "pending_approval"
-                and r["employee_id"] not in planter.claimed]
+                and int(r["service_months"]) >= 1 and r["employee_id"] not in planter.claimed]
         if not rows:
             raise RuntimeError("no eligible subject for plant")
         row = rng.choice(rows)
         planter.claim(row["employee_id"])
         fair_value = Decimal(rng.randint(550, 700)) / 100
         total = cents(Decimal(row["shares"]) * fair_value)
-        expense = cents(total * max(1, int(row["service_months"])) / 48)   # platform recognised at least a month
+        expense = cents(total * int(row["service_months"]) / 48)
         approved_on = dates.month_start(OPEN) + timedelta(days=9)
         row.update({"status": "active", "grant_date": approved_on.isoformat(),
                     "fair_value_per_share_usd": f"{fair_value:.2f}", "board_resolution": "",
@@ -336,7 +308,7 @@ def grant_without_board_approval(plant_id: str, planter: Planter) -> Plant:
             trusted_source="board_approvals", expected_outcome="block_expense",
             expected_behaviour="Block the expense and ask the stock admin for the board approval.",
             ask={"role": "stock_admin", "person": ROLE_NAME["stock_admin"]}, rules=["FIN-07", "FIN-09"], precedents=[],
-            expected_amount=amount(expense, "USD", "shares x platform fair value x max(1, service months) / 48",
+            expected_amount=amount(expense, "USD", "shares x platform fair value x service months / 48",
                                    "independent-arithmetic"))
     return plant
 
@@ -629,6 +601,44 @@ def new_hire_with_leavers_account(plant_id: str, planter: Planter) -> Plant:
         plant.key["expected_amount"] = amount(Decimal(payment["amount"]), currency(subject["entity"]),
                                               "payment held", "copied-from-source")
     return plant
+
+
+def _last_board_meeting(on_or_before) -> "date":
+    key = dates.month_of(on_or_before)
+    while True:
+        if dates.parse_month(key)[1] in C.BOARD_MEETING_MONTHS:
+            meeting = dates.nth_weekday(key, 3, 3)
+            if meeting <= on_or_before:
+                return meeting
+        key = dates.add_months(key, -1)
+
+
+def castings() -> list[Casting]:
+    """The people the main set needs, hired on purpose so every plant finds a subject that fits its
+    exact definition on every seed. Plants still choose by their criteria; a random person may also fit."""
+    def day(month_key: str, n: int):
+        return dates.month_start(month_key) + timedelta(days=n - 1)
+
+    founded = dates.month_start(C.FOUNDED)
+    if dates.parse_month(OPEN)[1] in C.BOARD_MEETING_MONTHS:
+        raise ValueError("MAIN-05 needs an open month without a board meeting")
+    cast = [
+        # MAIN-02: one entity only, leaves in the month before the last closed month.
+        Casting("MAIN-02 leaver payroll was not told about", day(month(-20), 1), day(month(-2), 14)),
+        # MAIN-03: left more than two years before the open month.
+        Casting("MAIN-03 leaver who reappears years later", max(founded, day(month(-48), 1)), day(month(-30), 10)),
+        # MAIN-04: approved grant, leaves before the 12-month cliff, three months before the open month.
+        Casting("MAIN-04 leaver before the cliff", day(month(-10), 1), day(month(-3), 15), grant=True),
+        # MAIN-05: joins after the last board meeting, so the grant is still unapproved, with a month of service.
+        Casting("MAIN-05 hire awaiting board approval",
+                _last_board_meeting(dates.month_end(month(-1))) + timedelta(days=1), grant=True),
+        # MAIN-14: a hire in the open month ...
+        Casting("MAIN-14 new hire", day(OPEN, 7)),
+    ]
+    # ... and, in every entity, someone who left before the current files began (legacy payment history).
+    cast += [Casting(f"MAIN-14 earlier leaver ({entity})", max(founded, day(month(-56), 1)), day(month(-34), 5),
+                     entity=entity) for entity in C.ENTITIES]
+    return cast
 
 
 MAIN_SET = [

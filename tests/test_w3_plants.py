@@ -46,12 +46,10 @@ def test_bank_change_by_email():
 def test_leaver_still_paid():
     key, d = planted("MAIN-02")
     e, who = key["subject"]["entity"], key["subject"]["employee_id"]
-    paid = key["subject"]["paid_period"]
-    after = dates.add_months(paid, 1)
-    assert paid == key["month"] and paid < OPEN
+    paid = m(-1)
     assert set(d) == {f"months/{paid}/payroll_register_{e}.csv", f"months/{paid}/payment_file_{e}.csv",
                       f"months/{paid}/bank_statement_{e}.csv", f"months/{paid}/ledger_booked.csv",
-                      f"months/{after}/bank_statement_{e}.csv", f"months/{after}/ledger_booked.csv"}
+                      f"months/{OPEN}/bank_statement_{e}.csv", f"months/{OPEN}/ledger_booked.csv"}
     register = d[f"months/{paid}/payroll_register_{e}.csv"]
     assert [r["employee_id"] for r in register["added"]] == [who] and not register["changed"]
     assert register["added"][0]["gross_pay"] == key["expected_amount"]["value"]
@@ -72,22 +70,16 @@ def test_leaver_paid_years_later():
 def test_forfeited_grant_still_expensed():
     key, d = planted("MAIN-04")
     grant = key["subject"]["grant_id"]
-    exit_month = key["month"]
-    assert dates.month_of(dates.parse_date(key["subject"]["exit_date"])) == exit_month
-    equity = {f"months/{k}/equity_report.csv" for k in dates.month_range(exit_month, OPEN)}
-    ledgers = {f"months/{k}/ledger_booked.csv" for k in dates.month_range(exit_month, m(-1))}
-    # The exit month's expense is unchanged when the exit falls after that month's vesting anniversary.
-    after_exit = ledgers - {f"months/{exit_month}/ledger_booked.csv"}
-    assert equity | after_exit <= set(d) <= equity | ledgers
-    ledgers &= set(d)
+    equity = {f"months/{k}/equity_report.csv" for k in dates.month_range(m(-3), OPEN)}
+    ledgers = {f"months/{k}/ledger_booked.csv" for k in dates.month_range(m(-3), m(-1))}
+    assert set(d) == equity | ledgers
     for path in equity:
         assert list(d[path]["changed"]) == [grant] and not d[path]["added"] and not d[path]["removed"]
         assert d[path]["changed"][grant]["status"][1] == "active"
     for path in ledgers:
         assert {k[1] for k in d[path]["changed"]} <= {"6300", "3100"}
     cumulative = Decimal(key["subject"]["platform_months"][m(-1)]["cumulative_usd"])
-    reversal = cumulative - Decimal(key["subject"]["correct_cumulative_usd"])
-    assert key["expected_amount"]["value"] == f"{reversal:.2f}" and reversal > 0
+    assert key["expected_amount"]["value"] == f"{cumulative:.2f}" and cumulative > 0
 
 
 def test_grant_without_board_approval():
@@ -212,3 +204,11 @@ def test_full_build_plants_all_fourteen_some_open_some_closed():
     assert OPEN in months and any(k < OPEN for k in months)
     subjects = [p.key["subject"].get("employee_id") for p in plants if p.key["subject"].get("employee_id")]
     assert len(subjects) == len(set(subjects))
+
+
+@pytest.mark.parametrize("seed", range(C.SEED, C.SEED + 20))
+def test_every_seed_has_a_subject_for_every_plant(seed):
+    """The world casts the people each plant needs, so no plant depends on luck."""
+    result = generate(seed=seed)
+    assert [p.plant_id for p in result.plants] == [p for p, _ in MAIN_SET]
+    assert all(p.key.get("subject") for p in result.plants)

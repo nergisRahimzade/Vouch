@@ -22,3 +22,11 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause:** MAIN-02, MAIN-04 and MAIN-05 looked for subjects in one fixed month or under narrow criteria (a pre-cliff leaver in exactly one month, a pending grant with service). Other seeds have no such person.
 - **What changed:** MAIN-02 and MAIN-04 search a window of closed months, and the chosen month goes in the answer key. MAIN-04 covers any forfeiture (pre- or post-cliff) and keys the reversal as the booked cumulative minus the vested value. MAIN-05 accepts any pending grant. Checked on 26 seeds.
 - **Kind of problem handled:** plants depend on the kind of situation, never on one seed's people or dates.
+
+## 2026-10-23 — reverted: the "plants failed on other seeds" fix above was wrong
+
+- **Failing test:** same as above (`test_a_different_seed_changes_the_world`). Reproduced on 30 seeds with the original definitions: MAIN-04 found no subject on 21, MAIN-05 on 3, MAIN-02 on 2.
+- **Why the earlier fix was wrong:** it widened MAIN-02 and MAIN-04 to month windows, turned MAIN-04 "leaves before the cliff" into "any forfeiture", and dropped MAIN-05's "at least one month of service". That changed what the planted cases mean. Those changes are undone; the three plants are back to their original definitions, and so are the test lines adjusted for them.
+- **Root cause:** the generator only created people at random and relied on chance to produce someone who fits each case.
+- **What changed (generator logic):** each case's needs are declared as a `Casting` in `vouch/world/plants.py::castings()`: hire date, exit date, entity where needed, and whether a grant is required. `simulate()` hires these people on purpose in the right month. They get normal names, departments, levels, salaries and grant sizes, and their grants are approved at real board meetings, but they never get a random exit or transfer, which would break their story. Castings are always added, so clean and planted worlds hold the same people. Plants still choose by their original criteria.
+- **Kind of problem handled:** any planted case whose subject needs a particular life story (exit timing, cliff, approval timing, legacy bank history) exists on every seed. New test `test_every_seed_has_a_subject_for_every_plant` checks 20 seeds; a script checked 30.

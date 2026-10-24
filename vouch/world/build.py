@@ -10,7 +10,7 @@ from vouch.world import payroll
 from vouch.world.documents import Bundle, standing_documents
 from vouch.world.files import write_bundle
 from vouch.world.noise import noise_set
-from vouch.world.plants import Plant, Planter, hooks_for, main_set
+from vouch.world.plants import Plant, Planter, castings, hooks_for, main_set
 from vouch.world.simulate import World, simulate
 
 DEFAULT_ROOT = Path(__file__).resolve().parents[2] / "world"
@@ -32,7 +32,7 @@ def generate(seed: int = C.SEED, plants: list[str] | None = None, clean: bool = 
     plants=[ids]  only these main-set plants (used by tests to see one plant's effect)
     noise=False   no noise (used by tests to isolate a change)
     """
-    world = simulate(seed)
+    world = simulate(seed, castings())     # always cast, so clean and planted worlds hold the same people
     bundle = Bundle(dict(standing_documents(world, random.Random(seed + 1))))
     planter = Planter(seed)
     for document in ("standing/rulings.json",):

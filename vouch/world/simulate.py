@@ -98,6 +98,18 @@ class BoardMeeting:
     grant_ids: list[str]
 
 
+@dataclass(frozen=True)
+class Casting:
+    """A person a planted case needs, hired on purpose so the case has a subject on every seed.
+    Everything not fixed here (name, department, level, salary, grant size) is drawn like any hire;
+    the person is never given a random exit or transfer, which would break the story they are cast for."""
+    role: str
+    hire_date: date
+    exit_date: date | None = None
+    entity: str | None = None      # None: drawn like any hire
+    grant: bool = False            # True: always receives a stock grant at hire
+
+
 @dataclass
 class World:
     people: list[Person]
@@ -137,8 +149,10 @@ def _department_head(department: str) -> str:
 
 
 class _Simulator:
-    def __init__(self, rng: random.Random):
+    def __init__(self, rng: random.Random, castings: list[Casting]):
         self.rng = rng
+        self.castings = castings
+        self.cast: set[str] = set()
         self.people: list[Person] = []
         self.grants: list[Grant] = []
         self.meetings: list[BoardMeeting] = []
@@ -170,19 +184,25 @@ class _Simulator:
         return [p for p in self.people if p.employed_on(d)]
 
     # -- monthly events ------------------------------------------------------
-    def hire(self, key: str) -> None:
+    def hire(self, key: str, casting: Casting | None = None) -> None:
         entity = _weighted(self.rng, C.ENTITY_WEIGHTS)
         department = _weighted(self.rng, C.DEPARTMENT_WEIGHTS)
         level = _weighted(self.rng, C.LEVEL_WEIGHTS)
         start = dates.month_start(key) if self.rng.random() < 0.5 else \
             dates.month_start(key) + timedelta(days=self.rng.randint(1, dates.days_in_month(key) - 1))
+        if casting:
+            entity, start = casting.entity or entity, casting.hire_date
         first, last = self._unique_name(entity)
         person = Person(f"NL-{len(self.people) + 1:05d}", first, last, department, level, start)
         person.stints.append(Stint(entity, start, None, new_account(entity, self.rng, self.accounts)))
         self._change(person, start, band_salary(entity, department, level, self.rng), entity, "hire")
         self.people.append(person)
         self.by_id[person.employee_id] = person
-        if self.rng.random() < C.GRANT_SHARE_RATE:
+        if casting:
+            self.cast.add(person.employee_id)
+            person.exit_date = casting.exit_date
+            person.stints[-1].end = casting.exit_date
+        if self.rng.random() < C.GRANT_SHARE_RATE or (casting and casting.grant):
             shares = int(C.GRANT_SHARES_BY_LEVEL[level] * self.rng.uniform(0.8, 1.2) / 100) * 100
             self.grants.append(Grant(f"G-{len(self.grants) + 1:05d}", person.employee_id, shares, None,
                                      start, C.VEST_MONTHS, C.CLIFF_MONTHS))
@@ -190,6 +210,8 @@ class _Simulator:
     def exits(self, key: str) -> None:
         first = dates.month_start(key)
         for person in self._active(first):
+            if person.employee_id in self.cast:
+                continue
             if person.hire_date < first and self.rng.random() < C.MONTHLY_EXIT_RATE:
                 person.exit_date = first + timedelta(days=self.rng.randint(0, dates.days_in_month(key) - 1))
                 person.stints[-1].end = person.exit_date
@@ -198,6 +220,8 @@ class _Simulator:
         first = dates.month_start(key)
         for person in self._active(first):
             tenure_months = (first.year - person.hire_date.year) * 12 + first.month - person.hire_date.month
+            if person.employee_id in self.cast:
+                continue
             if tenure_months < 12 or person.exit_date or self.rng.random() >= C.MONTHLY_TRANSFER_RATE:
                 continue
             old = person.stints[-1]
@@ -257,10 +281,13 @@ class _Simulator:
                 active = len(self._active(dates.month_end(key)))
                 for _ in range(max(0, round(target - active + self.rng.uniform(-1.5, 1.5)))):
                     self.hire(key)
+            for casting in self.castings:
+                if dates.month_of(casting.hire_date) == key:
+                    self.hire(key, casting)
             if dates.parse_month(key)[1] in C.BOARD_MEETING_MONTHS:
                 self.board_meeting(key)
         return World(self.people, self.grants, self.meetings, self.changes, self.accounts)
 
 
-def simulate(seed: int = C.SEED) -> World:
-    return _Simulator(random.Random(seed)).run()
+def simulate(seed: int = C.SEED, castings: list[Casting] | None = None) -> World:
+    return _Simulator(random.Random(seed), castings or []).run()
