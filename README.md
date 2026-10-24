@@ -7,9 +7,14 @@ Vouch fills the payroll accountant and equity compensation accountant seats at N
 ```bash
 pip install -e ".[dev]"
 python -m vouch.world build          # generate the company world from the fixed seed into ./world
+python -m vouch.world build --clean  # the clean set: same company and noise, no planted mistakes
 python -m pytest                     # run the tests
 python -m vouch.reference.fetch_fx   # daily refresh of recorded exchange rates (needs OPENEXCHANGERATES_API_KEY in .env)
 ```
+
+## Planted mistakes and the answer key
+
+The generator plants 14 mistakes (some in the open month, some in earlier closed months) and 4 kinds of noise, which should be explained rather than flagged. The answer key goes to `./sealed/answer_key.json`, outside the world directory, so nothing that loads the world can read it. Only `vouch.evaluator` loads it. Each expected amount says how it was checked: `copied-from-source`, `independent-arithmetic` (plain arithmetic, not Vouch's engine) or `engine-output-pending-hand-check`. The build prints how many still need a hand check.
 
 ## Exchange rates
 

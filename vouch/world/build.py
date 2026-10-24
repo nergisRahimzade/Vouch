@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from vouch.world import config as C
-from vouch.world import payroll
+from vouch.world import answer_key, payroll
 from vouch.world.documents import Bundle, standing_documents
 from vouch.world.files import write_bundle
 from vouch.world.noise import noise_set
@@ -47,8 +47,15 @@ def generate(seed: int = C.SEED, plants: list[str] | None = None, clean: bool = 
     return Generated(world, bundle, planted, messy)
 
 
-def build(root: Path = DEFAULT_ROOT, seed: int = C.SEED, clean: bool = False) -> dict:
+def build(root: Path = DEFAULT_ROOT, seed: int = C.SEED, clean: bool = False,
+          sealed: Path | None = None) -> dict:
+    """Write the world to `root` and its answer key to `sealed` (default: a sibling of the
+    world named 'sealed'), so the world directory never contains the key."""
     result = generate(seed, clean=clean)
     manifest = write_bundle(result.bundle.files, root)
+    sealed = sealed or root.parent / "sealed"
+    key = answer_key.answer_key("clean" if clean else "main", seed, result.plants, result.noise)
+    key_path = answer_key.write(sealed, key)
     return {"root": str(root), "seed": seed, "files": len(manifest), "people": len(result.world.people),
-            "months": result.bundle.months(), "plants": len(result.plants), "noise": len(result.noise)}
+            "months": result.bundle.months(), "plants": len(result.plants), "noise": len(result.noise),
+            "answer_key": str(key_path), "pending_hand_checks": len(key["pending_hand_checks"])}
