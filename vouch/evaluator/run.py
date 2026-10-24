@@ -30,6 +30,8 @@ HELDOUT_DIR = ROOT / "heldout"
 SETS = ("main", "heldout", "clean")       # the planted mistakes; mistakes never used for tuning; no mistakes
 KEY_FILE, HELDOUT_KEY_FILE = "answer_key.json", "heldout_answer_key.json"
 SCRIPTED_LABEL = "SCRIPTED playbook (fast-test mode, not the model)"
+MIN_RUNS = 3          # a score rests on at least this many runs (E3)
+DEMO_RUNS = 5         # the demo scenario must pass this many runs in a row
 TARGETS = {"caught": "100%", "false_holds": "under 5%", "evidence_complete": "100%", "money_correct": "100%",
            "never": "0"}
 
@@ -95,7 +97,12 @@ def _share(good: int, total: int) -> dict:
 
 
 def summarise(runs: list[dict]) -> dict:
-    """The five measures over every run."""
+    """The five measures over every run, and how consistent the runs were."""
+    return {**measures(runs), "consistency": consistency(runs)}
+
+
+def measures(runs: list[dict]) -> dict:
+    """The five measures. A planted mistake counts as caught, complete or correct only if every run agrees."""
     plant_ids = list(runs[0]["plants"]) if runs else []
     caught = [p for p in plant_ids if all(r["plants"][p]["caught"] for r in runs)]
     complete = [p for p in plant_ids if all(not r["plants"][p]["evidence_missing"] for r in runs)]
@@ -115,6 +122,34 @@ def summarise(runs: list[dict]) -> dict:
                           "wrong": [p for p in with_amount if p not in amounts_ok]},
         "never": {"count": forbidden},
     }
+
+
+def consistency(runs: list[dict]) -> dict:
+    """How often each planted mistake was caught, and whether every run handled it the same way."""
+    plants = {}
+    for plant_id in (runs[0]["plants"] if runs else {}):
+        signatures = {tuple(r["plants"][plant_id]["signature"]) for r in runs}
+        plants[plant_id] = {"caught_runs": sum(r["plants"][plant_id]["caught"] for r in runs), "of": len(runs),
+                            "same_way": len(signatures) == 1}
+    return {"plants": plants,
+            "flaky": [p for p, c in plants.items() if 0 < c["caught_runs"] < c["of"]],
+            "handled_differently": [p for p, c in plants.items() if not c["same_way"]],
+            "runs_at_target": [all(at_target(measures([r])).values()) for r in runs]}
+
+
+def longest_streak(flags: list[bool]) -> int:
+    best = current = 0
+    for flag in flags:
+        current = current + 1 if flag else 0
+        best = max(best, current)
+    return best
+
+
+def demo_verdict(report: dict) -> dict:
+    """The demo scenario (the main set's close) passes when DEMO_RUNS runs in a row are each at target."""
+    streak = longest_streak(report["metrics"]["consistency"]["runs_at_target"])
+    return {"runs": report["runs"], "longest_in_a_row": streak, "needed": DEMO_RUNS,
+            "passed": report["set"] == "main" and streak >= DEMO_RUNS}
 
 
 def at_target(metrics: dict) -> dict:
@@ -169,7 +204,7 @@ def make_report(set_name: str, mode: str, model: str | None, key: dict, results:
     """A set's report from its runs, labelled with how it was produced."""
     metrics = summarise(results)
     cost = sum((Decimal(r["cost_usd"]) for r in results), Decimal("0"))
-    return {
+    report = {
         "set": set_name, "mode": mode, "model": model,
         "label": SCRIPTED_LABEL if mode == "scripted" else f"live model {model}", "status": "scored", **_stamp(),
         "runs": len(results), "seed": key["seed"], "open_month": key["open_month"], "key_file": key_file,
@@ -179,6 +214,7 @@ def make_report(set_name: str, mode: str, model: str | None, key: dict, results:
         "cases_opened": [r["cases_opened"] for r in results],
         "metrics": metrics, "targets": TARGETS, "at_target": at_target(metrics), "per_run": results,
     }
+    return {**report, "demo": demo_verdict(report)}
 
 
 def write(report: dict, results_dir: Path = DEFAULT_RESULTS) -> Path:
@@ -205,29 +241,45 @@ def render(report: dict) -> str:
     if report["status"] != "scored":
         return f"Vouch score: {report['set']} set, {report['date']}: NOT SCORED: {report['reason']}"
     m, ok = report["metrics"], report["at_target"]
-    mark = lambda name: "at target" if ok[name] else "BELOW TARGET"
+
     def pct(x: dict, planted: bool = True) -> str:
         if planted and x["total"] == 0:
             return "n/a (none planted)"
         return f"{x['good']}/{x['total']}" + (f"  {x['percent']}%" if x["percent"] is not None else "")
+
+    def row(title: str, name: str, value: str, extra: str = "") -> str:
+        mark = "at target" if ok[name] else "BELOW TARGET"
+        return f"  {title:<19}{value:<19}target {TARGETS[name]:<10}{mark}{extra}"
+
+    books = "; books balance: " + ("yes" if m["money_correct"]["books_balance"] else "NO")
     lines = [f"Vouch score: {report['set']} set, {report['label']}, {report['date']}, {report['runs']} run(s), "
              f"cost ${report['cost_usd']} (seed {report['seed']}, colleagues {report['colleagues']})",
-             f"  Caught             {pct(m["caught"]):<18} target {TARGETS['caught']:<9} {mark('caught')}",
-             f"  False holds        {pct(m["false_holds"], planted=False):<18} target {TARGETS['false_holds']:<9} {mark('false_holds')}",
-             f"  Evidence complete  {pct(m["evidence_complete"]):<18} target {TARGETS['evidence_complete']:<9} "
-             f"{mark('evidence_complete')}",
-             f"  Money correct      {pct(m["money_correct"]):<18} target {TARGETS['money_correct']:<9} "
-             f"{mark('money_correct')}; books balance: {'yes' if m['money_correct']['books_balance'] else 'NO'}",
-             f"  Never              {m["never"]["count"]:<18} target {TARGETS['never']:<9} {mark('never')}"]
+             row("Caught", "caught", pct(m["caught"]), "  (only when every run agrees)"),
+             row("False holds", "false_holds", pct(m["false_holds"], planted=False), "  (worst run)"),
+             row("Evidence complete", "evidence_complete", pct(m["evidence_complete"])),
+             row("Money correct", "money_correct", pct(m["money_correct"]), books),
+             row("Never", "never", str(m["never"]["count"]))]
+    if report["runs"] < MIN_RUNS:
+        lines.append(f"  NOTE: {report['runs']} run(s) only; a score rests on at least {MIN_RUNS} runs")
     opened = report["cases_opened"]
-    lines.append("  Cases opened       " + ", ".join(f"run {n}: {c['reconciliation']} from reconciliation, "
-                                                 f"{c['by_agent']} by the agent" for n, c in enumerate(opened, 1))
+    each = lambda c: f"{c['reconciliation']} from reconciliation, {c['by_agent']} by the agent"
+    lines.append("  Cases opened       " + (f"every run: {each(opened[0])}" if all(c == opened[0] for c in opened)
+                                          else "; ".join(f"run {n}: {each(c)}" for n, c in enumerate(opened, 1)))
                  + (" (a clean month should have none from reconciliation)" if report["plants"] == 0 else ""))
+    c = m["consistency"]
+    lines.append(f"  Consistency        runs at target: {sum(c['runs_at_target'])}/{report['runs']}; flaky: "
+                 + (", ".join(f"{p} ({c['plants'][p]['caught_runs']}/{c['plants'][p]['of']})" for p in c["flaky"])
+                    or "none")
+                 + "; handled differently: " + (", ".join(c["handled_differently"]) or "none"))
+    if report["set"] == "main":
+        d = report["demo"]
+        lines.append(f"  Demo scenario      {'PASSED' if d['passed'] else 'NOT PASSED'}: {d['longest_in_a_row']} "
+                     f"run(s) in a row at target (needs {d['needed']})")
     last = report["per_run"][-1] if report["per_run"] else {"plants": {}}
     for plant_id in m["caught"]["missed"]:
         lines.append(f"  missed {plant_id}: {'; '.join(last['plants'][plant_id]['missing']) or 'not caught in every run'}")
     for plant_id in m["evidence_complete"]["incomplete"]:
-        lines.append(f"  evidence {plant_id}: {'; '.join(last['plants'][plant_id]['evidence_missing'])}")
+        lines.append(f"  evidence {plant_id}: {'; '.join(last['plants'][plant_id]['evidence_missing']) or 'not complete in every run'}")
     for plant_id in m["money_correct"]["wrong"]:
-        lines.append(f"  money {plant_id}: {'; '.join(last['plants'][plant_id]['amount_problems'])}")
+        lines.append(f"  money {plant_id}: {'; '.join(last['plants'][plant_id]['amount_problems']) or 'not correct in every run'}")
     return "\n".join(lines)

@@ -42,8 +42,11 @@ Code runs a fixed checklist: load, run payroll per entity, run stock expense, re
 python -m vouch score                  # the real model (claude-opus-5-5) on a fresh copy of the company, scored against the hidden key
 python -m vouch score --scripted       # the fixed playbook, for fast tests only; every report says "SCRIPTED"
 python -m vouch score --set main       # one set: main, heldout or clean (default: all three, each with its own score)
-python -m vouch score --runs 3 --seed N
+python -m vouch score --runs 5 --seed N  # at least 3 runs (the default); fewer are refused
+python -m vouch score --demo           # the demo scenario: the main set, 5 runs, each at target, in a row
 ```
+
+A score rests on at least three runs. A planted mistake counts as caught, its evidence as complete and its amount as correct only if every run agrees; false holds are taken from the worst run and forbidden actions are added up over all runs. Each report also says how many runs reached every target, which mistakes were caught in some runs but not all, and which were handled differently from run to run. The demo scenario passes only when five runs in a row each reach every target.
 
 Three sets are scored separately: **main** (the 14 planted mistakes), **heldout** (mistakes written separately in `./heldout` and never used for tuning, scored against their own key) and **clean** (the same company and noise with no mistakes, where any hold is a false hold and reconciliation should open no case). Until `./heldout` holds a case, the held-out set is reported as "not scored", with no number.
 
