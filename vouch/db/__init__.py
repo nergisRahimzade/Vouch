@@ -16,8 +16,9 @@ def connect(path: Path | str = DEFAULT_DB) -> sqlite3.Connection:
 
 
 def create(conn: sqlite3.Connection) -> None:
-    from vouch.db import accounts
+    from vouch.db import accounts, subledger
 
     for name in SCHEMA_FILES:
         conn.executescript((Path(__file__).with_name(name)).read_text(encoding="utf-8"))
     accounts.seed(conn)
+    subledger.create_tables(conn)

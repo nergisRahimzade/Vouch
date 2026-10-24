@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vouch.db import DEFAULT_DB, connect, create
+from vouch.db import DEFAULT_DB, connect, create, subledger
 from vouch.db.ledger import load_booked_ledger
 from vouch.db.load import load_world, summary
 
@@ -20,8 +20,12 @@ def rebuild(world: Path = DEFAULT_WORLD, db: Path = DEFAULT_DB) -> dict:
         create(conn)
         loaded = load_world(conn, world)
         ledger = load_booked_ledger(conn)
+        subledgers = subledger.build(conn)
+    differences = subledger.rollup(conn)
+    booked = subledger.booked_periods(conn)
     result = {**summary(conn), "manifest_mismatches": loaded["manifest_mismatches"], "db": str(db),
-              "entries_posted": ledger["posted"], "entries_refused": ledger["refused"]}
+              "entries_posted": ledger["posted"], "entries_refused": ledger["refused"], **subledgers,
+              "rollup_differences": len(differences), "periods_booked": len({p for p, _ in booked})}
     conn.close()
     return result
 
@@ -35,6 +39,8 @@ def report(result: dict) -> str:
         else "locked periods: none",
         f"open period: {', '.join(result['open']) or 'none'}",
         f"general ledger: {result['entries_posted']} booked entries posted, {len(result['entries_refused'])} refused",
+        f"subledgers: {result['payroll_rows']} payroll rows, {result['equity_rows']} equity rows; "
+        f"roll-up to the ledger: {result['rollup_differences']} differences over {result['periods_booked']} booked periods",
     ]
     if result["manifest_mismatches"]:
         lines.append(f"WARNING: {len(result['manifest_mismatches'])} files differ from the manifest")
