@@ -58,3 +58,10 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause:** the key computed back pay as round((new − old) ÷ 12) per month, but each payslip rounds its own monthly salary (PAY-02). So the real shortfall per month is round(new ÷ 12) − round(old ÷ 12), which can differ by a cent.
 - **What changed (answer key, with the human's approval):** the MAIN-08 plant now keys arrears as round(new ÷ 12) − round(old ÷ 12) per closed month, still plain arithmetic, independent of Vouch's engine. Vouch's reconciliation was not changed.
 - **Kind of problem handled:** any expected amount built from monthly salaries now uses the payslip's own rounding.
+
+## 2026-10-23 — a raise and a transfer in the same month paid the wrong salary
+
+- **Failing check:** reconciliation of a clean world on seed 20261027 raised 6 `salary_differs_from_approval` cases. Found while proving K6 (a clean month gives zero cases) on 12 seeds.
+- **Root cause (generator):** a person had an annual review effective 1 April and an entity transfer effective 14 April. The simulation records transfers before reviews, so the salary list was out of date order. `Person.salary_on()` took the last change in list order, not the latest by effective date, so the new entity paid the old entity's raised salary. The review also recorded the transfer salary as its "previous salary". The reconciliation was right to flag it.
+- **What changed:** `salary_on()` picks the latest change by effective date, and a change's previous salary is the one in effect the day before. No check, test or threshold changed.
+- **Kind of problem handled:** any two salary events in one month recorded out of date order. Clean worlds on 12 seeds now give 0 cases; with plants, exactly the 14 planted cases.

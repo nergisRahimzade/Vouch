@@ -66,11 +66,9 @@ class Person:
         return self.stints[-1] if d > self.stints[-1].start else self.stints[0]
 
     def salary_on(self, d: date) -> SalaryChange:
-        current = self.salaries[0]
-        for change in self.salaries:
-            if change.effective_date <= d:
-                current = change
-        return current
+        """The change in effect on d: the latest by effective date (changes may be recorded out of date order)."""
+        in_effect = [(c.effective_date, n, c) for n, c in enumerate(self.salaries) if c.effective_date <= d]
+        return max(in_effect)[2] if in_effect else self.salaries[0]
 
     def level_on(self, d: date) -> int:
         return self.salary_on(d).level
@@ -168,7 +166,7 @@ class _Simulator:
 
     # -- helpers -------------------------------------------------------------
     def _change(self, person: Person, effective: date, salary: Decimal, entity: str, reason: str) -> None:
-        previous = person.salaries[-1].annual_salary if person.salaries else None
+        previous = person.salary_on(effective - timedelta(days=1)).annual_salary if person.salaries else None
         approver = C.DIRECTORY[1]["name"] if reason == "entity_transfer" else _department_head(person.department)
         change = SalaryChange(
             change_id=f"SC-{len(self.changes) + 1:05d}", employee_id=person.employee_id,
