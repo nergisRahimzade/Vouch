@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS holds (
 CREATE TABLE IF NOT EXISTS approval_requests (
     request_id     TEXT PRIMARY KEY,
     kind           TEXT NOT NULL,               -- entry | payment_release | funding | bank_change | accrual | grant
+                                                -- | transfer | arrears | conflict | escalation
     subject_ref    TEXT NOT NULL,
     fingerprint    TEXT NOT NULL,               -- what exactly is asked; a rejected fingerprint is never resent
     payload        TEXT NOT NULL,

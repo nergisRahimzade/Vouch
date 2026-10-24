@@ -312,9 +312,24 @@ def test_when_two_people_disagree_nothing_is_released_and_the_controller_decides
     assert result["next_step"] == "escalate_to_controller" and result["conflict"]
     assert held(conn, case["finding_id"])
     assert gates.active_holds(conn, "payment", case["subject"]["payment_id"])        # the yes did not release it
-    request = conn.execute("SELECT needs, status FROM approval_requests WHERE case_id = ? AND kind = 'accrual'",
+    request = conn.execute("SELECT needs, status, payload FROM approval_requests WHERE case_id = ? AND kind = 'conflict'",
                            (case["finding_id"],)).fetchone()
+    assert json.loads(request[2])["conflict"] == [to_treasury, to_hr]                  # both answers, in order
+    assert not conn.execute("SELECT 1 FROM approval_requests WHERE case_id = ? AND kind = 'accrual'",
+                            (case["finding_id"],)).fetchone()                         # not labelled as something else
     assert request and json.loads(request[0]) == ["controller"] and request[1] == "pending"
+    conn.close()
+
+
+def test_an_answer_that_sends_a_case_to_the_controller_is_labelled_as_an_escalation(db_path, tmp_path):
+    conn = closed_copy(db_path, tmp_path)
+    case = cases(conn, "duplicate_payment")[0]
+    question = questions.open_questions(conn, case["finding_id"])[0]
+    assert question["if_no"] == "escalate_to_controller"
+    questions.answer(conn, question["question_id"], actor(conn, "treasury"), "no", "it cannot be cancelled in time")
+    kinds = [(r[0], json.loads(r[1])) for r in conn.execute(
+        "SELECT kind, needs FROM approval_requests WHERE case_id = ?", (case["finding_id"],))]
+    assert kinds == [("escalation", ["controller"])]
     conn.close()
 
 

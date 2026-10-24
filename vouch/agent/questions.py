@@ -114,8 +114,8 @@ def answer(conn: sqlite3.Connection, question_id: str, by: Actor, reply: str, no
     elif step == "escalate_to_controller":
         gates.set_case(conn, VOUCH, case_id, "held", f"{by.name} answered {reply}; sent to the controller",
                        {"question": question_id})
-        approvals.request(conn, VOUCH, "accrual", case_id, {"case": case_id, "escalated_from": question_id},
-                          case_id=case_id, reason="escalated after an answer")
+        approvals.request(conn, VOUCH, "escalation", case_id, {"case": case_id, "escalated_from": question_id},
+                          case_id=case_id, reason=f"escalated after {by.name} answered {reply}")
     return {"question": question_id, "answer": reply, "next_step": step}
 
 
@@ -139,7 +139,7 @@ def _send_conflict_to_controller(conn, case_id: str, question_id: str, reply: st
     who = "; ".join(f"{c['answered_by']} said {c['answer']} ({c['question_id']})" for c in conflict)
     reason = f"answers disagree: {who}; {by.name} said {reply} ({question_id}); sent to the controller"
     gates.set_case(conn, VOUCH, case_id, "held", reason, {"question": question_id, "conflict": conflict})
-    approvals.request(conn, VOUCH, "accrual", case_id,
+    approvals.request(conn, VOUCH, "conflict", case_id,
                       {"case": case_id, "conflict": [c["question_id"] for c in conflict] + [question_id]},
                       case_id=case_id, reason=reason)
     return {"question": question_id, "answer": reply, "next_step": "escalate_to_controller", "conflict": conflict}

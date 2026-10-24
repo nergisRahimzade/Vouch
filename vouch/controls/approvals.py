@@ -24,7 +24,9 @@ def needs_for(conn, kind: str, amount: Decimal | None, currency: str | None) -> 
         return ["finance_manager", "controller"] if large else ["finance_manager"]
     return {"payment_release": ["treasury"], "funding": ["treasury"], "bank_change": ["hr"],
             "accrual": ["controller"], "grant": ["stock_admin"], "transfer": ["department_head"],
-            "arrears": ["controller"]}[kind]
+            "arrears": ["controller"],
+            "conflict": ["controller"],       # two colleagues answered one case in opposite ways
+            "escalation": ["controller"]}[kind]   # an answer sent the case to the controller
 
 
 def request(conn: sqlite3.Connection, actor: Actor, kind: str, subject_ref: str, payload: dict,
