@@ -4,6 +4,7 @@ structured result with warnings. The model never supplies an amount or a person'
 takes amounts from the case and its sources, and names from the directory."""
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -57,6 +58,8 @@ SPECS = [
      "input_schema": _schema({"employee_id": STR})},
     {"name": "get_payments", "description": "Payment file rows for one employee and the bank lines that cleared them.",
      "input_schema": _schema({"employee_id": STR})},
+    {"name": "get_bank", "description": "Bank statement lines by reference (a payment ID or a remittance reference) "
+     "or by bank line ID.", "input_schema": _schema({"reference": STR})},
     {"name": "get_grant", "description": "A grant's signed terms, board approval and equity platform rows.",
      "input_schema": _schema({"grant_id": STR})},
     {"name": "get_ledger", "description": "One journal entry's lines and status.", "input_schema": _schema({"entry_id": STR})},
@@ -74,6 +77,9 @@ SPECS = [
     {"name": "translate", "description": "Translate a USD amount at the month's average rate (policy FIN-02); names "
      "the rate and the dates it comes from.",
      "input_schema": _schema({"amount_usd": STR, "currency": STR, "month": STR})},
+    {"name": "open_case", "description": "Open a case for something that needs a person's attention and is not "
+     "already a case, such as a suspicious email. Name what it is about, and why, in plain words.",
+     "input_schema": _schema({"subject_ref": STR, "kind": STR, "summary": STR})},
     {"name": "hold", "description": "Place a hold so nothing moves until the right person answers. Vouch can place "
      "holds; only the responsible colleague can release them.",
      "input_schema": _schema({"case_id": STR, "target_kind": {"type": "string", "enum": HOLD_KINDS},
@@ -168,6 +174,10 @@ class Toolbox:
         bank = [r.data for r in self.src.rows("bank_statement") if r["reference"] in ids]
         return {"payments": payments, "bank_lines": bank}
 
+    def t_get_bank(self, reference):
+        lines = [r.data for r in self.src.rows("bank_statement") if reference in (r["reference"], r["bank_line_id"])]
+        return {"lines": lines, "warnings": [] if lines else [f"the bank shows nothing for {reference}"]}
+
     def t_get_grant(self, grant_id):
         return {"signed": [r.data for r in self.src.rows("signed_grants") if r["grant_id"] == grant_id],
                 "board": [r.data for r in self.src.rows("board_approvals") if r["grant_id"] == grant_id],
@@ -228,6 +238,16 @@ class Toolbox:
         return {"amount_local": fmt(t.amount_local), "currency": currency, "rate": str(t.rate.rate), "basis": t.basis}
 
     # -- act ----------------------------------------------------------------------
+    def t_open_case(self, subject_ref, kind, summary):
+        case_id = "C-" + hashlib.sha1(f"{kind}|{subject_ref}".encode()).hexdigest()[:12]
+        gates.open_case(self.conn, VOUCH, case_id, self.src.open_month, kind, summary)
+        self.cases.setdefault(case_id, {"finding_id": case_id, "kind": kind, "period": self.src.open_month,
+                                        "entity": None, "subject": {"ref": subject_ref}, "summary": summary,
+                                        "amount": None, "currency": None, "rules": [], "evidence": [],
+                                        "trusted_source": None, "proposed_action": "ask", "ask_role": "controller",
+                                        "ask_person": self.src.person_with_role("controller"), "precedents": []})
+        return {"case_id": case_id}
+
     def t_hold(self, case_id, target_kind, target_ref, reason):
         case = self.case(case_id)
         if target_ref not in json.dumps(case["subject"]) and target_kind != "conversion":
