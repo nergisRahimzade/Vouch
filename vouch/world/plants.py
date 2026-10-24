@@ -417,8 +417,10 @@ def backdated_raise(plant_id: str, planter: Planter) -> Plant:
                                    person.level_on(dates.month_start(OPEN)), chosen["new"], dates.days_in_month(OPEN),
                                    ctx.ytd_before(entity, person.employee_id))
         closed = dates.month_range(month(-2), month(-1))
-        arrears = sum(((chosen["new"] - chosen["old"]) / 12).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                      for _ in closed)
+        def monthly(annual: Decimal) -> Decimal:      # a full month's pay, rounded as on the payslip (PAY-02)
+            return (annual / 12).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        arrears = sum(monthly(chosen["new"]) - monthly(chosen["old"]) for _ in closed)
         key(plant, subject={"employee_id": person.employee_id, "entity": entity, "change_id": chosen["change_id"],
                             "effective_date": chosen["effective"].isoformat(), "closed_months_affected": closed,
                             "old_salary": fmt(chosen["old"]), "new_salary": fmt(chosen["new"])},
@@ -428,7 +430,7 @@ def backdated_raise(plant_id: str, planter: Planter) -> Plant:
             expected_behaviour="Hold; pay the difference for the closed months only in the open month, with approval.",
             ask={"role": "controller", "person": ROLE_NAME["controller"]}, rules=["PAY-03", "FIN-05"],
             precedents=["RUL-0003"],
-            expected_amount=amount(arrears, currency(entity), "gross arrears = (new - old) / 12 per closed month",
+            expected_amount=amount(arrears, currency(entity), "gross arrears per closed month = round(new / 12) - round(old / 12)",
                                    "independent-arithmetic"))
     return plant
 

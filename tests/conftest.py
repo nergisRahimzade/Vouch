@@ -55,3 +55,19 @@ def scratch_db(db_path, tmp_path):
     conn = connect(copy)
     yield conn
     conn.close()
+
+
+@pytest.fixture(scope="session")
+def recon(world, db_path, tmp_path_factory):
+    """Reconciliation run on a private copy of the session database, plus the sealed key (evaluator side)."""
+    import shutil
+    from vouch.db import connect
+    from vouch.evaluator import answer_key
+    from vouch.recon.run import reconcile, stored
+    copy = tmp_path_factory.mktemp("recon") / "vouch.db"
+    shutil.copyfile(db_path, copy)
+    conn = connect(copy)
+    reconcile(conn)
+    records = stored(conn)
+    conn.close()
+    return records, answer_key.load(world.root.parent / "sealed")

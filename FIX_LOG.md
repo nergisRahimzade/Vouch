@@ -51,3 +51,10 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause:** conditions in a source link were separated by `&`, which also appears in the department name "G&A".
 - **What changed:** conditions are separated by `;`, which no value uses.
 - **Kind of problem handled:** source links whose values contain punctuation.
+
+## 2026-10-23 — MAIN-08 answer-key arrears rounded differently from the payslips (approved by the human)
+
+- **Failing test:** `tests/test_k1_pairwise.py::test_found_amounts_match_the_key` (MAIN-08: key 2,416.66, Vouch 2,416.68).
+- **Root cause:** the key computed back pay as round((new − old) ÷ 12) per month, but each payslip rounds its own monthly salary (PAY-02). So the real shortfall per month is round(new ÷ 12) − round(old ÷ 12), which can differ by a cent.
+- **What changed (answer key, with the human's approval):** the MAIN-08 plant now keys arrears as round(new ÷ 12) − round(old ÷ 12) per closed month, still plain arithmetic, independent of Vouch's engine. Vouch's reconciliation was not changed.
+- **Kind of problem handled:** any expected amount built from monthly salaries now uses the payslip's own rounding.
