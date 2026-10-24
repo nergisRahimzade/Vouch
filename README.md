@@ -6,6 +6,7 @@ Vouch fills the payroll accountant and equity compensation accountant seats at N
 
 ```bash
 pip install -e ".[dev]"
+python -m vouch rebuild              # one command: build the world from the seed and load it into ./vouch.db
 python -m vouch.world build          # generate the company world from the fixed seed into ./world
 python -m vouch.world build --clean  # the clean set: same company and noise, no planted mistakes
 python -m pytest                     # run the tests
