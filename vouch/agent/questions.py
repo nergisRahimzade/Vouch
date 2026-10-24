@@ -7,7 +7,7 @@ import json
 import sqlite3
 
 from vouch.controls import approvals, audit, clock, gates
-from vouch.controls.gates import VOUCH, Refused
+from vouch.controls.gates import VOUCH
 from vouch.db.periods import Actor
 
 # The next steps a question may promise. Releasing a hold is done by the person who answered,
@@ -71,10 +71,12 @@ def answer(conn: sqlite3.Connection, question_id: str, by: Actor, reply: str, no
     """Record an answer and carry out the step the question promised for it.
     `draft` is a callable(case_id) that drafts and requests approval for a correction."""
     question = get(conn, question_id)
+    basis = {"question": question_id}                  # a refusal is logged before it is raised, like every gate
     if question["status"] != "open":
-        raise Refused("FIN-08", "this question was already answered")
+        gates.refuse(conn, by, "answer", question["case_id"], "FIN-08", "this question was already answered", basis)
     if by.role != question["to_role"] and by.role != "controller":
-        raise Refused("ROLE", f"the question was asked of the {question['to_role']}, not the {by.role}")
+        gates.refuse(conn, by, "answer", question["case_id"], "ROLE",
+                     f"the question was asked of the {question['to_role']}, not the {by.role}", basis)
     if reply not in ("yes", "no", "partial"):
         raise ValueError(f"an answer is yes, no or partial, not {reply!r}")
     conn.execute("UPDATE questions SET status = 'answered', answer = ?, answered_by = ?, note = ?, answered_at = ? "
@@ -91,7 +93,14 @@ def answer(conn: sqlite3.Connection, question_id: str, by: Actor, reply: str, no
         gates.set_case(conn, VOUCH, case_id, "held", f"{by.name} answered {reply}: {note}; the hold stays",
                        {"question": question_id})
     elif step == "draft_correction":
-        result = draft(case_id) if draft else None
+        from vouch.agent.templates import CannotDraft
+        try:
+            result = draft(case_id) if draft else None
+        except CannotDraft as cannot:           # a promise made before it was checked: hold, say why, never guess
+            gates.set_case(conn, VOUCH, case_id, "held", f"{by.name} answered {reply}; the promised correction "
+                           f"cannot be drafted ({cannot}); held for the controller",
+                           {"question": question_id, "cannot_draft": str(cannot)})
+            return {"question": question_id, "answer": reply, "next_step": "keep_hold"}
         gates.set_case(conn, VOUCH, case_id, "held", f"{by.name} answered {reply}; correction drafted and sent for "
                        "approval", {"question": question_id, "draft": result})
     elif step == "resolve_case":

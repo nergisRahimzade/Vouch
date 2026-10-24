@@ -57,14 +57,23 @@ def unavailable(set_name: str, heldout_dir: Path = HELDOUT_DIR) -> str | None:
     return None
 
 
+def build_command(set_name: str, world: Path, seed: int | None = None, heldout_dir: Path = HELDOUT_DIR) -> list[str]:
+    """The generator's own command for one set. The evaluator (and the dashboard's sandbox, through
+    this function) run it as a separate process and never import the generator."""
+    if set_name not in SETS:
+        raise ValueError(f"unknown set {set_name!r}; choose from {', '.join(SETS)}")
+    command = [sys.executable, "-m", "vouch.world", "build", "--out", str(world)]
+    command += ["--seed", str(seed)] if seed is not None else []
+    command += {"clean": ["--clean"], "heldout": ["--heldout", str(heldout_dir)]}.get(set_name, [])
+    return command
+
+
 def prepare(set_name: str, base: Path, seed: int | None = None, heldout_dir: Path = HELDOUT_DIR) -> Prepared:
     """Generate one set's company and load it. Returns the database every run copies, and the key.
     The held-out set is scored against its separately written key when there is one."""
     world, sealed = base / set_name / "world", base / set_name / "sealed"
-    command = [sys.executable, "-m", "vouch.world", "build", "--out", str(world)]
-    command += ["--seed", str(seed)] if seed is not None else []
-    command += {"clean": ["--clean"], "heldout": ["--heldout", str(heldout_dir)]}.get(set_name, [])
-    subprocess.run(command, check=True, capture_output=True, text=True, cwd=ROOT)
+    subprocess.run(build_command(set_name, world, seed, heldout_dir), check=True, capture_output=True, text=True,
+                   cwd=ROOT)
     db = base / set_name / "prepared.db"
     rebuild(world, db)
     key = answer_key.load(sealed, KEY_FILE)

@@ -6,6 +6,7 @@
 /world/
 *.db
 *.db-journal
+*.db.rebuild*
 
 __pycache__/
 *.pyc
