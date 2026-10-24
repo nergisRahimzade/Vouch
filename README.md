@@ -17,6 +17,12 @@ python -m vouch.reference.fetch_fx   # daily refresh of recorded exchange rates 
 
 The generator plants 14 mistakes (some in the open month, some in earlier closed months) and 4 kinds of noise, which should be explained rather than flagged. The answer key goes to `./sealed/answer_key.json`, outside the world directory, so nothing that loads the world can read it. Only `vouch.evaluator` loads it. Each expected amount says how it was checked: `copied-from-source`, `independent-arithmetic` (plain arithmetic, not Vouch's engine) or `engine-output-pending-hand-check`. The build prints how many still need a hand check.
 
+## Reconciliation
+
+`python -m vouch.recon run` compares every source with every other for the same fact, across all loaded months, and stores what it finds for the open month's close. Each finding names the sources it compared and what each said, the trusted source and why (HR for people, dates, entities and bank details; approved salary changes for salary; signed grants and board approvals for grants; the bank for cash; the pay policy for rates), the rules, the amount, a proposed action and who to ask. Earlier rulings about the same kind of problem are cited.
+
+**Materiality (FIN-01):** a measurement difference strictly below the threshold for its currency (USD 50, GBP 40, EUR 45) is explained and logged; at or above it, it is a case. This applies only where two sources measure the same amount differently (rates, rounding, a payment against its net pay). Control exceptions, such as an unknown person, a duplicate, changed bank details, a missing approval or a self-approval, are always cases, whatever the amount.
+
 ## Exchange rates
 
 Rates are recorded daily USD rates from [Open Exchange Rates](https://openexchangerates.org), one per business day, snapshotted in `vouch/reference/fx_oxr_usd.csv`. Builds read only the snapshot, so they work offline and come out the same every time. **Policy (FIN-02, chosen by the human for simplicity):** each month is closed at that month's average rate, the mean of its business-day rates, for expenses and balances alike, so no separate month-end rate is used. A month can't close until every business day in it has a recorded rate, and an older rate is never reused. Every converted amount names its rate, the month and the business days it came from (`fx_rate_basis` in the files, `fx_basis` in the ledger). The ledger refuses a converted line that doesn't.

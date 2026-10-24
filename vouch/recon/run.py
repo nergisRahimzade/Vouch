@@ -5,7 +5,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 
-from vouch.recon import rulings
+from vouch.recon import materiality, rulings
 from vouch.recon.checks import run_checks
 from vouch.recon.findings import Findings
 from vouch.recon.sources import Sources
@@ -31,6 +31,7 @@ def reconcile(conn: sqlite3.Connection) -> Findings:
     src = Sources(conn)
     rulings.store_from_documents(conn)
     findings = run_checks(src)
+    materiality.apply(findings, src)
     rulings.attach(findings, rulings.past(conn, src.open_month))
     conn.executescript(SCHEMA)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
