@@ -115,6 +115,41 @@ def _store_precedent(conn, actor: Actor, item: dict, note: str) -> None:
                   json.dumps([]), f"Rejected: {note}", f"approval:{item['request_id']}"))
 
 
+# Follow-up timing on the simulated clock. Operational defaults chosen for the build (the finance
+# policy sets no numbers); awaiting the human's confirmation.
+REMIND_AFTER_BUSINESS_DAYS = 2
+ESCALATE_AFTER_BUSINESS_DAYS = 4
+
+
+def follow_up(conn: sqlite3.Connection, actor: Actor) -> list[dict]:
+    """Remind, then escalate to the controller, every request left unanswered. Nothing is approved
+    by waiting: the request and whatever it holds stay held."""
+    now, done = clock.now(conn), []
+    for item in [get(conn, r[0]) for r in conn.execute(
+            "SELECT request_id FROM approval_requests WHERE status = 'pending' ORDER BY request_id").fetchall()]:
+        waited = clock.business_days_between(item["created_at"], now)
+        if waited >= ESCALATE_AFTER_BUSINESS_DAYS and not item["escalated_at"]:
+            step = len(item["approvals"])
+            needs = list(item["needs"])
+            original, needs[step] = needs[step], "controller"
+            for later in range(step + 1, len(needs)):         # keep two different approvers when one was the controller
+                if needs[later] == "controller":
+                    needs[later] = original
+            conn.execute("UPDATE approval_requests SET status = 'escalated', assigned_role = 'controller', needs = ?, "
+                         "escalated_at = ? WHERE request_id = ?", (json.dumps(needs), now, item["request_id"]))
+            audit.log(conn, actor, "escalate", item["subject_ref"], "escalated",
+                      f"no answer from the {original} after {waited} business days; escalated to the controller",
+                      {"request": item["request_id"], "case": item["case_id"], "waited_business_days": waited})
+            done.append({"request_id": item["request_id"], "action": "escalated"})
+        elif waited >= REMIND_AFTER_BUSINESS_DAYS and not item["reminded_at"]:
+            conn.execute("UPDATE approval_requests SET reminded_at = ? WHERE request_id = ?", (now, item["request_id"]))
+            audit.log(conn, actor, "remind", item["subject_ref"], "reminded",
+                      f"reminder to the {item['assigned_role']}: waiting {waited} business days",
+                      {"request": item["request_id"], "case": item["case_id"], "waited_business_days": waited})
+            done.append({"request_id": item["request_id"], "action": "reminded"})
+    return done
+
+
 def inbox(conn, role: str) -> list[dict]:
     rows = conn.execute("SELECT request_id FROM approval_requests WHERE assigned_role = ? AND status IN "
                         "('pending', 'escalated') ORDER BY created_at, request_id", (role,))
