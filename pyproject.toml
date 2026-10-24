@@ -16,3 +16,6 @@ vouch = ["reference/*", "calc/*.json", "db/*.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Each run builds several worlds and databases; keep temp files only for failed tests of the latest run.
+tmp_path_retention_count = 1
+tmp_path_retention_policy = "failed"

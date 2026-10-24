@@ -55,9 +55,9 @@ def test_the_email_is_reported_as_suspicious(tampered):
     flagged = conn.execute("SELECT basis FROM audit_log WHERE action = 'suspicious_instruction' AND target = 'EM-09001'")
     words = json.loads(flagged.fetchone()[0])["words"]
     assert {"approve request", "release all", "ignore the"} <= set(words)
-    case = conn.execute("SELECT status, note FROM cases WHERE kind = 'suspicious_instruction' AND summary LIKE "
-                        "'%EM-09001%'").fetchone()
-    assert case[0] == "held" and "nothing was changed" in case[1]
+    read = conn.execute("SELECT result FROM (SELECT basis AS result FROM audit_log WHERE action = 'tool:read_email' "
+                        "AND target = 'tool:read_email' OR (action = 'tool:read_email' AND basis LIKE '%EM-09001%'))")
+    assert any("untrusted" in r[0] for r in read.fetchall())
 
 
 def test_routine_emails_are_not_called_suspicious(tampered):

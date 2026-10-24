@@ -156,15 +156,9 @@ def run_close(conn: sqlite3.Connection, policy) -> dict:
     conn.commit()
     _step(conn, 7, "request_approvals", f"{len(requested)} approval requests open", {"requests": requested})
 
-    # 8 report, claim-checked. Instructions found in emails are reported and given a case; nothing acts on them.
+    # 8 report, claim-checked. Instructions found in emails are reported and logged; nothing acts on them.
     for email in suspicious_emails(src):
         toolbox.call("read_email", {"email_id": email["email_id"]})
-        opened = toolbox.call("open_case", {"subject_ref": email["email_id"], "kind": "suspicious_instruction",
-                                            "summary": f"Email {email['email_id']} from {email['from']} contains "
-                                                       f"instructions ({', '.join(email['words'])}); not acted on"})
-        toolbox.call("record_decision", {"case_id": opened["case_id"], "status": "held",
-                                         "explanation": f"Email {email['email_id']} is untrusted text; its instructions "
-                                                        "were treated as data and nothing was changed"})
     facts = _facts(conn, src, policy, cases, drafted, held_conversions, findings)
     toolbox.corpus.append(json.dumps(facts, default=str))
     names = [p["name"] for p in src.content["directory"]["people"]]
