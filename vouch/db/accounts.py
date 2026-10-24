@@ -21,6 +21,7 @@ CHART = [
     Account("2210", "Social contributions payable", "liability", "credit", False),
     Account("2220", "Pension contributions payable", "liability", "credit", False),
     Account("3100", "Additional paid-in capital", "equity", "credit", False),
+    Account("3200", "Retained earnings", "equity", "credit", False),
     Account("6000", "Wages and salaries", "expense", "debit", True),
     Account("6100", "Employer payroll taxes", "expense", "debit", True),
     Account("6200", "Employer pension", "expense", "debit", True),

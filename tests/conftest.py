@@ -43,3 +43,15 @@ def db(db_path):
     yield conn
     conn.rollback()
     conn.close()
+
+
+@pytest.fixture
+def scratch_db(db_path, tmp_path):
+    """A private copy of the session database for tests that write."""
+    import shutil
+    from vouch.db import connect
+    copy = tmp_path / "scratch.db"
+    shutil.copyfile(db_path, copy)
+    conn = connect(copy)
+    yield conn
+    conn.close()

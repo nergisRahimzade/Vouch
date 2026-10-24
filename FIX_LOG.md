@@ -37,3 +37,17 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause:** plants run in time order and claim their subjects. MAIN-09 (in the last closed month) now claims everyone whose pay did not clear, and that could include the person cast for MAIN-05. MAIN-05 then had no free subject.
 - **What changed (generator logic):** each `Casting` names the plant it serves. The simulator returns which person was cast for which plant, internally only, never in a file. The planter reserves that person for that plant, and every plant and noise item now asks `planter.free(employee_id, plant_id)`, which means not claimed and not reserved for someone else. Nothing about cast people is visible in the world: same ID numbering, interleaved hire order, same draws for names, salaries and dates. Hire and exit days are drawn the same way as for any hire, limited only by what the case needs.
 - **Kind of problem handled:** any later plant whose cast subject an earlier plant or noise item could otherwise take. Checked on 40 seeds with all plants and noise.
+
+## 2026-10-23 — first month's tax remittances had no evidence
+
+- **Failing check:** the ledger refused 6 booked entries in the first file month (`JE-2025-09-*-REMIT-*`): "no source rows". Found when B3 loaded the ledger as booked.
+- **Root cause:** September 2025 pays August's withholdings. August's register is before the files begin, so nothing in the system documents what was owed. The control was right; the gap was in the generator.
+- **What changed (generator logic, chosen by the human):** the world now delivers `standing/opening_balances.csv`, the previous ledger's closing balances at the cutover date: cash, tax and pension payables, paid-in capital and retained earnings. The first month books one opening entry per entity from it. Remittances for pre-file months cite those balance rows. The chart gains `3200 Retained earnings`. Opening paid-in capital is translated at the cutover month's average rate (FIN-02); August 2025 rates were fetched for this.
+- **Kind of problem handled:** any entry in the first loaded month that rests on balances from before the files.
+
+## 2026-10-23 — department "G&A" broke source links
+
+- **Failing check:** after multi-condition source links were added, 72 booked entries were refused with "no source rows".
+- **Root cause:** conditions in a source link were separated by `&`, which also appears in the department name "G&A".
+- **What changed:** conditions are separated by `;`, which no value uses.
+- **Kind of problem handled:** source links whose values contain punctuation.

@@ -40,13 +40,15 @@ FIELDS["equity_report.csv"] = ["grant_id", "employee_id", "entity", "department"
                                "shares", "fair_value_per_share_usd", "board_resolution", "status", "service_months",
                                "vested_shares", "expense_month_usd", "cumulative_expense_usd", "local_currency",
                                "fx_rate", "expense_month_local"]
+FIELDS["opening_balances.csv"] = ["entity", "as_of", "account", "account_name", "debit", "credit", "currency",
+                                  "fx_rate", "basis"]
 FIELDS["ledger_booked.csv"] = ["entry_id", "entity", "period", "date", "account", "account_name", "department",
                                "debit", "credit", "currency", "fx_rate", "memo", "source_ref", "booked_by"]
 
 ACCOUNT_NAMES = {
     "1000": "Cash at bank", "2100": "Net pay payable", "2200": "Income tax withholding payable",
     "2210": "Social contributions payable", "2220": "Pension contributions payable",
-    "3100": "Additional paid-in capital", "6000": "Wages and salaries", "6100": "Employer payroll taxes",
+    "3100": "Additional paid-in capital", "3200": "Retained earnings", "6000": "Wages and salaries", "6100": "Employer payroll taxes",
     "6200": "Employer pension", "6300": "Stock-based compensation", "9999": "Suspense",
 }
 LIABILITY_FOR_KIND = {"income_tax": "2200", "employee_social": "2210", "employer_social": "2210",
@@ -62,7 +64,8 @@ AUTHORITIES = {
     "DE": [("FINANZAMT LOHNSTEUER", "LST", lambda c: COMPONENT_KIND[c] == "income_tax"),
            ("KRANKENKASSE SV-BEITRAEGE", "SV", lambda c: COMPONENT_KIND[c] != "income_tax")],
 }
-BOOKED_BY = {"payroll": "Daniel Reyes", "cash": "Lena Fischer", "stock": "Daniel Reyes"}
+BOOKED_BY = {"payroll": "Daniel Reyes", "cash": "Lena Fischer", "stock": "Daniel Reyes", "opening": "Amara Okafor"}
+OPENING_FILE = "standing/opening_balances.csv"
 
 
 def pension_rate(entity: str) -> Decimal | None:
@@ -301,8 +304,10 @@ def cash_entries(ctx: MonthContext, entity: str) -> list[dict]:
             split = next(s for _, c, s in remittance_split(entity, ctx.state.previous_register.get(entity, []))
                          if c == code)
             entry = f"JE-{ctx.month}-{entity}-REMIT-{code}"
+            paid_for = f"{paid_for_y}-{paid_for_m}"
             lines += [_line(entry, entity, ctx.month, day, a, v, memo=bank["description"],
-                            source=f"months/{paid_for_y}-{paid_for_m}/payroll_register_{entity}.csv",
+                            source=(f"months/{paid_for}/payroll_register_{entity}.csv" if paid_for >= C.FIRST_FILE_MONTH
+                                    else f"{OPENING_FILE}#entity={entity};account={a}"),
                             booked_by=BOOKED_BY["cash"]) for a, v in split.items()]
             lines.append(_line(entry, entity, ctx.month, day, "1000", Decimal(bank["amount"]), memo=bank["description"],
                                source=bank["bank_line_id"], booked_by=BOOKED_BY["cash"]))
@@ -327,9 +332,58 @@ def stock_entry(ctx: MonthContext, entity: str) -> list[dict]:
     return lines
 
 
+def opening_balances(world: World, previous_register: dict[str, list[dict]]) -> list[dict]:
+    """The previous ledger's closing balances on the day before the first file month."""
+    cutover = dates.add_months(C.FIRST_FILE_MONTH, -1)
+    as_of = dates.month_end(cutover)
+    apic: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    rates = {e: fx.month_average(v["currency"], cutover) for e, v in C.ENTITIES.items()}
+    for grant in world.grants:
+        person = world.person(grant.employee_id)
+        if person.hire_date > as_of:
+            continue
+        entity = person.stint_on(person.exit_date if person.exit_date and person.exit_date <= as_of else as_of).entity
+        terms = stock.GrantTerms(grant.shares, grant.fair_value_per_share, grant.grant_date, grant.vest_start,
+                                 grant.vest_months, grant.cliff_months)
+        apic[entity] += fx.to_local(stock.cumulative_expense(terms, person.exit_date, as_of)[3], rates[entity])
+    rows = []
+    for entity in C.ENTITIES:
+        register = previous_register.get(entity, [])
+        owed = defaultdict(lambda: ZERO)
+        for _, _, split in remittance_split(entity, register):
+            for account, value in split.items():
+                owed[account] += value
+        gross = sum((Decimal(r["gross_pay"]) for r in register), ZERO)
+        cash = (3 * gross + sum(owed.values(), ZERO)).quantize(Decimal("1000"))
+        balances = {"1000": cash, **{a: -v for a, v in sorted(owed.items())}, "3100": -apic[entity]}
+        balances["3200"] = -sum(balances.values(), ZERO)
+        basis = {"1000": "bank balance at cutover (synthetic: three months of gross payroll plus amounts owed)",
+                 "3100": f"cumulative stock compensation to {as_of} at the {cutover} average rate (policy FIN-02)",
+                 "3200": "balancing figure: retained earnings at cutover"}
+        for account, value in balances.items():
+            rows.append({"entity": entity, "as_of": as_of.isoformat(), "account": account,
+                         "account_name": ACCOUNT_NAMES[account],
+                         "debit": fmt(value) if value > 0 else "0.00", "credit": fmt(-value) if value < 0 else "0.00",
+                         "currency": C.ENTITIES[entity]["currency"],
+                         "fx_rate": str(rates[entity].rate) if account == "3100" else "",
+                         "basis": basis.get(account, f"{cutover} payroll withholdings and contributions not yet remitted")})
+    return rows
+
+
+def opening_entry(ctx: MonthContext, entity: str) -> list[dict]:
+    entry, day = f"JE-{ctx.month}-{entity}-OPENING", dates.month_start(ctx.month).isoformat()
+    memo = f"Opening balances at {dates.month_end(dates.add_months(ctx.month, -1))} from the previous ledger"
+    return [_line(entry, entity, ctx.month, day, r["account"], Decimal(r["debit"]) - Decimal(r["credit"]), memo=memo,
+                  source=f"{OPENING_FILE}#entity={entity};account={r['account']}", booked_by=BOOKED_BY["opening"],
+                  fx_rate=r["fx_rate"])
+            for r in ctx.bundle.files[OPENING_FILE] if r["entity"] == entity and (r["debit"] != "0.00" or r["credit"] != "0.00")]
+
+
 def build_ledger(ctx: MonthContext) -> list[dict]:
     lines = []
     for entity in C.ENTITIES:
+        if ctx.month == C.FIRST_FILE_MONTH:
+            lines += opening_entry(ctx, entity)
         if is_closed(ctx.month):
             lines += payroll_accrual(ctx, entity)
         lines += cash_entries(ctx, entity)
@@ -358,6 +412,8 @@ def run(world: World, bundle: Bundle, hooks: dict[tuple[str, str], list[Hook]] |
     first = min(payroll_start(e) for e in C.ENTITIES)
     for month in dates.month_range(first, C.OPEN_MONTH):
         written = month >= C.FIRST_FILE_MONTH
+        if month == C.FIRST_FILE_MONTH:
+            bundle.files[OPENING_FILE] = opening_balances(world, state.previous_register)
         ctx = MonthContext(month, world, bundle if written else Bundle(), master, state)
         if written:
             bundle.files[ctx.path("hr_census.csv")] = hr_census(world, month)
