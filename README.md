@@ -25,7 +25,7 @@ To refresh daily on Windows, run `scripts/register_daily_fx.ps1` once. It regist
 
 ## Tax rules and simplifications
 
-Statutory rates live in `vouch/calc/tax_rates.json`. Each value has a source link, a tax year, and a `checked` label: `official-document`, `secondary-confirmed` or `recalled`. Values labelled `recalled` still need a hand check against the cited source. Only the main components are covered:
+Statutory rates live in `vouch/calc/tax_rates.json`. Each value has a source link, a tax year, and a `checked` label: `official-document`, `secondary-confirmed` or `recalled`. Every value was checked against its source on 2026-10-23. Most come from the official text (IRS, SSA, gov.uk, German statutes); the German social-insurance rates and ceilings were checked against two reputable secondary sources (krankenkassen.de, vdek). The 2026 FUTA rate and wage base are still `recalled`, unchanged by statute since 2011, until the 2026 Form 940 instructions are read. Only the main components are covered:
 
 - **All entities:** monthly payroll paid on the last business day. Partial months are prorated by calendar days. No bonuses, benefits in kind, or pre-tax deductions.
 - **US:** federal only, no state or local tax. Federal income tax uses the Pub 15-T percentage method for automated payroll, with a 2020+ Form W-4, Single, Step 2 unchecked and no other adjustments. Social Security uses its wage base, plus Medicare, Additional Medicare above $200,000 year to date, the employer match, and FUTA at 0.6% on the first $7,000 (full state credit assumed). Monthly payroll, not semi-monthly.
