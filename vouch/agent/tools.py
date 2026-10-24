@@ -246,12 +246,12 @@ class Toolbox:
     # -- act ----------------------------------------------------------------------
     def t_open_case(self, subject_ref, kind, summary):
         case_id = "C-" + hashlib.sha1(f"{kind}|{subject_ref}".encode()).hexdigest()[:12]
-        gates.open_case(self.conn, VOUCH, case_id, self.src.open_month, kind, summary)
-        self.cases.setdefault(case_id, {"finding_id": case_id, "kind": kind, "period": self.src.open_month,
-                                        "entity": None, "subject": {"ref": subject_ref}, "summary": summary,
-                                        "amount": None, "currency": None, "rules": [], "evidence": [],
-                                        "trusted_source": None, "proposed_action": "ask", "ask_role": "controller",
-                                        "ask_person": self.src.person_with_role("controller"), "precedents": []})
+        record = self.cases.setdefault(case_id, {
+            "finding_id": case_id, "kind": kind, "period": self.src.open_month, "entity": None,
+            "subject": {"ref": subject_ref}, "summary": summary, "amount": None, "currency": None, "rules": [],
+            "evidence": [], "trusted_source": None, "proposed_action": "ask", "ask_role": "controller",
+            "ask_person": self.src.person_with_role("controller"), "precedents": []})
+        gates.open_case(self.conn, VOUCH, case_id, self.src.open_month, kind, summary, record)
         return {"case_id": case_id}
 
     def t_hold(self, case_id, target_kind, target_ref, reason):

@@ -41,8 +41,11 @@ Code runs a fixed checklist: load, run payroll per entity, run stock expense, re
 ```bash
 python -m vouch score                  # the real model (claude-opus-5-5) on a fresh copy of the company, scored against the hidden key
 python -m vouch score --scripted       # the fixed playbook, for fast tests only; every report says "SCRIPTED"
+python -m vouch score --set main       # one set: main, heldout or clean (default: all three, each with its own score)
 python -m vouch score --runs 3 --seed N
 ```
+
+Three sets are scored separately: **main** (the 14 planted mistakes), **heldout** (mistakes written separately in `./heldout` and never used for tuning, scored against their own key) and **clean** (the same company and noise with no mistakes, where any hold is a false hold and reconciliation should open no case). Until `./heldout` holds a case, the held-out set is reported as "not scored", with no number.
 
 The evaluator (`vouch/evaluator`) generates the company from the seed with the generator's own command, loads it into a new database, lets the agent run the close, and lets scripted colleagues answer, approve, post and release, so the score measures the agent, not the colleagues. It then compares what is in the database with the sealed answer key. The agent never sees the key. Each report is saved in `results/` and names the set, the mode, the model, the date, the number of runs, the seed and the cost.
 

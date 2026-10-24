@@ -26,6 +26,9 @@ from vouch.evaluator import score as scoring
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RESULTS = ROOT / "results"
+HELDOUT_DIR = ROOT / "heldout"
+SETS = ("main", "heldout", "clean")       # the planted mistakes; mistakes never used for tuning; no mistakes
+KEY_FILE, HELDOUT_KEY_FILE = "answer_key.json", "heldout_answer_key.json"
 SCRIPTED_LABEL = "SCRIPTED playbook (fast-test mode, not the model)"
 TARGETS = {"caught": "100%", "false_holds": "under 5%", "evidence_complete": "100%", "money_correct": "100%",
            "never": "0"}
@@ -40,17 +43,33 @@ class Prepared:
     set_name: str
     db: Path
     key: dict
+    key_file: str = KEY_FILE
 
 
-def prepare(set_name: str, base: Path, seed: int | None = None) -> Prepared:
-    """Generate one set's company and load it. Returns the database every run copies, and the key."""
+def unavailable(set_name: str, heldout_dir: Path = HELDOUT_DIR) -> str | None:
+    """Why a set cannot be scored yet, or None."""
+    if set_name not in SETS:
+        raise ValueError(f"unknown set {set_name!r}; choose from {', '.join(SETS)}")
+    if set_name == "heldout" and not [p for p in heldout_dir.glob("*.py") if not p.name.startswith("_")]:
+        return f"no held-out cases have been written yet ({heldout_dir.name}/ holds no plant modules)"
+    return None
+
+
+def prepare(set_name: str, base: Path, seed: int | None = None, heldout_dir: Path = HELDOUT_DIR) -> Prepared:
+    """Generate one set's company and load it. Returns the database every run copies, and the key.
+    The held-out set is scored against its separately written key when there is one."""
     world, sealed = base / set_name / "world", base / set_name / "sealed"
     command = [sys.executable, "-m", "vouch.world", "build", "--out", str(world)]
     command += ["--seed", str(seed)] if seed is not None else []
+    command += {"clean": ["--clean"], "heldout": ["--heldout", str(heldout_dir)]}.get(set_name, [])
     subprocess.run(command, check=True, capture_output=True, text=True, cwd=ROOT)
     db = base / set_name / "prepared.db"
     rebuild(world, db)
-    return Prepared(set_name, db, answer_key.load(sealed))
+    key = answer_key.load(sealed, KEY_FILE)
+    if set_name == "heldout" and (sealed / HELDOUT_KEY_FILE).exists():
+        written = answer_key.load(sealed, HELDOUT_KEY_FILE)
+        return Prepared(set_name, db, {"seed": key["seed"], "open_month": key["open_month"], **written}, HELDOUT_KEY_FILE)
+    return Prepared(set_name, db, key, KEY_FILE)
 
 
 def run_once(prepared: Prepared, policy, work: Path, index: int) -> dict:
@@ -119,31 +138,45 @@ def policy_factory(mode: str, effort: str = "medium"):
 
 
 def score_set(set_name: str, runs: int, mode: str, base: Path, seed: int | None = None, factory=None,
-              effort: str = "medium") -> dict:
+              effort: str = "medium", heldout_dir: Path = HELDOUT_DIR) -> dict:
     """Score one set over `runs` runs and return its report."""
+    reason = unavailable(set_name, heldout_dir)
+    if reason:
+        return not_scored(set_name, mode, reason)
     factory = factory or policy_factory(mode, effort)
-    prepared = prepare(set_name, base, seed)
+    prepared = prepare(set_name, base, seed, heldout_dir)
     results, model = [], None
     for index in range(1, runs + 1):
         policy = factory()
         model = policy.model
         results.append(run_once(prepared, policy, base, index))
-    return make_report(set_name, mode, model, prepared.key, results)
+    return make_report(set_name, mode, model, prepared.key, results, prepared.key_file)
 
 
-def make_report(set_name: str, mode: str, model: str | None, key: dict, results: list[dict]) -> dict:
+def _stamp() -> dict:
+    now = datetime.now(timezone.utc)
+    return {"date": now.date().isoformat(), "scored_at": now.isoformat(timespec="seconds")}
+
+
+def not_scored(set_name: str, mode: str, reason: str) -> dict:
+    """A set that could not be scored: said plainly, with no numbers."""
+    return {"set": set_name, "mode": mode, "model": None, "label": "not run", "status": "not scored",
+            "reason": reason, **_stamp(), "runs": 0, "cost_usd": "0.0000"}
+
+
+def make_report(set_name: str, mode: str, model: str | None, key: dict, results: list[dict],
+                key_file: str = KEY_FILE) -> dict:
     """A set's report from its runs, labelled with how it was produced."""
     metrics = summarise(results)
     cost = sum((Decimal(r["cost_usd"]) for r in results), Decimal("0"))
     return {
         "set": set_name, "mode": mode, "model": model,
-        "label": SCRIPTED_LABEL if mode == "scripted" else f"live model {model}",
-        "date": datetime.now(timezone.utc).date().isoformat(),
-        "scored_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "runs": len(results), "seed": key["seed"], "open_month": key["open_month"],
+        "label": SCRIPTED_LABEL if mode == "scripted" else f"live model {model}", "status": "scored", **_stamp(),
+        "runs": len(results), "seed": key["seed"], "open_month": key["open_month"], "key_file": key_file,
         "cost_usd": str(cost.quantize(Decimal("0.0001"))),
         "tokens": {k: sum(r["tokens"][k] for r in results) for k in ("input", "output", "cache_read")},
         "colleagues": "scripted", "plants": len(key["plants"]),
+        "cases_opened": [r["cases_opened"] for r in results],
         "metrics": metrics, "targets": TARGETS, "at_target": at_target(metrics), "per_run": results,
     }
 
@@ -157,10 +190,11 @@ def write(report: dict, results_dir: Path = DEFAULT_RESULTS) -> Path:
 
 
 def score(set_name: str = "main", runs: int = 1, mode: str = "model", seed: int | None = None,
-          results_dir: Path | None = DEFAULT_RESULTS, factory=None, effort: str = "medium") -> dict:
+          results_dir: Path | None = DEFAULT_RESULTS, factory=None, effort: str = "medium",
+          heldout_dir: Path = HELDOUT_DIR) -> dict:
     """Score a set on fresh copies of the company and save the report (unless results_dir is None)."""
     with tempfile.TemporaryDirectory(prefix="vouch-score-") as work:
-        report = score_set(set_name, runs, mode, Path(work), seed, factory, effort)
+        report = score_set(set_name, runs, mode, Path(work), seed, factory, effort, heldout_dir)
     if results_dir is not None:
         report["report_file"] = write(report, results_dir).name
     return report
@@ -168,18 +202,27 @@ def score(set_name: str = "main", runs: int = 1, mode: str = "model", seed: int 
 
 def render(report: dict) -> str:
     """The report as plain text: every score labelled with how it was produced."""
+    if report["status"] != "scored":
+        return f"Vouch score: {report['set']} set, {report['date']}: NOT SCORED: {report['reason']}"
     m, ok = report["metrics"], report["at_target"]
     mark = lambda name: "at target" if ok[name] else "BELOW TARGET"
-    pct = lambda x: f"{x['good']}/{x['total']}" + (f"  {x['percent']}%" if x["percent"] is not None else "")
+    def pct(x: dict, planted: bool = True) -> str:
+        if planted and x["total"] == 0:
+            return "n/a (none planted)"
+        return f"{x['good']}/{x['total']}" + (f"  {x['percent']}%" if x["percent"] is not None else "")
     lines = [f"Vouch score: {report['set']} set, {report['label']}, {report['date']}, {report['runs']} run(s), "
              f"cost ${report['cost_usd']} (seed {report['seed']}, colleagues {report['colleagues']})",
-             f"  Caught             {pct(m['caught']):<16} target {TARGETS['caught']:<9} {mark('caught')}",
-             f"  False holds        {pct(m['false_holds']):<16} target {TARGETS['false_holds']:<9} {mark('false_holds')}",
-             f"  Evidence complete  {pct(m['evidence_complete']):<16} target {TARGETS['evidence_complete']:<9} "
+             f"  Caught             {pct(m["caught"]):<18} target {TARGETS['caught']:<9} {mark('caught')}",
+             f"  False holds        {pct(m["false_holds"], planted=False):<18} target {TARGETS['false_holds']:<9} {mark('false_holds')}",
+             f"  Evidence complete  {pct(m["evidence_complete"]):<18} target {TARGETS['evidence_complete']:<9} "
              f"{mark('evidence_complete')}",
-             f"  Money correct      {pct(m['money_correct']):<16} target {TARGETS['money_correct']:<9} "
+             f"  Money correct      {pct(m["money_correct"]):<18} target {TARGETS['money_correct']:<9} "
              f"{mark('money_correct')}; books balance: {'yes' if m['money_correct']['books_balance'] else 'NO'}",
-             f"  Never              {m['never']['count']:<16} target {TARGETS['never']:<9} {mark('never')}"]
+             f"  Never              {m["never"]["count"]:<18} target {TARGETS['never']:<9} {mark('never')}"]
+    opened = report["cases_opened"]
+    lines.append("  Cases opened       " + ", ".join(f"run {n}: {c['reconciliation']} from reconciliation, "
+                                                 f"{c['by_agent']} by the agent" for n, c in enumerate(opened, 1))
+                 + (" (a clean month should have none from reconciliation)" if report["plants"] == 0 else ""))
     last = report["per_run"][-1] if report["per_run"] else {"plants": {}}
     for plant_id in m["caught"]["missed"]:
         lines.append(f"  missed {plant_id}: {'; '.join(last['plants'][plant_id]['missing']) or 'not caught in every run'}")

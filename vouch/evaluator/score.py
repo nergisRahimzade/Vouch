@@ -60,6 +60,10 @@ class Observed:
         self.people = _document(conn, "directory")["people"]
         self.findings = stored(conn, self.open_month)
         self.cases = {f["finding_id"]: f for f in self.findings if f["disposition"] == "case"}
+        # Cases the agent opened itself (not from reconciliation), with what each is about.
+        self.opened = {r["target"]: json.loads(r["basis"])["finding"].get("subject", {}) for r in conn.execute(
+            "SELECT target, basis FROM audit_log WHERE action = 'open_case' AND role = ?", (VOUCH.role,))
+            if r["target"] not in self.cases and isinstance(json.loads(r["basis"]).get("finding"), dict)}
         self.holds = [dict(r) for r in conn.execute("SELECT * FROM holds WHERE placed_by = ?", (VOUCH.name,))]
         self.questions = [dict(r) for r in conn.execute("SELECT * FROM questions")]
         self.requests = [{**dict(r), "needs": json.loads(r["needs"]), "payload": json.loads(r["payload"]),
@@ -238,6 +242,8 @@ def false_holds(obs: Observed, key: dict) -> dict:
         case = obs.cases.get(question["case_id"])
         if case:
             touched |= identifiers(case["subject"]) & (people | set(payees))
+        elif question["case_id"] in obs.opened:                # a case the agent opened: whatever it names
+            touched |= {str(v) for v in obs.opened[question["case_id"]].values()} & (people | set(payees))
     clean = (people | set(payees)) - planted
     wrong = sorted(touched & clean)
     return {"wrongly_held_or_questioned": wrong, "clean_subjects": len(clean),
@@ -278,5 +284,7 @@ def score_run(conn: sqlite3.Connection, key: dict, failures: dict | None = None)
             "caught": ok, "missing": missing, "evidence_missing": evidence(obs, plant, case_ids),
             "amount_ok": amount_ok, "amount_problems": amount_problems, "signature": obs.signature(case_ids)}
     extra = [{"case_id": c, "kind": obs.cases[c]["kind"]} for c in sorted(set(obs.cases) - matched)]
-    return {"plants": plants, "extra_cases": extra, "false_holds": false_holds(obs, key),
+    return {"plants": plants, "extra_cases": extra,
+            "cases_opened": {"reconciliation": len(obs.cases), "by_agent": len(obs.opened)},
+            "false_holds": false_holds(obs, key),
             "unbalanced_entries": books_balance(conn), "never": never(obs)}
