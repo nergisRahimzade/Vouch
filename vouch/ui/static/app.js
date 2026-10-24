@@ -41,7 +41,7 @@ function when(iso) { return iso ? String(iso).replace("T", " ").slice(0, 16) : "
 const PILLS = {
   open: "p-info", held: "p-warn", waiting: "p-acc", resolved: "p-ok", pending: "p-warn", escalated: "p-bad",
   approved: "p-ok", rejected: "p-bad", draft: "p-warn", posted: "p-ok", done: "p-ok", refused: "p-bad",
-  failed: "p-bad", requested: "p-info", reminded: "p-warn", answered: "p-ok", running: "p-info", accepted: "p-ok",
+  failed: "p-bad", "not written": "p-bad", requested: "p-info", reminded: "p-warn", answered: "p-ok", running: "p-info", accepted: "p-ok",
   locked: "p-mute",
 };
 function pill(status, text) { return `<span class="pill ${PILLS[status] || "p-mute"}">${esc(text ?? cap(status))}</span>`; }
@@ -148,7 +148,7 @@ function meters(byEntity) {
 function stepDot(step) {
   if (step.state === "running") return "running";
   if (step.state === "todo") return "todo";
-  if (step.outcome === "refused") return "refused";
+  if (step.outcome === "refused" || step.outcome === "failed") return "refused";
   return "";
 }
 function runLabel(run) {
@@ -201,7 +201,9 @@ async function renderOverview() {
       <div class="card"><h2>Close report ${o.run ? pill(o.run.report_status || o.run.status, o.run.report_status === "accepted" ? "Claim check passed" : o.run.report_status === "rejected" ? "Claim check rejected" : cap(o.run.status)) : ""}</h2>
         <div class="body">${o.run?.report ? `<div class="report">${esc(o.run.report)}</div>
           <div class="why" style="margin-top:10px">Written by ${o.run.mode === "scripted" ? "the scripted playbook" : esc(o.run.model)}; every number, date, rule and name was checked against tool results.</div>`
-          : `<div class="empty">The report appears here when a close finishes.</div>`}</div></div>
+          : o.run?.report_status === "not written"
+            ? `<div class="refusal">${esc((JSON.parse(o.run.report_problems || "[]")[0]) || "The report was not written.")}. Everything else this run did is kept; run the close again to finish it.</div>`
+            : `<div class="empty">The report appears here when a close finishes.</div>`}</div></div>
     </div>
     <div class="grid2">
       <div class="card"><h2>Needs a human <button class="btn sm" data-go="review">Open review</button></h2>

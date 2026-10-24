@@ -80,6 +80,9 @@ def main() -> None:
         label = "SCRIPTED run (fast-test playbook, not the model)" if args.scripted else f"model {result['model']}"
         print(f"{result['run_id']}: {label}; {result['cases']} cases, {len(result['failures'])} held after failures, "
               f"{len(result['drafts'])} drafts, {len(result['requests'])} approval requests, cost ${result['cost_usd']}")
+        if not result["report"]:
+            print(f"{result['report_problems'][0]}; run the close again to finish it")
+            return
         print(f"report {'accepted' if result['report_ok'] else 'REJECTED'} by the claim check"
               + ("" if result["report_ok"] else f": {json.dumps(result['report_problems'])}"))
         print(result["report"])

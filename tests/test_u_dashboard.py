@@ -136,6 +136,13 @@ def test_u3_an_answer_leads_to_the_step_the_question_promised(closed):
     done = client.post(f"/api/questions/{question['question_id']}/answer",
                        json={"role": question["to_role"], "answer": "yes", "note": "Confirmed."}).json()
     assert done["next_step"] == question["if_yes"]
+    again = client.post(f"/api/questions/{question['question_id']}/answer",
+                        json={"role": question["to_role"], "answer": "no", "note": "Changed my mind."})
+    assert again.status_code == 403 and again.json()["rule"] == "FIN-08"
+    denied = [r for r in client.get("/api/audit", params={"who": "refused", "limit": 50}).json()["rows"]
+              if r["action"] == "answer" and r["basis"].get("question") == question["question_id"]]
+    assert {r["basis"]["rule"] for r in denied} == {"ROLE", "FIN-08"}    # denied attempts are logged too
+    assert client.get("/api/audit/verify").json()["ok"]
 
 
 def test_u4_ledger_lines_link_to_their_source_rows(closed):

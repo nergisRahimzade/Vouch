@@ -162,11 +162,16 @@ def run_close(conn: sqlite3.Connection, policy) -> dict:
     facts = _facts(conn, src, policy, cases, drafted, held_conversions, findings)
     toolbox.corpus.append(json.dumps(facts, default=str))
     names = [p["name"] for p in src.content["directory"]["people"]]
-    report, check = policy.report(facts), None
-    check = claims.check(report, toolbox.corpus, names)
-    if not check.ok:
-        report = policy.report(facts, check.problems)
+    try:
+        report = policy.report(facts)
         check = claims.check(report, toolbox.corpus, names)
+        if not check.ok:
+            report = policy.report(facts, check.problems)
+            check = claims.check(report, toolbox.corpus, names)
+    except PolicyFailed as failure:
+        # No report is invented. The run ends as failed with a plain reason and its real cost; everything
+        # done so far stays, and running the close again finishes only what is missing.
+        return _report_failed(conn, policy, run_id, month, str(failure), cases, failures, drafted, requested)
     usage = policy.usage
     conn.execute("UPDATE agent_runs SET finished_at = ?, status = 'done', input_tokens = ?, output_tokens = ?, "
                  "cache_read_tokens = ?, cost_usd = ?, report = ?, report_status = ?, report_problems = ? WHERE run_id = ?",
@@ -181,6 +186,23 @@ def run_close(conn: sqlite3.Connection, policy) -> dict:
             "drafts": drafted, "requests": requested, "report": report, "report_ok": check.ok,
             "report_problems": check.problems, "cost_usd": str(usage.cost(policy.model or "")),
             "tokens": {"input": usage.input_tokens, "output": usage.output_tokens, "cache_read": usage.cache_read_tokens}}
+
+
+def _report_failed(conn, policy, run_id, month, reason, cases, failures, drafted, requested) -> dict:
+    usage, problems = policy.usage, [f"report not written: {reason}"]
+    cost = str(usage.cost(policy.model or ""))
+    conn.execute("UPDATE agent_runs SET finished_at = ?, status = 'failed', input_tokens = ?, output_tokens = ?, "
+                 "cache_read_tokens = ?, cost_usd = ?, report = NULL, report_status = 'not written', "
+                 "report_problems = ? WHERE run_id = ?",
+                 (datetime.now(timezone.utc).isoformat(timespec="seconds"), usage.input_tokens, usage.output_tokens,
+                  usage.cache_read_tokens, cost, json.dumps(problems), run_id))
+    audit.log(conn, VOUCH, "close_report", month, "failed", f"report not written: {reason}; run the close again to "
+              "finish it", {"run": run_id, "problems": problems})
+    conn.commit()
+    return {"run_id": run_id, "mode": policy.mode, "model": policy.model, "cases": len(cases), "failures": failures,
+            "drafts": drafted, "requests": requested, "report": "", "report_ok": False, "report_problems": problems,
+            "cost_usd": cost, "tokens": {"input": usage.input_tokens, "output": usage.output_tokens,
+                                         "cache_read": usage.cache_read_tokens}}
 
 
 def _work_started(conn, case_id: str) -> list[str]:

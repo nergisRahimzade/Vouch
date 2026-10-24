@@ -128,3 +128,17 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause:** the reset deleted `vouch.db` and built a new one. Windows refuses to delete a file another program has open.
 - **What changed:** the dashboard builds the new company in `vouch.db.rebuild` and copies it into `vouch.db` with SQLite's backup, so the live file is never deleted. New test `test_u6_reset_works_while_another_program_holds_the_database_open`.
 - **Kind of problem handled:** a reset while any other program (a second dashboard, a database viewer, a CLI command) holds the database open.
+
+## 2026-10-24 — a report the model could not write stopped the whole close
+
+- **Failing check:** a live close through the dashboard: `PolicyFailed: the model API could not be reached` at step 8. The run stayed `running`, the report step never finished, and the run's cost was saved as 0.00 though tokens had been spent.
+- **Root cause:** `run_close` caught model failures while working cases (the case is held with a plain reason) but not while writing the report, so the exception skipped the code that records the run's end, tokens and cost.
+- **What changed:** a report failure ends the run as `failed`, with report status `not written`, the reason, the real tokens and cost, and an audit row. Everything done so far stays; rerunning the close finishes it. New test `tests/test_g6_report_failure.py`.
+- **Kind of problem handled:** any failure of the model while writing the report (unreachable, timed out, rate-limited, refused, out of room), so a run always ends with a recorded outcome and an honest cost.
+
+## 2026-10-24 — two refusals left no trace in the audit trail
+
+- **Failing check:** a review against the track's "denied attempts are logged too": answering a question in the wrong role, or answering it twice, raised `Refused` without an audit row.
+- **Root cause:** `questions.answer` raised `Refused` directly instead of going through `gates.refuse`, which logs (and commits) the refusal before raising it.
+- **What changed:** both checks call `gates.refuse` with the rule and the question. Test added to `tests/test_u_dashboard.py`.
+- **Kind of problem handled:** every refusal now goes through the one gate that logs it; no `raise Refused(` is left outside `gates.py` and the tool dispatcher (which logs its own refusals).
