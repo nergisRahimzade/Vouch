@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from vouch.world import config as C
-from vouch.world import answer_key, payroll
+from vouch.world import answer_key, heldout as held, payroll
 from vouch.world.documents import Bundle, standing_documents
 from vouch.world.files import write_bundle
 from vouch.world.noise import noise_set
@@ -25,14 +25,16 @@ class Generated:
 
 
 def generate(seed: int = C.SEED, plants: list[str] | None = None, clean: bool = False,
-             noise: bool = True) -> Generated:
+             noise: bool = True, heldout: held.HeldOut | None = None) -> Generated:
     """Build every file in memory.
 
     clean=True    no planted mistakes (the clean set; noise stays, because a clean month is still messy)
     plants=[ids]  only these main-set plants (used by tests to see one plant's effect)
     noise=False   no noise (used by tests to isolate a change)
+    heldout=...   the held-out set: its plants, applied to the open month, instead of the main set
     """
-    world, cast = simulate_with_cast(seed, castings())   # always cast: clean and planted worlds hold the same people
+    cast_list = castings() + (heldout.castings if heldout else [])
+    world, cast = simulate_with_cast(seed, cast_list)   # always cast: clean and planted worlds hold the same people
     bundle = Bundle(dict(standing_documents(world, random.Random(seed + 1))))
     planter = Planter(seed)
     for employee_id, plant_id in cast.items():
@@ -41,21 +43,30 @@ def generate(seed: int = C.SEED, plants: list[str] | None = None, clean: bool = 
         for ruling in bundle.files[document]["rulings"]:
             if ruling["subject_employee_id"]:
                 planter.claim(ruling["subject_employee_id"])
-    planted = [] if clean else main_set(planter, plants)
+    if heldout:
+        planted = held.plants(heldout, planter)
+    else:
+        planted = [] if clean else main_set(planter, plants)
     messy = noise_set(planter) if noise else []
     payroll.run(world, bundle, hooks_for(planted + messy))
     return Generated(world, bundle, planted, messy)
 
 
 def build(root: Path = DEFAULT_ROOT, seed: int = C.SEED, clean: bool = False,
-          sealed: Path | None = None) -> dict:
+          sealed: Path | None = None, heldout_dir: Path | None = None) -> dict:
     """Write the world to `root` and its answer key to `sealed` (default: a sibling of the
     world named 'sealed'), so the world directory never contains the key."""
-    result = generate(seed, clean=clean)
+    if clean and heldout_dir:
+        raise ValueError("choose the clean set or the held-out set, not both")
+    heldout = held.load(heldout_dir) if heldout_dir else None
+    result = generate(seed, clean=clean, heldout=heldout)
     manifest = write_bundle(result.bundle.files, root)
     sealed = sealed or root.parent / "sealed"
-    key = answer_key.answer_key("clean" if clean else "main", seed, result.plants, result.noise)
+    set_name = "heldout" if heldout else "clean" if clean else "main"
+    key = answer_key.answer_key(set_name, seed, result.plants, result.noise)
     key_path = answer_key.write(sealed, key)
+    if heldout:
+        answer_key.seal_heldout_key(heldout.directory, sealed)
     return {"root": str(root), "seed": seed, "files": len(manifest), "people": len(result.world.people),
             "months": result.bundle.months(), "plants": len(result.plants), "noise": len(result.noise),
-            "answer_key": str(key_path), "pending_hand_checks": len(key["pending_hand_checks"])}
+            "answer_key": str(key_path), "pending_hand_checks": len(key["pending_hand_checks"]), "set": set_name}
