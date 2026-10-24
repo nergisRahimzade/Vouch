@@ -39,6 +39,7 @@ class Line:
     department: str | None = None
     memo: str = ""
     fx_rate: str | None = None
+    fx_basis: str | None = None
     sources: list[SourceRef] = field(default_factory=list)
 
 
@@ -101,6 +102,8 @@ def problems(conn: sqlite3.Connection, entry: Entry) -> list[str]:
             out.append(f"line {n}: exactly one of debit or credit must be positive")
         if account and account.needs_department and line.department not in company["departments"]:
             out.append(f"line {n}: expense line needs a department (got {line.department!r})")
+        if line.fx_rate and not (line.fx_basis or "").strip():
+            out.append(f"line {n}: a converted amount must name its rate and the dates it comes from")
         if not any(s.role == "evidence" for s in line.sources):
             out.append(f"line {n}: no source rows")
         for source in line.sources:
@@ -135,9 +138,9 @@ def post_entry(conn: sqlite3.Connection, entry: Entry) -> None:
             (entry.entry_id, entry.entity, entry.period, entry.entry_date, entry.reason, currency, entry.status,
              entry.origin, entry.created_by, entry.corrects_period, created))
         for n, line in enumerate(entry.lines, 1):
-            conn.execute("INSERT INTO journal_lines VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            conn.execute("INSERT INTO journal_lines VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                          (entry.entry_id, n, line.account, line.department, fmt(line.debit), fmt(line.credit),
-                          line.fx_rate, line.memo))
+                          line.fx_rate, line.fx_basis, line.memo))
             conn.executemany("INSERT INTO line_sources VALUES (?, ?, ?, ?, ?)",
                              [(entry.entry_id, n, s.role, s.doc_id, s.row_no) for s in line.sources])
     except Exception:
@@ -193,6 +196,7 @@ def load_booked_ledger(conn: sqlite3.Connection) -> dict:
                 reason=first["memo"], created_by=first["booked_by"], origin="booked_ledger", status="posted",
                 lines=[Line(account=l["account"], debit=Decimal(l["debit"]), credit=Decimal(l["credit"]),
                             department=l["department"] or None, memo=l["memo"], fx_rate=l["fx_rate"] or None,
+                            fx_basis=l.get("fx_rate_basis") or None,
                             sources=resolver.resolve(l["source_ref"]) + [SourceRef(doc["doc_id"], n, "booked_as")])
                        for n, l in rows])
             try:

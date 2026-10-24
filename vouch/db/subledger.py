@@ -22,7 +22,7 @@ CREATE TABLE equity_subledger (
     doc_id INTEGER NOT NULL, row_no INTEGER NOT NULL,
     period TEXT NOT NULL, entity TEXT NOT NULL, grant_id TEXT NOT NULL, employee_id TEXT NOT NULL,
     department TEXT NOT NULL, status TEXT NOT NULL, expense_usd TEXT NOT NULL,
-    fx_rate TEXT, expense_local TEXT,          -- NULL until the month's stock entry fixes the rate
+    fx_rate TEXT, fx_basis TEXT, expense_local TEXT,   -- NULL until the month's stock entry fixes the rate
     PRIMARY KEY (doc_id, row_no), FOREIGN KEY (doc_id, row_no) REFERENCES source_rows(doc_id, row_no)
 );
 """
@@ -53,11 +53,11 @@ def _register_amounts(row: dict) -> dict[str, Decimal]:
             for kind, columns in REGISTER_COLUMNS.items()}
 
 
-def stock_rates(conn: sqlite3.Connection) -> dict[tuple[str, str], str]:
-    """(period, entity) -> the rate the month's posted stock compensation used."""
-    rows = conn.execute("""SELECT DISTINCT e.period, e.entity, l.fx_rate FROM journal_lines l
+def stock_rates(conn: sqlite3.Connection) -> dict[tuple[str, str], tuple[str, str]]:
+    """(period, entity) -> (rate, basis) the month's posted stock compensation used."""
+    rows = conn.execute("""SELECT DISTINCT e.period, e.entity, l.fx_rate, l.fx_basis FROM journal_lines l
         JOIN journal_entries e USING (entry_id) WHERE l.account = '6300' AND e.status = 'posted'""")
-    return {(r["period"], r["entity"]): r["fx_rate"] for r in rows}
+    return {(r["period"], r["entity"]): (r["fx_rate"], r["fx_basis"]) for r in rows}
 
 
 def create_tables(conn: sqlite3.Connection) -> None:
@@ -79,11 +79,11 @@ def build(conn: sqlite3.Connection) -> dict:
     for r in conn.execute("""SELECT d.doc_id, r.row_no, d.month, r.data FROM documents d
             JOIN source_rows r USING (doc_id) WHERE d.kind = 'equity_report'""").fetchall():
         row = json.loads(r["data"])
-        rate = rates.get((r["month"], row["entity"]))
+        rate, basis = rates.get((r["month"], row["entity"]), (None, None))
         local = fmt(cents(Decimal(row["expense_month_usd"]) * Decimal(rate))) if rate else None
-        conn.execute("INSERT INTO equity_subledger VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        conn.execute("INSERT INTO equity_subledger VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                      (r["doc_id"], r["row_no"], r["month"], row["entity"], row["grant_id"], row["employee_id"],
-                      row["department"], row["status"], row["expense_month_usd"], rate, local))
+                      row["department"], row["status"], row["expense_month_usd"], rate, basis, local))
         equity += 1
     return {"payroll_rows": payroll, "equity_rows": equity}
 

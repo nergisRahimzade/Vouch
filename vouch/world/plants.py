@@ -493,7 +493,7 @@ def booked_but_never_cleared(plant_id: str, planter: Planter) -> Plant:
         payment, ledger = chosen["payment"], ctx.rows("ledger_booked.csv")
         entry = f"JE-{run_month}-US-NETPAY-MANUAL"
         base = {"entry_id": entry, "entity": "US", "period": run_month, "date": payment["value_date"],
-                "currency": "USD", "fx_rate": "", "department": "", "booked_by": ROLE_NAME["treasury"],
+                "currency": "USD", "fx_rate": "", "fx_rate_basis": "", "department": "", "booked_by": ROLE_NAME["treasury"],
                 "memo": f"SALARY {payment['payee_name'].upper()} booked from payment file",
                 "source_ref": payment["payment_id"]}
         ledger.append({**base, "account": "2100", "account_name": "Net pay payable", "debit": payment["amount"], "credit": "0.00"})

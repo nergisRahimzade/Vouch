@@ -39,11 +39,12 @@ for _entity in C.ENTITIES:
 FIELDS["equity_report.csv"] = ["grant_id", "employee_id", "entity", "department", "grant_date", "vest_start",
                                "shares", "fair_value_per_share_usd", "board_resolution", "status", "service_months",
                                "vested_shares", "expense_month_usd", "cumulative_expense_usd", "local_currency",
-                               "fx_rate", "expense_month_local"]
+                               "fx_rate", "fx_rate_basis", "expense_month_local"]
 FIELDS["opening_balances.csv"] = ["entity", "as_of", "account", "account_name", "debit", "credit", "currency",
                                   "fx_rate", "basis"]
 FIELDS["ledger_booked.csv"] = ["entry_id", "entity", "period", "date", "account", "account_name", "department",
-                               "debit", "credit", "currency", "fx_rate", "memo", "source_ref", "booked_by"]
+                               "debit", "credit", "currency", "fx_rate", "fx_rate_basis", "memo", "source_ref",
+                               "booked_by"]
 
 ACCOUNT_NAMES = {
     "1000": "Cash at bank", "2100": "Net pay payable", "2200": "Income tax withholding payable",
@@ -206,7 +207,7 @@ def build_equity(ctx: MonthContext) -> list[dict]:
             "status": status, "service_months": str(result.service_months), "vested_shares": str(result.vested_shares),
             "expense_month_usd": fmt(result.expense), "cumulative_expense_usd": fmt(result.cumulative),
             "local_currency": C.ENTITIES[entity]["currency"], "fx_rate": str(rate.rate),
-            "expense_month_local": fmt(fx.to_local(result.expense, rate)),
+            "fx_rate_basis": rate.citation, "expense_month_local": fmt(fx.to_local(result.expense, rate)),
         })
     return rows
 
@@ -253,12 +254,13 @@ def build_bank(ctx: MonthContext, entity: str) -> list[dict]:
 
 # -- ledger ------------------------------------------------------------------
 def _line(entry_id: str, entity: str, month: str, day: str, account: str, amount: Decimal, *, department: str = "",
-          memo: str, source: str, booked_by: str, fx_rate: str = "") -> dict:
+          memo: str, source: str, booked_by: str, fx_rate: str = "", fx_basis: str = "") -> dict:
     """A ledger line; a positive amount is a debit, a negative one a credit."""
     return {"entry_id": entry_id, "entity": entity, "period": month, "date": day, "account": account,
             "account_name": ACCOUNT_NAMES[account], "department": department,
             "debit": fmt(amount) if amount > 0 else "0.00", "credit": fmt(-amount) if amount < 0 else "0.00",
-            "currency": C.ENTITIES[entity]["currency"], "fx_rate": fx_rate, "memo": memo, "source_ref": source,
+            "currency": C.ENTITIES[entity]["currency"], "fx_rate": fx_rate,
+            "fx_rate_basis": fx_basis if fx_rate else "", "memo": memo, "source_ref": source,
             "booked_by": booked_by}
 
 
@@ -325,10 +327,11 @@ def stock_entry(ctx: MonthContext, entity: str) -> list[dict]:
     entry, day = f"JE-{ctx.month}-{entity}-STOCKCOMP", dates.month_end(ctx.month).isoformat()
     memo, source = f"Stock compensation {ctx.month} {entity} (ASC 718)", ctx.path("equity_report.csv")
     lines = [_line(entry, entity, ctx.month, day, "6300", v, department=d, memo=memo, source=f"{source}#department={d}",
-                   booked_by=BOOKED_BY["stock"], fx_rate=str(rate.rate)) for d, v in sorted(by_department.items()) if v]
+                   booked_by=BOOKED_BY["stock"], fx_rate=str(rate.rate), fx_basis=rate.citation)
+             for d, v in sorted(by_department.items()) if v]
     total = sum(by_department.values(), ZERO)
     lines.append(_line(entry, entity, ctx.month, day, "3100", -total, memo=memo, source=source,
-                       booked_by=BOOKED_BY["stock"], fx_rate=str(rate.rate)))
+                       booked_by=BOOKED_BY["stock"], fx_rate=str(rate.rate), fx_basis=rate.citation))
     return lines
 
 
@@ -358,7 +361,7 @@ def opening_balances(world: World, previous_register: dict[str, list[dict]]) -> 
         balances = {"1000": cash, **{a: -v for a, v in sorted(owed.items())}, "3100": -apic[entity]}
         balances["3200"] = -sum(balances.values(), ZERO)
         basis = {"1000": "bank balance at cutover (synthetic: three months of gross payroll plus amounts owed)",
-                 "3100": f"cumulative stock compensation to {as_of} at the {cutover} average rate (policy FIN-02)",
+                 "3100": f"cumulative stock compensation to {as_of} at {rates[entity].citation} (policy FIN-02)",
                  "3200": "balancing figure: retained earnings at cutover"}
         for account, value in balances.items():
             rows.append({"entity": entity, "as_of": as_of.isoformat(), "account": account,
@@ -375,7 +378,7 @@ def opening_entry(ctx: MonthContext, entity: str) -> list[dict]:
     memo = f"Opening balances at {dates.month_end(dates.add_months(ctx.month, -1))} from the previous ledger"
     return [_line(entry, entity, ctx.month, day, r["account"], Decimal(r["debit"]) - Decimal(r["credit"]), memo=memo,
                   source=f"{OPENING_FILE}#entity={entity};account={r['account']}", booked_by=BOOKED_BY["opening"],
-                  fx_rate=r["fx_rate"])
+                  fx_rate=r["fx_rate"], fx_basis=r["basis"])
             for r in ctx.bundle.files[OPENING_FILE] if r["entity"] == entity and (r["debit"] != "0.00" or r["credit"] != "0.00")]
 
 

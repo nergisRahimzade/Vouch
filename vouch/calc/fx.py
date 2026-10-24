@@ -32,8 +32,23 @@ class FxRate:
 
     @property
     def citation(self) -> str:
+        if self.currency == "USD":
+            return f"USD, no translation ({self.month})"
         return (f"USD->{self.currency} {self.rate} = {self.method} for {self.month} "
                 f"({self.days} business days {self.first_date}..{self.last_date}; {SOURCE})")
+
+
+@dataclass(frozen=True)
+class Translation:
+    """A converted amount that names its rate and the dates the rate comes from."""
+    amount_usd: Decimal
+    amount_local: Decimal
+    kind: str              # expense | balance (both use the month's average rate, policy FIN-02)
+    rate: FxRate
+
+    @property
+    def basis(self) -> str:
+        return self.rate.citation
 
 
 @lru_cache(maxsize=1)
@@ -67,3 +82,12 @@ def month_average(currency: str, month: str) -> FxRate:
 
 def to_local(amount_usd: Decimal, rate: FxRate) -> Decimal:
     return cents(amount_usd * rate.rate)
+
+
+def translate(amount_usd: Decimal, currency: str, month: str, kind: str = "expense") -> Translation:
+    """USD -> local at the month's average rate. Policy FIN-02 uses one rate for expenses and
+    balances alike; a month without every business day recorded raises MissingFxRate."""
+    if kind not in ("expense", "balance"):
+        raise ValueError(f"unknown translation kind {kind!r}")
+    rate = month_average(currency, month)
+    return Translation(amount_usd, to_local(amount_usd, rate), kind, rate)

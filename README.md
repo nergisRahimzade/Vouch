@@ -19,7 +19,7 @@ The generator plants 14 mistakes (some in the open month, some in earlier closed
 
 ## Exchange rates
 
-Rates are recorded daily USD rates from [Open Exchange Rates](https://openexchangerates.org), one per business day, snapshotted in `vouch/reference/fx_oxr_usd.csv`. Builds read only the snapshot, so they work offline and come out the same every time. Each month closes at that month's average rate. A month can't close until every business day in it has a rate (policy FIN-02).
+Rates are recorded daily USD rates from [Open Exchange Rates](https://openexchangerates.org), one per business day, snapshotted in `vouch/reference/fx_oxr_usd.csv`. Builds read only the snapshot, so they work offline and come out the same every time. **Policy (FIN-02, chosen by the human for simplicity):** each month is closed at that month's average rate, the mean of its business-day rates, for expenses and balances alike, so no separate month-end rate is used. A month can't close until every business day in it has a recorded rate, and an older rate is never reused. Every converted amount names its rate, the month and the business days it came from (`fx_rate_basis` in the files, `fx_basis` in the ledger). The ledger refuses a converted line that doesn't.
 
 To refresh daily on Windows, run `scripts/register_daily_fx.ps1` once. It registers a scheduled task.
 

@@ -22,6 +22,7 @@ CREATE TABLE journal_lines (
     debit       TEXT NOT NULL,                  -- exact decimal text, two places
     credit      TEXT NOT NULL,
     fx_rate     TEXT,
+    fx_basis    TEXT,                           -- which rate and dates fx_rate is (required with fx_rate)
     memo        TEXT,
     PRIMARY KEY (entry_id, line_no)
 );
