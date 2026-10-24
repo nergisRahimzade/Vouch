@@ -1,7 +1,6 @@
 """W3: each planted mistake changes exactly what it says, compared with a clean build."""
 from decimal import Decimal
 from functools import lru_cache
-from pathlib import PurePosixPath
 
 import pytest
 
@@ -9,6 +8,7 @@ from vouch import dates
 from vouch.world import config as C
 from vouch.world.build import generate
 from vouch.world.plants import MAIN_SET
+from worlddiff import diff
 
 OPEN = C.OPEN_MONTH
 
@@ -17,52 +17,14 @@ def m(offset):
     return dates.add_months(OPEN, offset)
 
 
-ROW_KEY = {
-    "hr_census": lambda r: r["employee_id"],
-    "payroll_register": lambda r: r["employee_id"],
-    "payment_file": lambda r: r["payment_id"],
-    "bank_statement": lambda r: r["reference"],
-    "equity_report": lambda r: r["grant_id"],
-    "ledger_booked": lambda r: (r["entry_id"], r["account"], r["department"], r["source_ref"]),
-    "salary_changes": lambda r: r["change_id"],
-    "approvals_log": lambda r: r["request_id"],
-}
-
-
-def _kind(path):
-    stem = PurePosixPath(path).stem
-    return next(k for k in ROW_KEY if stem.startswith(k))
-
-
-def diff(before: dict, after: dict) -> dict:
-    """path -> {'added': [...], 'removed': [...], 'changed': {key: {field: (old, new)}}} or 'json'."""
-    out = {}
-    for path in sorted(set(before) | set(after)):
-        a, b = before.get(path), after.get(path)
-        if a == b:
-            continue
-        if not path.endswith(".csv"):
-            out[path] = "json"
-            continue
-        key = ROW_KEY[_kind(path)]
-        old, new = {key(r): r for r in a or []}, {key(r): r for r in b or []}
-        out[path] = {
-            "added": [new[k] for k in new if k not in old],
-            "removed": [old[k] for k in old if k not in new],
-            "changed": {k: {f: (old[k][f], new[k][f]) for f in new[k] if old[k][f] != new[k][f]}
-                        for k in new if k in old and old[k] != new[k]},
-        }
-    return out
-
-
 @lru_cache(maxsize=1)
 def clean():
-    return generate(clean=True).bundle.files
+    return generate(clean=True, noise=False).bundle.files
 
 
 @lru_cache(maxsize=None)
 def planted(plant_id):
-    result = generate(plants=[plant_id])
+    result = generate(plants=[plant_id], noise=False)
     return result.plants[0].key, diff(clean(), result.bundle.files)
 
 
@@ -77,7 +39,7 @@ def test_bank_change_by_email():
     change = d[f"months/{OPEN}/payment_file_{e}.csv"]
     assert not change["added"] and not change["removed"]
     assert change["changed"] == {s["payment_id"]: {"bank_account": (s["hr_bank_account"], s["requested_bank_account"])}}
-    assert len(generate(plants=["MAIN-01"]).bundle.files["standing/inbox.json"]["emails"]) == \
+    assert len(generate(plants=["MAIN-01"], noise=False).bundle.files["standing/inbox.json"]["emails"]) == \
         len(clean()["standing/inbox.json"]["emails"]) + 1
 
 
@@ -136,7 +98,7 @@ def test_grant_without_board_approval():
     assert change["expense_month_usd"][1] == key["expected_amount"]["value"]
     only_changed(change, {"status", "grant_date", "fair_value_per_share_usd", "expense_month_usd",
                           "cumulative_expense_usd", "expense_month_local"})
-    after = generate(plants=["MAIN-05"]).bundle.files[f"months/{OPEN}/equity_report.csv"]
+    after = generate(plants=["MAIN-05"], noise=False).bundle.files[f"months/{OPEN}/equity_report.csv"]
     assert next(r for r in after if r["grant_id"] == key["subject"]["grant_id"])["board_resolution"] == ""
 
 
