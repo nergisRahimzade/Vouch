@@ -33,6 +33,7 @@ def reconcile(conn: sqlite3.Connection) -> Findings:
     findings = run_checks(src)
     materiality.apply(findings, src)
     rulings.attach(findings, rulings.past(conn, src.open_month))
+    findings.validate(src.rule_ids)
     conn.executescript(SCHEMA)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with conn:

@@ -90,13 +90,49 @@ class Finding:
         }
 
 
+class IncompleteFinding(ValueError):
+    """A finding that cannot explain itself is never stored."""
+
+
+def problems(finding: "Finding", known_rules: set[str] | None = None) -> list[str]:
+    """What a finding lacks: the sources compared, the trusted source and why, the rule, the amount."""
+    out = []
+    if not finding.summary.strip():
+        out.append("no summary")
+    if len(finding.evidence) < 2:
+        out.append("fewer than two sources compared")
+    if any(not (e.source and e.path and e.says) for e in finding.evidence):
+        out.append("a compared source does not say what it shows")
+    if finding.fact not in TRUST:
+        out.append(f"no trusted source for fact {finding.fact!r}")
+    if not finding.rules:
+        out.append("no rule")
+    elif known_rules is not None and set(finding.rules) - known_rules:
+        out.append(f"unknown rules {sorted(set(finding.rules) - known_rules)}")
+    if finding.amount is None or not finding.currency or not finding.amount_basis.strip():
+        out.append("no amount, currency or amount basis")
+    if finding.disposition == "explained" and not finding.explanation.strip():
+        out.append("explained without an explanation")
+    return out
+
+
 class Findings:
     """Collects findings; a finding with the same id as an earlier one adds its evidence to it."""
 
     def __init__(self):
         self.items: dict[str, Finding] = {}
 
+    def validate(self, known_rules: set[str]) -> None:
+        """Refuse the whole set if any finding cannot explain itself."""
+        for finding in self:
+            missing = problems(finding, known_rules)
+            if missing:
+                raise IncompleteFinding(f"{finding.kind} {finding.period} {finding.subject}: {'; '.join(missing)}")
+
     def add(self, finding: Finding) -> Finding:
+        missing = problems(finding)
+        if missing:
+            raise IncompleteFinding(f"{finding.kind} {finding.period} {finding.subject}: {'; '.join(missing)}")
         existing = self.items.get(finding.finding_id)
         if existing is None:
             self.items[finding.finding_id] = finding

@@ -68,6 +68,10 @@ class Sources:
                     return rule
         raise KeyError(rule_id)
 
+    @cached_property
+    def rule_ids(self) -> set[str]:
+        return {r["rule_id"] for d in ("pay_policy", "finance_policy") for r in self.content[d]["rules"]}
+
     def materiality(self, currency: str) -> Decimal:
         return Decimal(self.rule("FIN-01")["threshold"][currency])
 
