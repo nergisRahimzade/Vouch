@@ -18,6 +18,19 @@ Build Vouch: an autonomous payroll and stock-compensation accountant for a ficti
 
 **Suggested stack** (any is allowed): Python, FastAPI, SQLite, a Claude model through the API, and a simple web UI.
 
+## Testing integrity
+
+Tests exist to find wrong logic, not to be passed: a failing test is fixed only by fixing the reason behind it.
+
+1. **Never edit code to match a test.** Find the root cause and fix it where it lives: a calculation, a check, a tool (add one or change one), the system prompt, or a control. Fix the whole kind of problem, not the one case.
+2. **Never change a test, the answer key, a threshold or the planted data to make a result pass.** If a test itself looks wrong, stop, explain why, and ask the human first.
+3. **No special cases.** No code, prompt or tool names a specific employee, grant, payment, month or planted mistake. A test scans for this.
+4. **Expected answers are independent.** Answer-key amounts are checked by hand or against the official calculators, not only by Vouch's own engine, so one shared bug can't pass both.
+5. **Keep the held-out set sealed.** It is written in a separate session from plain descriptions, never referenced by the agent's code or prompts, and only scored, never tuned on. Any change made after a held-out failure is logged and flagged in the results.
+6. **Fix log.** `FIX_LOG.md` records each fix: the failing test, the root cause, what changed, and which kind of problem it now handles.
+7. **Report everything.** Results show failures, misses, skipped tests and known limits, as measured. A skipped or disabled test counts as failing.
+8. **Honest to users too.** When Vouch is unsure, it says so and holds; it never presents a guess as a fact.
+
 ## Hyphenate coverage
 
 Every item the Hyphenate track asks for maps to a layer below; nothing ships until each row is true.
@@ -59,8 +72,8 @@ A seeded generator builds Northlight Labs and the monthly files its finance team
 - [ ] **W2. Realistic amounts.** Salaries vary by entity, department and level; pay is computed by Layer 3, never typed. *Done when:* every register row equals the Layer 3 engine's output.
 - [ ] **W3. Planted mistakes.** Each mistake is a small function that changes one source in one month. Plant the set below, some in the open month and some in earlier closed months. *Done when:* each plant has a test showing exactly what it changed.
 - [ ] **W4. Noise.** Add mess that must be explained, not flagged: typos in emails, a duplicate HR row, a bank line posted the day after month-end, an FX difference inside tolerance. *Done when:* each appears in the data.
-- [ ] **W5. Answer key.** A hidden file lists each planted mistake: kind, subject, trusted source, expected outcome, who to ask, rules to cite, expected amount (computed by code). The agent never reads it. *Done when:* only the evaluator loads it.
-- [ ] **W6. Held-out set.** 5–8 extra mistakes with their own key, built after the agent and never used to tune it. *Done when:* they apply to the open month on demand.
+- [ ] **W5. Answer key.** A hidden file lists each planted mistake: kind, subject, trusted source, expected outcome, who to ask, rules to cite, expected amount (verified independently of Vouch's engine, by hand or the official calculator). The agent never reads it. *Done when:* only the evaluator loads it.
+- [ ] **W6. Held-out set.** 5–8 extra mistakes with their own key, written in a separate session, sealed from the agent's code and prompts, and never used to tune it. *Done when:* they apply to the open month on demand.
 
 | Planted mistake | Sources that disagree | Expected behaviour |
 | --- | --- | --- |
@@ -77,6 +90,7 @@ A seeded generator builds Northlight Labs and the monthly files its finance team
 | Duplicate grant or duplicate payment | Platform or bank vs itself | Reject the duplicate |
 | Entity transfer not reflected | HR vs payroll and platform | Hold and ask the department head |
 | Requester tries to approve a large accrual | Policy | Refuse and route to the controller |
+| New hire set up with an old leaver's bank account | HR master vs payment history from earlier years | Hold the pay destination, ask HR for a call-back |
 
 ## Layer 2 — Ledger and system of record
 
@@ -168,6 +182,26 @@ An evaluator runs the real agent on a fresh copy of the company and scores what 
 - [ ] **E3. Consistency.** Score at least 3 runs; a case counts as caught only if every run agrees. *Done when:* the demo scenario passes 5 runs in a row.
 - [ ] **E4. One results table,** generated from the reports and shown in the README and UI, never typed by hand.
 - [ ] **E5. External benchmark (optional).** If time allows, run one benchmark from Hyphenate's list that fits payroll or ledger work and report it as is.
+
+**E6. Hard cases.** Each case below has its own test, and each must pass through general logic, not a special case.
+
+| Hard case | What Vouch must do |
+| --- | --- |
+| Mid-month hire or exit | Prorate pay by days; nothing paid after the exit date |
+| Transfer between entities mid-month | Split pay and expense by entity, in the right currency |
+| Raise backdated into a closed month | Pay the difference only in the open month, with approval |
+| Tax-year boundary (UK 6 April; US and DE 1 January) | Switch rates and reset year-to-date totals |
+| Year-to-date caps (US Social Security wage base, DE contribution ceilings) | Stop deducting once the cap is reached |
+| Exit before the cliff, after the cliff, after full vest | Reverse unvested expense; expense nothing after vest end |
+| Exchange rate missing for the month | Hold the conversion; never reuse an old rate silently |
+| Difference exactly at the materiality threshold | Apply one written rule consistently |
+| Close run twice | No duplicate entries, cases or payments |
+| Approver silent, rejects, answers partly, or two people disagree | Hold, remind, escalate; respect a rejection; send conflicts to the controller |
+| Colleague hands over half-finished work | Find what's done, finish only the rest |
+| Instruction hidden in an email or note | Ignore it and flag it as suspicious |
+| All sources agree but break policy | Flag against the policy, not only against each other |
+| Zero or negative net pay, duplicate rows, missing fields | Hold with a plain reason |
+| A judge's scenario that no test covers | Handled by the same general logic |
 
 ## Layer 8 — UI, demo and submission
 
