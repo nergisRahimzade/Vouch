@@ -10,7 +10,7 @@ import re
 import sqlite3
 from decimal import Decimal
 
-from vouch.agent import questions, templates
+from vouch.agent import claims, questions, templates
 from vouch.calc import fx, stock
 from vouch.calc.pay import YTD_KEYS, calculate_pay
 from vouch.controls import approvals, audit, gates
@@ -110,8 +110,10 @@ class Toolbox:
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
         self.src = Sources(conn)
-        self.corpus: list[str] = []          # every tool result this run; the claim check reads it
         self.cases = {c["finding_id"]: c for c in stored(conn, self.src.open_month) if c["disposition"] == "case"}
+        # Everything Vouch was given or got back this run; the claim check reads it.
+        self.corpus: list[str] = [json.dumps(c, default=str, ensure_ascii=False) for c in self.cases.values()]
+        self.names = [p["name"] for p in self.src.content["directory"]["people"]]
 
     # -- dispatch -----------------------------------------------------------------
     def call(self, name: str, args: dict) -> dict:
@@ -317,5 +319,8 @@ class Toolbox:
                                                        "('pending', 'escalated')", (case_id,))])
             if pending:
                 raise Refused("FIN-03", "a case with an open hold, question or request is not resolved by Vouch")
+        check = claims.check(explanation, self.corpus, self.names)
+        if not check.ok:
+            raise ValueError("the claim check rejected this explanation: " + "; ".join(check.problems))
         gates.set_case(self.conn, VOUCH, case_id, status, explanation, {"decision": True})
         return {"recorded": True}
