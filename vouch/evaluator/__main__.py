@@ -1,5 +1,6 @@
 """python -m vouch.evaluator score [--set main|heldout|clean|all] [--runs N] [--scripted] [--effort E] [--seed N]
    python -m vouch.evaluator score --demo     the demo scenario: the main set, five runs, all at target in a row
+   python -m vouch.evaluator table            regenerate the README results table from results/*.json
 
 Runs the real model by default. --scripted is the fast-test playbook; its reports say so.
 Each set prints its own score: main (the planted mistakes), heldout (mistakes never used for
@@ -11,7 +12,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from vouch.evaluator import run
+from vouch.evaluator import run, table
 
 
 def parser() -> argparse.ArgumentParser:
@@ -25,12 +26,17 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--effort", default="medium", choices=["low", "medium", "high", "xhigh", "max"])
     s.add_argument("--seed", type=int, default=None, help="default: the generator's fixed seed")
     s.add_argument("--heldout", type=Path, default=run.HELDOUT_DIR, help="directory of the held-out plants")
-    s.add_argument("--results", type=Path, default=run.DEFAULT_RESULTS)
+    s.add_argument("--results", type=Path, default=run.DEFAULT_RESULTS,
+                   help="where reports go; the README table is refreshed only for the default folder")
+    sub.add_parser("table", help="regenerate the README results table and results/summary.json from the reports")
     return p
 
 
 def main(argv: list[str] | None = None) -> None:
     args = parser().parse_args(argv)
+    if args.command == "table":
+        print(table.update())
+        return
     if args.command == "score":
         if args.runs < run.MIN_RUNS:
             print(f"not scored: a score rests on at least {run.MIN_RUNS} runs (got --runs {args.runs})")
@@ -48,6 +54,9 @@ def main(argv: list[str] | None = None) -> None:
             print(run.render(report))
             print(f"  report saved: {args.results / report['report_file']}\n")
             verdicts.append(report.get("demo", {}).get("passed"))
+        if args.results.resolve() == run.DEFAULT_RESULTS.resolve():
+            table.update()
+            print("README results table regenerated from results/*.json")
         if args.demo:
             sys.exit(0 if verdicts[0] else 1)
 
