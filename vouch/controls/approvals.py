@@ -38,8 +38,9 @@ def request(conn: sqlite3.Connection, actor: Actor, kind: str, subject_ref: str,
         refuse(conn, actor, "request_approval", subject_ref, "PRECEDENT",
                f"the same request was rejected before ({rejected[0]}: {rejected[1]}); change it before asking again",
                {"rejected_request": rejected[0]})
-    pending = conn.execute("SELECT request_id FROM approval_requests WHERE fingerprint = ? AND status IN "
-                           "('pending', 'escalated', 'approved')", (print_,)).fetchone()
+    pending = conn.execute("SELECT request_id FROM approval_requests WHERE (fingerprint = ? OR (kind = ? AND "
+                           "subject_ref = ?)) AND status IN ('pending', 'escalated', 'approved')",
+                           (print_, kind, subject_ref)).fetchone()     # one live request per subject: no duplicates
     if pending:
         return pending[0]
     needs = needs_for(conn, kind, amount, currency)

@@ -211,7 +211,7 @@ def standing_documents(world: World, rng: random.Random) -> dict[str, object]:
         email["email_id"] = f"EM-{n:05d}"
     return {
         "standing/company.json": {
-            "name": C.COMPANY, "founded": C.FOUNDED, "functional_currency_by_entity":
+            "name": C.COMPANY, "domain": C.DOMAIN, "founded": C.FOUNDED, "functional_currency_by_entity":
                 {k: v["currency"] for k, v in C.ENTITIES.items()},
             "entities": [{"entity": k, **v} for k, v in C.ENTITIES.items()], "departments": C.DEPARTMENTS,
             "first_file_month": C.FIRST_FILE_MONTH, "open_month": C.OPEN_MONTH},
