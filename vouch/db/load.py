@@ -1,79 +1,98 @@
-"""Loads a world directory into the database exactly as it arrived. After this step
-everything reads the database; nothing reads the files or the generator."""
+"""Loads the company world (as it stands on as_of) into the system of record. After this step
+everything reads the database; nothing reads the fixtures or the scenario file."""
 from __future__ import annotations
 
-import csv
-import hashlib
-import io
 import json
-import re
 import sqlite3
-from datetime import datetime, timezone
-from pathlib import Path
+from decimal import Decimal
 
-MONTH_DIR = re.compile(r"^months/(\d{4}-\d{2})/")
-ENTITY_SUFFIX = re.compile(r"_(US|UK|DE)$")
-# JSON documents whose rows are one list inside them
-JSON_ROWS = {"inbox": "emails", "rulings": "rulings", "pay_policy": "rules", "finance_policy": "rules",
-             "directory": "people", "company": "entities"}
+from vouch import dates
+from vouch.db import periods
+from vouch.db.ledger import Entry, EntryRefused, Line, post_entry
+from vouch.world.scenario import TABLES, to_text
 
-
-def describe(path: str) -> tuple[str, str | None, str | None]:
-    """(kind, month, entity) from a path such as months/YYYY-MM/payroll_register_US.csv."""
-    stem = Path(path).stem
-    month = MONTH_DIR.match(path)
-    entity = ENTITY_SUFFIX.search(stem)
-    kind = ENTITY_SUFFIX.sub("", stem)
-    return kind, month.group(1) if month else None, entity.group(1) if entity else None
+LEDGER_TABLES = {"journal_entries", "journal_lines"}
 
 
-def parse_rows(path: str, kind: str, content: bytes) -> list[dict]:
-    text = content.decode("utf-8")
-    if path.endswith(".csv"):
-        return list(csv.DictReader(io.StringIO(text)))
-    document = json.loads(text)
-    if kind in JSON_ROWS:
-        return list(document[JSON_ROWS[kind]])
-    return [document]
+def _columns(conn: sqlite3.Connection, table: str) -> list[str]:
+    return [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
 
 
-def load_world(conn: sqlite3.Connection, root: Path) -> dict:
-    manifest_path = root / "manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))["files"] if manifest_path.exists() else {}
-    loaded_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    mismatches = []
-    files = sorted(p for p in root.rglob("*") if p.is_file() and p.name != "manifest.json")
-    for file in files:
-        path = file.relative_to(root).as_posix()
-        content = file.read_bytes()
-        digest = hashlib.sha256(content).hexdigest()
-        if manifest and manifest.get(path) != digest:
-            mismatches.append(path)
-        kind, month, entity = describe(path)
-        rows = parse_rows(path, kind, content)
-        cursor = conn.execute(
-            "INSERT INTO documents (path, kind, month, entity, sha256, manifest_sha256, size_bytes, row_count, "
-            "content, loaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (path, kind, month, entity, digest, manifest.get(path), len(content), len(rows), content, loaded_at))
-        conn.executemany("INSERT INTO source_rows (doc_id, row_no, data) VALUES (?, ?, ?)",
-                         [(cursor.lastrowid, n, json.dumps(row, ensure_ascii=False)) for n, row in enumerate(rows, 1)])
-    months = [r[0] for r in conn.execute("SELECT DISTINCT month FROM documents WHERE month IS NOT NULL ORDER BY month")]
-    # Every period starts open so history can be loaded; the rebuild then locks the closed ones.
-    conn.executemany("INSERT INTO periods (period, status) VALUES (?, 'open')", [(m,) for m in months])
-    return {"documents": len(files), "manifest_mismatches": mismatches}
+def insert_rows(conn: sqlite3.Connection, table: str, rows: list[dict]) -> int:
+    """Insert rows as given; fields the table has no column for are kept in `extra`."""
+    columns = _columns(conn, table)
+    for row in rows:
+        known = {k: v for k, v in row.items() if k in columns and k != "extra"}
+        extra = {k: v for k, v in row.items() if k not in columns}
+        if "extra" in columns and extra:
+            known["extra"] = extra
+        names = list(known)
+        conn.execute(f"INSERT INTO {table} ({', '.join(names)}) VALUES ({', '.join('?' for _ in names)})",
+                     [to_text(known[n]) for n in names])
+    return len(rows)
+
+
+def _period_range(rows: dict, meta: dict) -> list[str]:
+    """Every month from the first period (or the earliest history entry) to two months after as_of,
+    so a close can date its automatic reversal on the 1st of the next month."""
+    months = [meta["first_period"]] + [str(e["entry_date"])[:7] for e in rows["journal_entries"]]
+    last = dates.add_months(meta["as_of"][:7], 2)
+    return dates.month_range(min(months), last)
+
+
+def _history_entry(conn: sqlite3.Connection, row: dict, line_rows: list[dict]) -> Entry:
+    """A journal entry the company booked before Vouch looked (fixtures or a scenario's setup)."""
+    lines = []
+    events = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM events")}
+    invoice = conn.execute("SELECT event, entity FROM invoices WHERE id = ?", (row.get("source_ref"),)).fetchone()
+    for raw in (row.get("lines") or []) + line_rows:
+        event = raw.get("event") or row.get("event") or (invoice["event"] if invoice else None)
+        cost_center = raw.get("cost_center") or (events[event]["cost_center"] if event in events else None)
+        lines.append(Line(account=str(raw["account"]), debit=Decimal(str(raw.get("debit") or "0")),
+                          credit=Decimal(str(raw.get("credit") or "0")), cost_center=cost_center, event=event,
+                          memo=str(raw.get("memo") or "")))
+    entity = row.get("entity") or (invoice["entity"] if invoice else None) or \
+        next((events[l.event]["entity"] for l in lines if l.event in events), None)
+    day = str(row["entry_date"])[:10]
+    return Entry(entry_id=str(row["entry_id"]), entity=str(entity), period=day[:7], entry_date=day,
+                 type=str(row.get("type") or "history"), reason=str(row.get("reason") or "booked before Vouch"),
+                 lines=lines, created_by=str(row.get("booked_by") or "history"), origin="history", status="posted",
+                 source_ref=row.get("source_ref"))
+
+
+def load(conn: sqlite3.Connection, rows: dict, meta: dict) -> dict:
+    """Load every table, book the history into the ledger, then lock the months already closed on as_of."""
+    conn.execute("INSERT INTO scenario VALUES ('loading', '1')")
+    for key in ("as_of", "scenario_id", "title"):
+        conn.execute("INSERT INTO scenario VALUES (?, ?)", (key, meta[key]))
+    for period in _period_range(rows, meta):
+        conn.execute("INSERT INTO periods VALUES (?, ?, 'open')", (period, periods.close_date(period).isoformat()))
+    counts = {t: insert_rows(conn, t, rows[t]) for t in TABLES if t not in LEDGER_TABLES}
+    lines_by_entry: dict[str, list[dict]] = {}
+    for line in rows["journal_lines"]:
+        lines_by_entry.setdefault(str(line["entry_id"]), []).append(line)
+    posted, refused = 0, []
+    for row in rows["journal_entries"]:
+        entry = _history_entry(conn, row, lines_by_entry.get(str(row["entry_id"]), []))
+        try:
+            post_entry(conn, entry)
+            posted += 1
+        except EntryRefused as refusal:
+            refused.append(entry.entry_id)
+            conn.execute("INSERT INTO refused_entries VALUES (?, ?, ?, ?)",
+                         (entry.entry_id, entry.period, json.dumps(refusal.reasons), "history"))
+    controller = periods.person_actor(conn, "controller")
+    as_of = periods.as_of(conn)
+    for (period,) in conn.execute("SELECT period FROM periods ORDER BY period").fetchall():
+        if periods.closed_at(period, as_of):
+            periods.lock_period(conn, period, controller, f"closed on {periods.close_date(period)}")
+    conn.execute("DELETE FROM scenario WHERE key = 'loading'")
+    return {"rows": counts, "entries_posted": posted, "entries_refused": refused}
 
 
 def summary(conn: sqlite3.Connection) -> dict:
-    open_month = conn.execute("SELECT period FROM periods WHERE status = 'open'").fetchone()
-    people = conn.execute("SELECT COUNT(DISTINCT employee_id) FROM v_hr_census").fetchone()[0]
-    active = conn.execute(
-        "SELECT COUNT(DISTINCT employee_id) FROM v_hr_census WHERE month = ? AND status = 'active'",
-        (open_month[0] if open_month else None,)).fetchone()[0]
-    return {
-        "documents": conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0],
-        "source_rows": conn.execute("SELECT COUNT(*) FROM source_rows").fetchone()[0],
-        "people_ever": people, "people_active_open_month": active,
-        "months": [r[0] for r in conn.execute("SELECT period FROM periods ORDER BY period")],
-        "locked": [r[0] for r in conn.execute("SELECT period FROM periods WHERE status = 'locked' ORDER BY period")],
-        "open": [r[0] for r in conn.execute("SELECT period FROM periods WHERE status = 'open' ORDER BY period")],
-    }
+    status = {r[0]: r[1] for r in conn.execute("SELECT period, status FROM periods ORDER BY period")}
+    return {"as_of": periods.as_of(conn).isoformat(),
+            "scenario": conn.execute("SELECT value FROM scenario WHERE key = 'scenario_id'").fetchone()[0],
+            "locked": [p for p, s in status.items() if s == "locked"],
+            "open": [p for p, s in status.items() if s == "open"]}

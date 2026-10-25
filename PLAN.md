@@ -5,7 +5,7 @@ Tasks from `VOUCH_EVENT_AP_SPEC.md` §11. One git branch per task, each branched
 | # | Branch | Task | Done when | Status |
 |---|---|---|---|---|
 | T1 | `v2-t1-mapping` | `MAPPING.md` + tag `payroll-legacy` | Every module mapped | done |
-| T2 | `v2-t2-schema` | Schema + base fixtures (Appendix A) + time-travel loader | Seed reproducible; loader unit tests pass | |
+| T2 | `v2-t2-schema` | Schema + base fixtures (Appendix A) + time-travel loader | Seed reproducible; loader unit tests pass | done |
 | T3 | `v2-t3-matching` | Matching engine + unit tests (§5.2, boundaries) | All rules hand-checked | |
 | T4 | `v2-t4-entries` | Entry types (deposit, release, accrual + reversal, reclass, discount) + period lock | Balance + lock tests pass | |
 | T5 | `v2-t5-detectors` | Detectors + approval matrix + SoD + delegation + aggregation | Unit tests pass | |

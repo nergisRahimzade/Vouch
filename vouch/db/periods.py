@@ -1,20 +1,21 @@
-"""Period close: closed months are locked; corrections go to the open month; only the
-controller can lock or reopen a month."""
+"""Period close: month M closes on the 5th of M+1 and is then locked; something that belongs to a
+closed month is booked in the current open period; only the controller can lock or reopen a month."""
 from __future__ import annotations
 
-import json
 import sqlite3
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from vouch import dates
 from vouch.db.ledger import Entry, post_entry
+
+CLOSE_DAY = 5          # month M closes on the 5th of M+1
 
 
 @dataclass(frozen=True)
 class Actor:
     name: str
-    role: str        # vouch | controller | finance_manager | hr | treasury | stock_admin | department_head
+    role: str        # vouch | event_owner | controller | vp_finance | event_ops | vendor_master_admin | vendor
 
 
 class PeriodLocked(PermissionError):
@@ -25,11 +26,25 @@ class NotAuthorised(PermissionError):
     pass
 
 
-def directory_actor(conn: sqlite3.Connection, role: str) -> Actor:
-    """The named colleague holding a role, from the directory as loaded."""
-    people = json.loads(conn.execute("SELECT content FROM documents WHERE kind = 'directory'").fetchone()[0])["people"]
-    person = next(p for p in people if p["role"] == role)
-    return Actor(person["name"], person["role"])
+def close_date(period: str) -> date:
+    return dates.month_start(dates.add_months(period, 1)).replace(day=CLOSE_DAY)
+
+
+def closed_at(period: str, as_of: date) -> bool:
+    """A month is closed once its close date has passed: on the 5th itself it can still take entries."""
+    return as_of > close_date(period)
+
+
+def as_of(conn: sqlite3.Connection) -> date:
+    return date.fromisoformat(conn.execute("SELECT value FROM scenario WHERE key = 'as_of'").fetchone()[0])
+
+
+def person_actor(conn: sqlite3.Connection, role: str) -> Actor:
+    """The named person holding a role."""
+    row = conn.execute("SELECT name, role FROM people WHERE role = ? ORDER BY id", (role,)).fetchone()
+    if row is None:
+        raise KeyError(f"no one holds the role {role}")
+    return Actor(row[0], row[1])
 
 
 def status(conn: sqlite3.Connection, period: str) -> str:
@@ -39,11 +54,13 @@ def status(conn: sqlite3.Connection, period: str) -> str:
     return row[0]
 
 
-def open_period(conn: sqlite3.Connection) -> str:
-    rows = [r[0] for r in conn.execute("SELECT period FROM periods WHERE status = 'open' ORDER BY period")]
-    if not rows:
-        raise PeriodLocked("no open period")
-    return rows[-1]
+def current_period(conn: sqlite3.Connection) -> str:
+    """The period of the as_of date: always open, because its close date is in the next month."""
+    return dates.month_of(as_of(conn))
+
+
+def open_periods(conn: sqlite3.Connection) -> list[str]:
+    return [r[0] for r in conn.execute("SELECT period FROM periods WHERE status = 'open' ORDER BY period")]
 
 
 def _change(conn: sqlite3.Connection, period: str, action: str, actor: Actor, reason: str) -> None:
@@ -70,17 +87,15 @@ def reopen_period(conn: sqlite3.Connection, period: str, actor: Actor, reason: s
 def post(conn: sqlite3.Connection, entry: Entry) -> None:
     """post_entry with the period check first, so a locked month gets a plain refusal."""
     if status(conn, entry.period) == "locked":
-        raise PeriodLocked(f"{entry.period} is locked; book the correction in the open month "
-                           f"{open_period(conn)} with corrects_period={entry.period}")
+        raise PeriodLocked(f"{entry.period} is closed; book it in the current open period {current_period(conn)} "
+                           f"with corrects_period={entry.period}")
     post_entry(conn, entry)
 
 
-def book_correction(conn: sqlite3.Connection, entry: Entry, corrects: str) -> Entry:
-    """Book a correction to `corrects` in the open month. The entry date moves into the open month."""
-    target = open_period(conn)
-    day = entry.entry_date if dates.month_of(dates.parse_date(entry.entry_date)) == target \
-        else dates.month_end(target).isoformat()
-    corrected = replace(entry, period=target, entry_date=day,
-                        corrects_period=corrects if corrects != target else None)
-    post(conn, corrected)
-    return corrected
+def into_open_period(conn: sqlite3.Connection, entry: Entry) -> Entry:
+    """The entry as it must be booked: unchanged when its period is open; otherwise moved to the
+    as_of date in the current period, naming the closed period it belongs to."""
+    if status(conn, entry.period) == "open":
+        return entry
+    day = as_of(conn)
+    return replace(entry, period=dates.month_of(day), entry_date=day.isoformat(), corrects_period=entry.period)

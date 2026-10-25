@@ -1,4 +1,5 @@
--- Period close. A locked month accepts no ledger writes; only the controller changes status.
+-- Period close. Month M closes on the 5th of M+1. A locked month accepts no ledger writes;
+-- only the controller changes status after loading.
 
 CREATE TABLE period_events (
     id      INTEGER PRIMARY KEY,
@@ -19,30 +20,31 @@ WHEN NEW.status <> OLD.status AND NOT EXISTS (
       AND ev.action = CASE NEW.status WHEN 'locked' THEN 'lock' ELSE 'reopen' END)
 BEGIN SELECT RAISE(ABORT, 'only the controller can lock or reopen a period, and it must be logged'); END;
 
+-- History is loaded before the periods are locked; after that a locked month takes no writes.
 CREATE TRIGGER entries_locked_insert BEFORE INSERT ON journal_entries
 WHEN (SELECT status FROM periods WHERE period = NEW.period) = 'locked'
-BEGIN SELECT RAISE(ABORT, 'period is locked: book the correction in the open month'); END;
+BEGIN SELECT RAISE(ABORT, 'period is locked: book it in the current open period'); END;
 CREATE TRIGGER entries_locked_update BEFORE UPDATE ON journal_entries
 WHEN (SELECT status FROM periods WHERE period = OLD.period) = 'locked'
   OR (SELECT status FROM periods WHERE period = NEW.period) = 'locked'
-BEGIN SELECT RAISE(ABORT, 'period is locked: book the correction in the open month'); END;
+BEGIN SELECT RAISE(ABORT, 'period is locked: book it in the current open period'); END;
 CREATE TRIGGER entries_locked_delete BEFORE DELETE ON journal_entries
 WHEN (SELECT status FROM periods WHERE period = OLD.period) = 'locked'
-BEGIN SELECT RAISE(ABORT, 'period is locked: book the correction in the open month'); END;
+BEGIN SELECT RAISE(ABORT, 'period is locked: book it in the current open period'); END;
 
 CREATE TRIGGER lines_locked_insert BEFORE INSERT ON journal_lines
 WHEN (SELECT p.status FROM periods p JOIN journal_entries e ON e.period = p.period WHERE e.entry_id = NEW.entry_id) = 'locked'
-BEGIN SELECT RAISE(ABORT, 'period is locked: book the correction in the open month'); END;
+BEGIN SELECT RAISE(ABORT, 'period is locked: book it in the current open period'); END;
 CREATE TRIGGER lines_locked_update BEFORE UPDATE ON journal_lines
 WHEN (SELECT p.status FROM periods p JOIN journal_entries e ON e.period = p.period WHERE e.entry_id = OLD.entry_id) = 'locked'
-BEGIN SELECT RAISE(ABORT, 'period is locked: book the correction in the open month'); END;
+BEGIN SELECT RAISE(ABORT, 'period is locked: book it in the current open period'); END;
 CREATE TRIGGER lines_locked_delete BEFORE DELETE ON journal_lines
 WHEN (SELECT p.status FROM periods p JOIN journal_entries e ON e.period = p.period WHERE e.entry_id = OLD.entry_id) = 'locked'
-BEGIN SELECT RAISE(ABORT, 'period is locked: book the correction in the open month'); END;
+BEGIN SELECT RAISE(ABORT, 'period is locked: book it in the current open period'); END;
 
 CREATE TRIGGER sources_locked_insert BEFORE INSERT ON line_sources
 WHEN (SELECT p.status FROM periods p JOIN journal_entries e ON e.period = p.period WHERE e.entry_id = NEW.entry_id) = 'locked'
-BEGIN SELECT RAISE(ABORT, 'period is locked: book the correction in the open month'); END;
+BEGIN SELECT RAISE(ABORT, 'period is locked: book it in the current open period'); END;
 CREATE TRIGGER sources_locked_change BEFORE DELETE ON line_sources
 WHEN (SELECT p.status FROM periods p JOIN journal_entries e ON e.period = p.period WHERE e.entry_id = OLD.entry_id) = 'locked'
-BEGIN SELECT RAISE(ABORT, 'period is locked: book the correction in the open month'); END;
+BEGIN SELECT RAISE(ABORT, 'period is locked: book it in the current open period'); END;

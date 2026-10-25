@@ -1,18 +1,14 @@
-"""B2: the chart of accounts covers what payroll and stock compensation need; the booked
-ledger uses only these accounts."""
-import json
-
+"""B2: the chart of accounts is spec §4.3; history entries use only these accounts."""
 from vouch.db.accounts import BY_CODE, CHART
 
 
-def test_chart_covers_every_required_kind_of_account():
-    names = " ".join(a.name.lower() for a in CHART)
-    for needed in ("wages", "employer payroll taxes", "pension", "stock-based compensation", "net pay payable",
-                   "income tax withholding payable", "social contributions payable", "cash", "paid-in capital",
-                   "suspense"):
-        assert needed in names, needed
-    assert {a.type for a in CHART} == {"asset", "liability", "equity", "expense", "suspense"}
-    assert all(a.needs_department == (a.type == "expense") for a in CHART)
+def test_chart_is_the_spec_chart():
+    assert {a.code: a.name for a in CHART} == {
+        "1000": "Cash", "1310": "Prepaid event costs", "1400": "VAT receivable (ENT-UK)", "2000": "Accounts payable",
+        "2100": "Accrued liabilities", "6100": "Event venue and space", "6110": "Event catering",
+        "6120": "Event AV and production", "6130": "Event merchandise", "6140": "Event lodging",
+        "6190": "Purchase discounts (contra-expense)"}
+    assert all(a.needs_tags == (a.type == "expense") for a in CHART)
 
 
 def test_accounts_table_matches_the_chart(db):
@@ -20,12 +16,6 @@ def test_accounts_table_matches_the_chart(db):
     assert rows == {a.code: (a.name, a.type, a.normal_side) for a in CHART}
 
 
-def test_every_booked_ledger_line_uses_a_chart_account(db):
-    lines = db.execute("SELECT data FROM source_rows JOIN documents USING (doc_id) WHERE kind = 'ledger_booked'")
-    seen = set()
-    for (data,) in lines:
-        line = json.loads(data)
-        assert line["account"] in BY_CODE, line
-        assert line["account_name"] == BY_CODE[line["account"]].name, line
-        seen.add(line["account"])
-    assert seen >= {"1000", "2100", "2200", "2210", "2220", "3100", "6000", "6100", "6200", "6300"}
+def test_every_history_line_uses_a_chart_account(db):
+    accounts = {r[0] for r in db.execute("SELECT account FROM journal_lines")}
+    assert accounts and accounts <= set(BY_CODE)

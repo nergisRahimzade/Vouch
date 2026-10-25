@@ -1,4 +1,4 @@
-"""Layer 2: the system of record — every source file as loaded, and the general ledger."""
+"""Layer 2: the system of record — the event AP tables as they stand on as_of, and the general ledger."""
 from __future__ import annotations
 
 import sqlite3
@@ -9,16 +9,15 @@ SCHEMA_FILES = ["schema.sql", "ledger.sql", "periods.sql"]
 
 
 def connect(path: Path | str = DEFAULT_DB) -> sqlite3.Connection:
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
 def create(conn: sqlite3.Connection) -> None:
-    from vouch.db import accounts, subledger
+    from vouch.db import accounts
 
+    accounts.seed(conn)
     for name in SCHEMA_FILES:
         conn.executescript((Path(__file__).with_name(name)).read_text(encoding="utf-8"))
-    accounts.seed(conn)
-    subledger.create_tables(conn)

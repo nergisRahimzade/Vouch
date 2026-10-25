@@ -1,1 +1,1 @@
-"""Vouch: payroll and equity compensation accountant for Northlight Labs."""
+"""Vouch: the event vendor payables specialist on Anthropic's finance team (simulated data)."""

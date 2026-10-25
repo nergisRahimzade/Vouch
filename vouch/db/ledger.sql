@@ -5,40 +5,44 @@ CREATE TABLE journal_entries (
     entity           TEXT NOT NULL,
     period           TEXT NOT NULL REFERENCES periods(period),
     entry_date       TEXT NOT NULL,
+    type             TEXT NOT NULL,             -- ap_deposit | ap_invoice | payment | prepaid_release | accrual
+                                                -- | accrual_reversal | reclass | discount | history
     reason           TEXT NOT NULL CHECK (length(trim(reason)) > 0),
     currency         TEXT NOT NULL,
     status           TEXT NOT NULL CHECK (status IN ('draft', 'posted')),
-    origin           TEXT NOT NULL,             -- booked_ledger (history as received) | vouch
+    origin           TEXT NOT NULL,             -- history (as loaded) | vouch
     created_by       TEXT NOT NULL,
-    corrects_period  TEXT,                      -- set when the entry corrects a closed month
+    source_ref       TEXT,                      -- the invoice (or task) the entry books
+    corrects_period  TEXT,                      -- set when the entry books something that belongs to a closed month
+    reverses         TEXT,                      -- the accrual an automatic reversal mirrors
     created_at       TEXT NOT NULL
 );
 
 CREATE TABLE journal_lines (
-    entry_id    TEXT NOT NULL REFERENCES journal_entries(entry_id),
-    line_no     INTEGER NOT NULL,
-    account     TEXT NOT NULL REFERENCES accounts(code),
-    department  TEXT,
-    debit       TEXT NOT NULL,                  -- exact decimal text, two places
-    credit      TEXT NOT NULL,
-    fx_rate     TEXT,
-    fx_basis    TEXT,                           -- which rate and dates fx_rate is (required with fx_rate)
-    memo        TEXT,
+    entry_id     TEXT NOT NULL REFERENCES journal_entries(entry_id),
+    line_no      INTEGER NOT NULL,
+    account      TEXT NOT NULL REFERENCES accounts(code),
+    cost_center  TEXT,
+    event        TEXT,
+    debit        TEXT NOT NULL,                 -- exact decimal text, two places
+    credit       TEXT NOT NULL,
+    fx_rate      TEXT,
+    fx_basis     TEXT,                          -- which rate and period fx_rate is (required with fx_rate)
+    memo         TEXT,
     PRIMARY KEY (entry_id, line_no)
 );
 
--- What each line rests on: evidence rows (or whole documents) and, for history, the row it was booked as.
+-- What each line rests on: rows of the system of record (an invoice line, a clause, an evidence row, ...).
 CREATE TABLE line_sources (
-    entry_id  TEXT NOT NULL,
-    line_no   INTEGER NOT NULL,
-    role      TEXT NOT NULL CHECK (role IN ('evidence', 'booked_as')),
-    doc_id    INTEGER NOT NULL REFERENCES documents(doc_id),
-    row_no    INTEGER,                          -- NULL: the whole document
+    entry_id   TEXT NOT NULL,
+    line_no    INTEGER NOT NULL,
+    ref_table  TEXT NOT NULL,
+    ref_id     TEXT NOT NULL,
     FOREIGN KEY (entry_id, line_no) REFERENCES journal_lines(entry_id, line_no)
 );
 CREATE INDEX line_sources_by_line ON line_sources (entry_id, line_no);
 
--- Booked-ledger entries the ledger could not accept, with every reason. Never dropped silently.
+-- History entries the ledger could not accept, with every reason. Never dropped silently.
 CREATE TABLE refused_entries (
     entry_id  TEXT NOT NULL,
     period    TEXT,
