@@ -14,7 +14,17 @@ its T5 when v3 superseded it; its domain-neutral work is reused here.
 | T6 | `v3-t6-scenarios` | Scenario loader updates, public cases P01–P11 + C01–C04, scorer fields, holdout loader | Scorer runs on public set | done |
 | T7 | `v3-t7-bench` | Bench baseline | `perf_baseline.json` | done |
 | T8 | `v3-t8-agent` | Tools, pre-pass, case file, agent loop | Public suite end to end | done |
-| T9 | `v3-t9-speed` | Speed steps, measured | §9 targets met | partial: cost/owner-holdout gates pending |
+| T9 | `v3-t9-speed` | Speed steps, measured | §9 targets met | partial: public targets met; owner holdout pending |
 | T10 | `v3-t10-memory` | Memory: learned corrections from tax manager answers | Escalate → answer → follow works | done |
 | T11 | `v3-t11-api` | API (§10) incl. SSE + custom scenario | Frontend can connect | done |
 | T12 | `v3-t12-demo` | Demo: P11, P01, P03, P10 scripted; P11 passes 5× | Rehearsed | done |
+
+## Verification checkpoint (2026-10-25)
+
+Full suite: 210 passed, 0 failed, 0 skipped. Live model claude-opus-5-5 at medium effort:
+15 public cases pass all 3 runs; P11 passes 5 consecutive runs. See nergis_DOC.md and PERF.md.
+T9 public speed/cost/accuracy/safety targets are measured; owner holdout validation remains pending.
+The requested single-agent architecture and rolling ten-year Books view are implemented.
+Task branches are local cumulative checkpoints; nothing has been pushed.
+
+Final owner-holdout status: the user configured the set and approved live scenario-input transfer to Anthropic. The scorer stopped during loading with ScenarioError. No holdout accuracy result is claimed; private cases and expected answers were not inspected or changed. T9 remains pending investigation of that loading failure.

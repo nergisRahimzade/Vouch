@@ -16,12 +16,15 @@ def main(argv=None):
     p.add_argument("--case",action="append")
     p.add_argument("--model",default=None)
     p.add_argument("--effort",choices=["low","medium","high","max"],default="medium")
+    p.add_argument("--batch-actions",action="store_true",help="experimental ordered action batching")
     p.add_argument("--conversation-cache",action="store_true",help="experimental moving cache breakpoint; requires regression measurements")
     p.add_argument("--output",type=Path,default=Path("perf_baseline.json"))
     args=p.parse_args(argv)
-    result=bench(args.output,args.scripted) if args.command=="bench" else evaluate(
+    options={"effort":args.effort,"cache_conversation":args.conversation_cache,"batch_actions":args.batch_actions,
+             **({"model":args.model} if args.model else {})}
+    result=bench(args.output,args.scripted,model_options=options) if args.command=="bench" else evaluate(
         scripted=args.scripted,holdout=args.holdout,reveal=args.reveal,runs=args.runs,
-        concurrency=args.concurrency,case_ids=args.case,model_options={"effort":args.effort,"cache_conversation":args.conversation_cache, **({"model":args.model} if args.model else {})})
+        concurrency=args.concurrency,case_ids=args.case,model_options=options)
     print(json.dumps(result,indent=2))
 
 

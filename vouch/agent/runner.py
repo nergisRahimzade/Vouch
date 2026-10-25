@@ -118,7 +118,42 @@ def run_scenario(conn, scenario, policy=None, emit=None):
                "cache_creation_input_tokens": policy.usage.cache_write_tokens,
                "tool_seconds": tool_seconds, "cost_usd": str(cost) if cost is not None else None}
     result = {"run_id": run_id, "mode": policy.mode, "model": policy.model, "date": began,
-              "decisions": decisions, "metrics": metrics}
+              "decisions": decisions, "metrics": metrics, "effort":getattr(policy,"effort",None)}
+    if any((task.get("type") or task.get("kind")) == "run_year_end" for task in scenario.tasks):
+        from decimal import Decimal
+        from vouch.money import ZERO,fmt
+        from vouch.recon.run import staff_state,benefit_totals,visible_gifts
+        from vouch.calc.eventtax import flat_tax_37b_available
+        import hashlib
+        src=Sources(conn)
+        year=int(src.as_of[:4])
+        if src.election(year):
+            gift_rows,_=visible_gifts(src,year)
+            for person,total in benefit_totals(src,year).items():
+                if not flat_tax_37b_available(total,src.rules,src.as_of).values["available"]:
+                    continue
+                items={invoice for gift,invoice,_ in gift_rows if gift.recipient==person}
+                for event in src.events.values():
+                    if event["date"][:4]==str(year) and any(a["person_id"]==person for a in src.attendance(event["id"])):
+                        items.update(i["id"] for i in src.invoices(event["id"]) if any(l.get("category")=="program" for l in i["lines"]))
+                items=sorted(items)
+                notice_id="YEAR-NOTICE-"+hashlib.sha256(f"{year}:{person}".encode()).hexdigest()[:20]
+                conn.execute("INSERT OR IGNORE INTO recipient_notices (id,recipient,year,items,status) VALUES (?,?,?,?,'draft')",
+                             (notice_id,person,year,json.dumps(items)))
+        summary=[]
+        for status in ("posted","draft"):
+            for account in ("6410","6430","6460"):
+                amount=sum((Decimal(row[0])-Decimal(row[1]) for row in conn.execute(
+                    "SELECT l.debit,l.credit FROM journal_lines l JOIN journal_entries e USING(entry_id) "
+                    "WHERE e.status=? AND e.period LIKE ? AND l.account=?",(status,f"{year}-%",account))),ZERO)
+                summary.append({"account":account,"status":status,"amount":fmt(amount)})
+        result["year_end"]={"year":year,"non_deductible_summary":summary,
+            "allowance_assignment":staff_state(src,year).assignment,
+            "payroll_exports":[dict(row) for row in conn.execute("SELECT * FROM payroll_exports WHERE period LIKE ?",(f"{year}-%",))],
+            "recipient_notices":[dict(row) for row in conn.execute("SELECT * FROM recipient_notices WHERE year=?",(year,))]}
+        audit.log(conn,gates.VOUCH,"year_end_summary",str(year),"done","Prepared annual summaries and notice drafts; nothing filed or paid",
+                  {"non_deductible_summary":summary,"notice_count":len(result["year_end"]["recipient_notices"])})
+    metrics["wall_seconds"] = perf_counter() - started
     conn.execute("UPDATE agent_runs SET status=?, result=?,metrics=? WHERE run_id=?",
                   ("failed" if any("failure" in d for d in decisions) else "done", json.dumps(result), json.dumps(metrics), run_id))
     conn.commit()

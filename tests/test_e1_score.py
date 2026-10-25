@@ -38,3 +38,9 @@ def test_unconfigured_holdout_returns_no_score(monkeypatch):
     monkeypatch.delenv("VOUCH_HOLDOUT_PATH",raising=False)
     r=evaluate(holdout=True,scripted=True,runs=3,save=False)
     assert r["status"]=="not_scored" and "details" not in r
+
+
+def test_wrong_correction_amount_is_not_counted_as_amount_accurate():
+    r=compare({"corrections":[{"type":"vat_reversal","amount":"20.02"}]},
+              {"corrections":[{"type":"vat_reversal","amount":"20.00"}]})
+    assert not r["passed"] and not r["amounts_correct"]

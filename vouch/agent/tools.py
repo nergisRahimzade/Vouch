@@ -207,7 +207,10 @@ class Toolbox:
                     (rid, src.open_month, row["employee"], row["event"], row["taxable_amount"], row["method"], row.get("corrects"),
                      json.dumps({"rules":ctx["rules"],"attendance_ref":f"{row['event']}:{row['employee']}","case":d["case_id"]})))
                 ids.append(rid)
-            return {"exports": ids}
+            if ids:
+                payroll_person = next(p["id"] for p in src.data["people"] if p["role"] == "payroll")
+                questions.request_info(self.conn, d["case_id"], payroll_person, "payroll_export")
+            return {"count":len(ids), "period":src.open_month, "status":"draft"}
         if name == "draft_recipient_notice":
             if d["decision"] in {"hold", "escalate", "reject_duplicate"}:
                 raise ValueError("recipient notices are blocked")
@@ -222,15 +225,27 @@ class Toolbox:
                 rid = "NOTICE-" + hashlib.sha256(f"{d['case_id']}:{person}".encode()).hexdigest()[:20]
                 self.conn.execute("INSERT OR IGNORE INTO recipient_notices (id,recipient,year,items,status) VALUES (?,?,?,?,'draft')",
                                    (rid, person, int(src.as_of[:4]), json.dumps(sorted(invoice_ids))))
-            return {"recipients": sorted(recipients)}
+            return {"count":len(recipients), "year":int(src.as_of[:4]), "status":"draft", "source_invoices":sorted(invoice_ids)}
         if name == "record_learned_correction":
             return [dict(r) for r in self.conn.execute("SELECT * FROM learned_corrections WHERE case_id = ?", (d["case_id"],))]
         if name == "submit_decision":
             if d["decision"] not in {"hold", "escalate", "reject_duplicate", "no_action"}:
                 if not self.drafts:
                     raise ValueError("bookable decision requires journal drafts")
-                if ctx["payroll"] and not self.conn.execute("SELECT 1 FROM payroll_exports WHERE origin = 'vouch' AND status = 'draft'").fetchone():
-                    raise ValueError("taxable amounts require drafted payroll rows")
+                for entry_id in self.drafts:
+                    if not self.conn.execute("SELECT 1 FROM approval_requests WHERE kind='entry' AND subject_ref=? "
+                                             "AND status IN ('pending','escalated','approved')",(entry_id,)).fetchone():
+                        raise ValueError("each journal draft requires an actual approval request")
+                for payroll in ctx["payroll"]:
+                    if not self.conn.execute("SELECT 1 FROM payroll_exports WHERE employee=? AND event=? AND taxable_amount=? "
+                                             "AND method=? AND origin='vouch' AND status='draft'",
+                                             (payroll["employee"],payroll["event"],payroll["taxable_amount"],payroll["method"])).fetchone():
+                        raise ValueError("taxable amounts require the computed per-person payroll drafts")
+                if Decimal(d["flat_tax_37b"]) > 0:
+                    for person in self.notice_recipients(src):
+                        notice_id = "NOTICE-" + hashlib.sha256(f"{d['case_id']}:{person}".encode()).hexdigest()[:20]
+                        if not self.conn.execute("SELECT 1 FROM recipient_notices WHERE id=? AND status='draft'",(notice_id,)).fetchone():
+                            raise ValueError("guest flat tax requires drafted recipient notices")
             lines = []
             for entry_id in self.drafts:
                 entry = self.conn.execute("SELECT entry_date FROM journal_entries WHERE entry_id = ?", (entry_id,)).fetchone()
@@ -241,6 +256,14 @@ class Toolbox:
             self.submitted = dict(d)
             return d
         raise ValueError("unsupported tool")
+
+    def notice_recipients(self, src):
+        ids = {i["id"] for i in self.context["new_invoices"]}
+        people = {g["recipient"] for g in src.data["gift_distributions"] if g.get("invoice") in ids and g.get("recipient")}
+        people |= {line["recipient"] for i in self.context["new_invoices"] for line in i["lines"] if line.get("recipient")}
+        if self.candidate["classification"] == "mixed":
+            people |= {a["person_id"] for a in self.context["attendance"] if a["person_kind"] == "business_partner"}
+        return people
 
     def draft_entries(self, src):
         ctx, d = self.context, self.candidate

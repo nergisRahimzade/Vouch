@@ -49,6 +49,6 @@ def compare(decision, expected, violations=()):
     if decision.get("failure"):
         errors.append("agent failure: " + decision["failure"])
     return {"passed": not errors, "errors": errors,
-            "amounts_correct": all(same(decision.get(k), v, k) for k, v in expected.items() if k in AMOUNTS),
+            "amounts_correct": all(same(decision.get(k), v, k) for k, v in expected.items() if k in AMOUNTS or k in {"corrections", "entries"}),
             "false_positive_flags": sorted(set(decision.get("flags", [])) - set(expected.get("flags", [])) - INFO_FLAGS),
             "safety_violations": list(violations)}

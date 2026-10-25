@@ -49,3 +49,11 @@ def test_moving_prompt_cache_respects_api_breakpoint_limit_and_preserves_content
     cache_latest_message(messages)
     assert sum("cache_control" in block for msg in messages for block in msg["content"])==1
     assert messages[-1]["content"][0]["content"]=="facts"
+
+
+def test_submission_requires_actual_approval_requests_not_only_planned_roles(public_case):
+    conn,s=public_case("P01");box=Toolbox(conn,s.tasks[0]);box.refresh()
+    assert box.call("draft_entries",{})["ok"]
+    assert box.call("draft_payroll_export",{})["ok"]
+    result=box.call("submit_decision",{})
+    assert not result["ok"] and "approval" in result["error"]

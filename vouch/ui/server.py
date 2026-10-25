@@ -220,10 +220,36 @@ def create_app(db_path=DEFAULT_DB, *, run_root=None, scenarios_dir=None, results
             except ValueError as error:
                 raise HTTPException(422,str(error))
 
-    @app.get("/api/entries")
-    def entries():
+    def year_window(conn, from_year, to_year):
+        as_of=conn.execute("SELECT value FROM scenario WHERE key='as_of'").fetchone()[0]
+        last=to_year if to_year is not None else int(as_of[:4])
+        first=from_year if from_year is not None else last-9
+        if not (1 <= first <= last <= 9999) or last-first > 99:
+            raise HTTPException(422,"provide a valid year window of at most 100 years")
+        return first,last,as_of
+
+    @app.get("/api/books")
+    def books(from_year: int | None=None,to_year: int | None=None):
         with open_db() as conn:
-            return [{**dict(r),"lines":[dict(l) for l in conn.execute("SELECT * FROM journal_lines WHERE entry_id=?",(r["entry_id"],))]} for r in conn.execute("SELECT * FROM journal_entries ORDER BY entry_date,entry_id")]
+            first,last,as_of=year_window(conn,from_year,to_year)
+            counts={}
+            for row in conn.execute("SELECT substr(entry_date,1,4) AS year,status,COUNT(*) AS count "
+                                    "FROM journal_entries WHERE entry_date>=? AND entry_date<=? GROUP BY year,status",
+                                    (f"{first:04d}-01-01",f"{last:04d}-12-31")):
+                counts.setdefault(int(row["year"]),{})[row["status"]]=row["count"]
+            return {"from_year":first,"to_year":last,"as_of":as_of,"currency":"EUR",
+                    "years":[{"year":year,"posted_entries":counts.get(year,{}).get("posted",0),
+                              "draft_entries":counts.get(year,{}).get("draft",0),
+                              "status":"recorded" if counts.get(year) else "no_recorded_entries"}
+                             for year in range(first,last+1)]}
+
+    @app.get("/api/entries")
+    def entries(from_year: int | None=None,to_year: int | None=None):
+        with open_db() as conn:
+            first,last,_=year_window(conn,from_year,to_year)
+            return [{**dict(r),"lines":[dict(l) for l in conn.execute("SELECT * FROM journal_lines WHERE entry_id=?",(r["entry_id"],))]}
+                    for r in conn.execute("SELECT * FROM journal_entries WHERE entry_date>=? AND entry_date<=? ORDER BY entry_date,entry_id",
+                                          (f"{first:04d}-01-01",f"{last:04d}-12-31"))]
 
     @app.get("/api/payroll-export")
     def payroll():

@@ -150,3 +150,22 @@ def test_recovered_case_keeps_its_review_history_and_hold_until_approval(public_
     approvals.decide(conn,person_actor(conn,"tax_manager"),entry_request[0],"approve","Evidence is now complete")
     assert not gates.active_holds(conn)
     gates.post_approved_entry(conn,person_actor(conn,"controller"),entry_request[1])
+
+
+def test_year_end_prepares_summaries_and_notice_drafts_without_filing(public_case):
+    conn,s=public_case("C01")
+    s.tasks=[{"type":"run_year_end"}]
+    result=run_scenario(conn,s)
+    summary=result["year_end"]
+    assert summary["year"]==2026
+    hospitality=next(row for row in summary["non_deductible_summary"] if row["account"]=="6410" and row["status"]=="draft")
+    assert hospitality["amount"]=="225.00"
+    assert summary["recipient_notices"] and all(row["status"]=="draft" for row in summary["recipient_notices"])
+    assert conn.execute("SELECT COUNT(*) FROM journal_entries WHERE origin='vouch' AND status='posted'").fetchone()[0]==0
+
+
+def test_real_unicode_generic_meal_occasion_requires_specific_purpose():
+    from vouch.calc.eventtax import hospitality_docs
+    rules=Rules(rows_for()[0]["rules"])
+    result=hospitality_docs("Gesch\u00e4ftsessen",True,"host",D("119"),True,True,rules,"2026-10-01")
+    assert result.values["missing"]==["specific occasion"]

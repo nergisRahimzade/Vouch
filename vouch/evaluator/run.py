@@ -77,6 +77,25 @@ def evaluate(*, directory=None, scripted=False, runs=3, holdout=False, reveal=Fa
               "cost_usd": str(sum((__import__("decimal").Decimal(c) for c in costs), __import__("decimal").Decimal(0))) if all(c is not None for c in costs) else None,
               "suite_wall_seconds": perf_counter() - started,
               "false_positive_flags": max(sum(len(t["false_positive_flags"]) for row in batch for t in row["score"]["tasks"]) for batch in batches)}
+    from decimal import Decimal
+    from vouch.controls.matrix import INFO_FLAGS
+    def anomalous(expected):
+        expectations = expected if isinstance(expected, list) else [expected]
+        return any((set(e.get("flags", [])) - INFO_FLAGS) or e.get("corrections") or
+                   e.get("decision") in {"hold","escalate","post_corrections","reject_duplicate"} or
+                   Decimal(str(e.get("wage_taxable", "0"))) != 0 for e in expectations)
+    anomaly_indices = [i for i, (_, expected) in enumerate(cases) if anomalous(expected)]
+    clean_indices = [i for i in range(len(cases)) if i not in anomaly_indices]
+    caught = sum(all(batch[i]["score"]["passed"] for batch in batches) for i in anomaly_indices)
+    false_positive_cases = max(sum(any(t["false_positive_flags"] for t in batch[i]["score"]["tasks"]) or
+                                    any(d["decision"] in {"hold","escalate"} for d in batch[i]["run"]["decisions"])
+                                    for i in clean_indices) for batch in batches)
+    def percent(numerator, denominator):
+        return float(Decimal(numerator) * 100 / denominator) if denominator else None
+    result["catch_rate"] = {"caught":caught,"total":len(anomaly_indices),"percent":percent(caught,len(anomaly_indices))}
+    result["false_positive_rate"] = {"cases":false_positive_cases,"total":len(clean_indices),
+                                      "percent":percent(false_positive_cases,len(clean_indices))}
+    result["amount_accuracy"] = {"correct":amounts,"total":len(cases),"percent":percent(amounts,len(cases))}
     if not holdout or reveal:
         result["details"] = batches
     if save:

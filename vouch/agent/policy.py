@@ -109,10 +109,14 @@ class ScriptedPolicy:
 class ModelPolicy:
     mode = "model"
 
-    def __init__(self, model=None, effort="high", client=None, timeout=90, cache_conversation=False):
+    def __init__(self, model=None, effort="high", client=None, timeout=90, cache_conversation=False, batch_actions=False):
         load_credentials()
         self.model = model or os.environ.get("VOUCH_MODEL", MODEL)
         self.effort, self.cache_conversation = effort, cache_conversation
+        self.system = SYSTEM + ("\nWhen a proposal is ready, request draft_entries, draft_payroll_export, draft_recipient_notice, "
+            "and request_approval together in that order in one turn. Code executes these dependent actions sequentially. "
+            "Submit the decision in the next turn after checking their results. Independent read tools may be batched."
+            if batch_actions else "")
         self.usage, self.calls = Usage(), 0
         self.provider = "openai" if self.model.startswith("gpt-") else "anthropic"
         if self.provider == "openai":
@@ -138,7 +142,7 @@ class ModelPolicy:
             try:
                 response = self.client.messages.create(model=self.model, max_tokens=4096,
                     thinking={"type": "adaptive"}, output_config={"effort": self.effort},
-                    system=[{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
+                    system=[{"type": "text", "text": self.system, "cache_control": {"type": "ephemeral"}}],
                     tools=self.tools, messages=messages)
             except (anthropic.APIError, TimeoutError) as error:
                 body = getattr(error, "body", None)

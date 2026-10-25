@@ -170,3 +170,79 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause:** `questions.answer` raised `Refused` directly, skipping `gates.refuse`, the helper every other control uses to log a refusal before raising it.
 - **What changed:** both refusals go through `gates.refuse` with the question as the basis. What is allowed or refused is unchanged; the refusal is now recorded. The test is unchanged.
 - **Kind of problem handled:** every refused answer to a question is traceable, like every other refused action.
+
+## 2026-10-25 ? partial replies were final and attendance replies were unused
+
+- Failing tests: test_partial_reply_can_be_completed_without_changing_original_receipt and test_attendance_answer_supplies_actual_rows in tests/test_v3_edge_cases.py. Reproduced: 2 failed, 5 passed before the fix.
+- Root cause: questions.answer marked every response answered, so later missing facts were discarded. Sources.apply_received_facts overlaid hospitality/vendor data but had no attendance branch.
+- Production fix: retain immutable initial and follow-up replies; leave incomplete hospitality requests pending until recomputed documentation is complete; apply attributed attendance responses as visible rows without modifying original attendance or invoices.
+- Kind of problem handled: multi-message evidence gathering and attendance recovery across every event. The failing assertions and public expected results were left unchanged.
+
+## 2026-10-25 ? independent tool calls were still serialized
+
+- Failing test: test_independent_reads_can_execute_concurrently_without_concurrent_audit_writes initially raised AttributeError because Toolbox had no call_many capability.
+- Root cause: the migrated model loop processed every tool-use block sequentially, including independent reads required by spec ?9.
+- Production fix: batch independent reads with bounded worker concurrency; append audit records in deterministic call order after reads complete. Mutations, primary case refreshes, and dependent actions remain sequential.
+- Kind of problem handled: any model turn containing independent read/compute tools. The original concurrency assertion is unchanged.
+
+## 2026-10-25 ? parallel reads shared a mutable SQLite cursor environment
+
+- Failing test: test_independent_reads_can_execute_concurrently_without_concurrent_audit_writes failed intermittently in the full run with IndexError while converting an employees sqlite3.Row to a dict. The test passed alone, revealing a concurrency defect rather than a wrong expected outcome.
+- Root cause: check_same_thread=False permits cross-thread access but does not make sharing a Python SQLite connection/cursor state safe. Each read worker rebuilt Sources on the same connection.
+- Production fix: build one visible-source snapshot before parallel dispatch; read tools consume that snapshot without touching SQLite. Writes and audit appends remain ordered on the owning thread. The concurrency barrier and assertions are unchanged.
+- Related investigation: two live P11 runs received API BadRequestError; preserve the provider's sanitized error message in failure reports so the actual cause can be diagnosed, rather than hiding it behind an exception class.
+
+## 2026-10-25 ? first gift-limit breaches and email triggers lacked complete handling
+
+- Failing tests: test_first_gift_over_the_limit_requires_tax_review and test_email_trigger_resolves_its_referenced_invoice failed with a missing flag and an explicit-event-only ValueError, respectively.
+- Root cause: gift_limit_exceeded was emitted only from historical reclassifications, so a first gift over the limit could be routed as clean. Email/attendance dispatch only accepted pre-resolved event IDs.
+- Production fix: emit the gift-limit detector from the recipient's actual annual computation, including first gifts. Resolve attributed email/attendance references from visible records, with a unique-current-period invoice fallback; ambiguous references require clarification. Close/year-end dispatch includes unattached invoices.
+- Kind of problem handled: first-time and cumulative gift breaches; all supported trigger types. The failing expectations remain unchanged.
+
+## 2026-10-25 ? confirmed anonymous recipients were treated as a tool failure
+
+- Failing test: test_confirmed_unknown_gift_recipients_escalate_without_guessing returned hold instead of the required escalation.
+- Root cause: the structured reply contract accepted only a complete named list, so it could not distinguish missing evidence from an organizer's explicit confirmation that some recipients are unknown.
+- Production fix: accept a confirmed unknown_count, validate named plus unknown quantities against the invoice, retain anonymous distributions explicitly, and escalate without drafting a guessed tax treatment.
+- The test and its expected outcome are unchanged; no gift threshold or policy changed.
+
+## 2026-10-25 ? recorded delegations were not applied to actual approvals
+
+- Failing test: test_recorded_absence_routes_tax_review_to_the_delegate showed every request still assigned to tax_manager during a recorded absence.
+- Root cause: the pure delegation helper existed, but approval and escalation dispatch did not call it.
+- Production fix: resolve a valid recorded delegate against the deadline, retain the required tax-manager approval role in the request's needs, and assign the actual delegate's role with an explicit delegation record. A second controller approval remains separate. Attributed rulings also accept a currently valid tax-manager delegate.
+- The failing test and POL-MAT thresholds are unchanged.
+
+## 2026-10-25 ? resumed cases lost review flags and retained unmanaged holds
+
+- Failing test: test_recovered_case_keeps_its_review_history_and_hold_until_approval found that a later run dropped bewirtung_docs_missing after a human supplied the missing evidence.
+- Root cause: flags and requests were preserved only in one Toolbox object's memory, not across runs; hold release was not connected to final human review.
+- Production fix: restore prior decision flags/requests before recomputation, enforce an active case hold at posting, and release the case's holds only when an authorized person records final approval. The agent never releases its own hold.
+- The unchanged test verifies later-run recovery, tax-manager routing, retained evidence, and human-controlled release.
+
+## 2026-10-25 ? correction money failures did not reduce the amount-accuracy metric
+
+- Failing test: test_wrong_correction_amount_is_not_counted_as_amount_accurate showed overall failure but amounts_correct=True for a wrong VAT-reversal amount.
+- Root cause: the metric checked only top-level money fields and omitted the nested correction/entry amounts already checked by case comparison.
+- Production fix: include corrections and entries in financial accuracy and publish measured catch-rate, false-positive-rate, and amount-accuracy aggregates with explicit numerators and denominators.
+- The failing assertion, EUR 0.01 comparison tolerance, and public expected amounts are unchanged.
+
+## 2026-10-25 ? planned approval roles could substitute for actual approval requests
+
+- Failing test: test_submission_requires_actual_approval_requests_not_only_planned_roles demonstrated a successful submission after drafting without creating any approval request.
+- Root cause: finalization checked that drafts existed, but treated computed routing as if its required actions had actually occurred.
+- Production fix: require an actual valid request for every entry, the exact computed payroll rows, and the required recipient notices before submission. Drafting payroll also records the real payroll-export request. Compact export/notice results retain counts and sources; detailed rows remain in the database/API.
+- The regression assertion and all expected finance outcomes are unchanged.
+
+## 2026-10-25 ? browser preview exposed replacement characters
+
+- Failing check: the real headless-browser Books preview displayed question marks where currency/separators belonged.
+- Root cause: non-ASCII literals were degraded while passing source through the Windows shell pipeline.
+- Production fix: use explicit JavaScript Unicode escapes for EUR and separators and HTML entities for static text. Financial values and calculations are unchanged.
+- Validation: JavaScript syntax/currency checks and a second browser preview.
+
+## 2026-10-25 ? protect proper German Unicode in generic-purpose detection
+
+- Review finding: the Windows-pipeline replacement-character issue also affected an added generic-purpose literal.
+- Fix: add the proper German character through an ASCII-safe Unicode escape, retaining recognition of degraded legacy text. A dedicated regression asserts that a documented but generic meal still requires a specific business purpose.
+- No threshold, expected tax amount, or private holdout content was used or changed.

@@ -151,7 +151,7 @@ def hospitality_split(net: Decimal, rules: Rules, on: str) -> Result:
                   [rules.cite("R-BEW-70", on)])
 
 
-GENERIC_OCCASIONS = {"gesch?ftsessen", "", "geschäftsessen", "geschaeftsessen", "bewirtung", "essen", "business meal", "business dinner",
+GENERIC_OCCASIONS = {"gesch\u00e4ftsessen", "gesch?ftsessen", "", "geschäftsessen", "geschaeftsessen", "bewirtung", "essen", "business meal", "business dinner",
                      "dinner", "lunch", "meeting", "besprechung", "arbeitsessen", "kundenessen", "customer dinner"}
 
 

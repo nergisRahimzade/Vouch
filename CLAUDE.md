@@ -126,6 +126,7 @@ are kept in substance (time travel, pre-pass, scripted people, holdout, measured
 - **D24:** Performance changes only with zero accuracy regressions, measured by `bench`.
 - **D25:** Vouch cannot change elections, file returns, run payroll, or write closed periods; no tool
   exists for these.
+- **D26:** Vouch remains single-agent: one accountant loop, deterministic tools, and human approvals. Claude and GPT are alternative backends, not collaborating agents.
 
 ## Testing integrity
 

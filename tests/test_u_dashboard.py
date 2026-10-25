@@ -77,3 +77,14 @@ def test_unknown_run_and_invalid_body_fail_cleanly(client):
 def test_cors_accepts_the_teammates_react_origin(client):
     r=client.options("/api/runs",headers={"Origin":"http://localhost:5173","Access-Control-Request-Method":"POST"})
     assert r.headers["access-control-allow-origin"]=="http://localhost:5173"
+
+
+def test_books_shows_ten_calendar_years_without_fabricating_history(client):
+    books=client.get("/api/books").json()
+    assert len(books["years"])==10
+    assert books["to_year"]-books["from_year"]==9
+    assert all(y["status"]=="no_recorded_entries" for y in books["years"][:-1])
+    assert client.get("/api/entries?from_year=2017&to_year=2025").json()==[]
+    assert client.get("/api/entries?from_year=2026&to_year=2026").json()
+    assert client.get("/api/entries?from_year=2026&to_year=2025").status_code==422
+    assert "Last ten years of books" in client.get("/").text

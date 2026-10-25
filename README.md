@@ -4,7 +4,7 @@ Vouch is the event tax accountant on Nordlicht's finance team: it decides the Ge
 
 Nordlicht and its people, invoices, and events are simulated. Calculations implement
 VOUCH_DE_EVENT_TAX_SPEC.md with exact Decimal arithmetic. Company policies are labelled POL-*.
-The agent gathers facts and selects permitted actions; code owns the calculations and controls.
+Vouch is a single-agent system. The accountant agent gathers facts and selects permitted actions; code owns the calculations and controls.
 
 ## Run the connected UI
 
@@ -67,3 +67,7 @@ aggregates by default. Sealed legacy answers are not used by the event-tax agent
 See [nergis_DOC.md](nergis_DOC.md) for task-by-task plain-language and technical reports,
 [FIX_LOG.md](FIX_LOG.md) for root-cause fixes, and [PERF.md](PERF.md) for measured performance
 and unmet validation gates. The current task status is in [PLAN.md](PLAN.md).
+
+The Books page defaults to the last ten calendar years relative to the scenario's as_of date.
+It displays actual entries and labels years without recorded history. The supplied company currently
+has 2026 records; earlier financial history is not invented.

@@ -142,3 +142,8 @@ h2.h { margin: 0; font: 800 26px var(--display); letter-spacing: -0.02em; }
   .tabs a { padding: 10px 14px; }
   .panel { padding: 20px; border-radius: 22px; }
 }
+
+.year-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:16px 0; }
+.year-grid .card { padding:16px; gap:6px; }
+.year-grid span { font-size:13px; color:var(--muted); }
+select, input { font:inherit; border:1px solid var(--edge); border-radius:10px; padding:9px; max-width:100%; }

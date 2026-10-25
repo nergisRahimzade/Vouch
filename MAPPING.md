@@ -148,3 +148,23 @@ Layers, unchanged and in order: company world (fixtures, generator, scenarios) â
 | `test_t3_matching.py`, `test_t4_entries.py`, `test_t4_currency.py` | AP engine, entries, FX | Replaced by event tax engine, ledgers and entries tests | retire |
 | `test_t5_rounding.py` | Splits | Same | keep |
 | `test_c1..c4_*.py`, `test_g*_*.py`, `test_e1_score.py`, `test_e4_results_table.py`, `test_k5_no_hardcoding.py`, `test_u_dashboard.py` | Payroll-era controls, agent, scorer, dashboard | Same subjects for v3 | adapt |
+
+## Additional files and final integration
+
+| File | Role | Change |
+|---|---|---|
+| nergis_DOC.md | Per-task plain-language and software/finance reports, verification and limitations | new |
+| vouch/controls/matrix.py | POL-MAT routing and valid delegation lookup | new |
+| vouch/agent/openai_backend.py | Optional GPT Responses adapter; same agent loop contract and controls | new |
+| vouch/evaluator/bench.py | Actual per-case time/token/cache/tool/cost baseline | new |
+| tests/test_live_agent.py | Real Claude public suite and five-run P11 tests; no silent skip | new |
+| tests/test_openai_backend.py | Responses protocol, reasoning preservation, usage and safe-failure checks | new |
+| tests/test_v3_controls.py | Event-tax routing, role boundaries, balanced templates and duplicate checks | new |
+| tests/test_v3_edge_cases.py | Generalized year, cap, trigger, reply, delegation, recovery and year-end regressions | new |
+| frontend/index.html, app.js, styles.css | Imported origin/frontend design connected to event-tax API and ten-year Books | import/adapt |
+| prompt_audit.json | Actual deterministic prompt/schema contract audit; scope labelled | new |
+| PERF.md, perf_baseline.json | Measured results and remaining owner-holdout gate | new |
+
+The obsolete payroll tests were adapted with the user's explicit approval. Existing T2/T3/T4 and
+bookkeeping tests were preserved. Later regression failures were repaired in production code without
+loosening their assertions. CLAUDE.md records the user's single-agent constraint (D26).

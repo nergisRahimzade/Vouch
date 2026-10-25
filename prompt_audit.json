@@ -1,0 +1,15 @@
+{
+  "kind": "deterministic prompt/schema contract audit",
+  "external_claude_api_prompt_audit_ran": false,
+  "checks": {
+    "unique_tools": true,
+    "schemas_reject_extra_fields": true,
+    "strict_action_count_within_limit": true,
+    "no_approval_election_filing_or_payroll_execution_tools": true,
+    "prompt_labels_untrusted_data": true,
+    "prompt_requires_submit_decision": true
+  },
+  "passed": true,
+  "system_sha256": "02e166a1fbc0bd9b625a5ee0917389af80c725ebb0c74b40ac77615128661dc5",
+  "tools_sha256": "9368fc36be1ecb73354a821952e44390bbcf2b894e53fd8ae34c00ad979993ed"
+}

@@ -38,7 +38,7 @@ def work(policy, case, toolbox):
     from vouch.agent.policy import MAX_TURNS, SYSTEM, PolicyFailed
     history = [{"role":"user", "content":json.dumps({"trigger_id":case["case_id"]})}]
     for _ in range(MAX_TURNS):
-        response = create(policy, instructions=SYSTEM, input=history, tools=policy.tools)
+        response = create(policy, instructions=policy.system, input=history, tools=policy.tools)
         # Preserve reasoning, encrypted reasoning and assistant phases, not only function calls.
         history.extend(item.model_dump(exclude_none=True) for item in response.output)
         calls = [item for item in response.output if item.type == "function_call"]
