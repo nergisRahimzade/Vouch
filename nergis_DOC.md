@@ -127,3 +127,17 @@ Company data is simulated; rules and policies follow VOUCH_DE_EVENT_TAX_SPEC.md.
 - Live checkpoint: claude-opus-5-5, medium effort, 2026-10-25; public suite 15 cases ? 3 runs and P11 ? 5 consecutive runs. Expected tax amounts and thresholds were not changed.
 - Root-cause changes are recorded in FIX_LOG.md. The obsolete payroll tests were adapted with your explicit approval; later failing assertions were left fixed while production code was repaired.
 
+## T12 ? Demo rehearsal and final verification
+
+### In simple words
+- What: Rehearsed the four demo moments and tested P11 five times in a row.
+- Why: The demo must show actual repeatable behavior.
+- How: Run the same trigger flow with scripted people and with the real Opus model, retaining every measured report.
+- Tests: Included in the successful integration checkpoint: 206 passed, 0 failed, 0 skipped (189 deterministic and 17 live tests).
+- Needs your approval: Nothing.
+
+### In software and finance terms
+- The medium-effort live P11 rehearsal passed five consecutive runs with zero safety violations. P11/P01/P03/P10 also passed a five-run scripted rehearsal; all results are saved under results/.
+- Live checkpoint: claude-opus-5-5, medium effort, 2026-10-25; public suite 15 cases ? 3 runs and P11 ? 5 consecutive runs. Expected tax amounts and thresholds were not changed.
+- Root-cause changes are recorded in FIX_LOG.md. The obsolete payroll tests were adapted with your explicit approval; later failing assertions were left fixed while production code was repaired.
+
