@@ -273,3 +273,15 @@ Score-selection fix: `/api/scores` now prefers the latest complete public suite 
 ### In software and finance terms
 - recon/run.py derives optional cost_transition using existing Decimal allocation and VAT-test functions, with booked invoice IDs, new invoices, gross totals and actual attendee count. tools.py preserves it in the submitted decision. frontend/app.js renders the backend-derived comparison and input-VAT status change above the issue list.
 - No expected answers, tax thresholds, calculation formulas, scoring rules or historical records changed. For attendance changes the card states that both cost sets use current confirmed attendance; it does not pretend to reconstruct an unavailable historic attendee list. Regression coverage verifies the transition and absence of fabricated baselines.
+
+## Three-minute recording script — 2026-10-25
+
+### In simple words
+- What: Replaced the longer video script with a timed 0:00–3:00 talking script and matching click directions.
+- Why: The user set a strict three-minute video limit.
+- How: Keep P11's catch, the live run, one reviewed/posted entry, P10's human answer, audit evidence and measured results. Reserve the other cases and custom input for live questions.
+- Checks: Checked narration length and continuous timing through 3:00. No application code changed.
+- Needs your approval: nothing. Rehearse once with a timer; click speed affects the recording length.
+
+### In software and finance terms
+- DEMO_VIDEO_SCRIPT.md now contains seven timed scenes. It retains the required seat line, source-derived event-cost comparison, independent approval/posting controls, authorized ruling/resumption, audit evidence and real-versus-simulated disclosure. Feature selection remains grounded in the supplied Hyphenate judging brief.
