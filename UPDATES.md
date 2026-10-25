@@ -194,3 +194,11 @@ Before any efficiency work, one live close cost **$3.48**. A live close now cost
 **Not yet shown:** the demo scenario needs **5 runs in a row** at target and has been run for 3 (all 3 at target; the demo check says "not passed" until 5). The scripted playbook was already 14/14. The held-out set has no cases yet and the clean set (no mistakes) has not been scored live. "Handled differently" lists 3 mistakes (MAIN-05, 06, 07): the outcome was right every time, but the exact steps varied between runs.
 
 **Why (track):** "Is it real enough?" and "proof it works": the number that matters moved from 9/14 to 14/14 on a score that exposed my own regression rather than hiding it; "Asks at the right moment": it asks the colleague a case names, and not when a request already is the ask; "Would you hire it?": cost cut by about 60% with accuracy at target.
+
+## 16. 2026-10-25, 03:08 · branch `front-end` (new, from `efficiency`)
+
+**New front end, as a standalone prototype.** `frontend/` (`index.html`, `styles.css`, `app.js`, `README.md`) rebuilds the "Vouch Merged Dashboard" design for the event vendor payables plan: three pages (Overview, Books, Audit trail), the pill navigation, the four colour cards, the decision cards with Approve / Reject / Why? / Undo, and the "What Vouch caught" panel.
+- **Not integrated, on purpose:** it calls no backend and reads no database; all content is the design's simulated sample data and every page says so. `vouch/ui` and the backend are unchanged.
+- **Set aside:** an earlier start at wiring the new design to the backend (a per-entry balance check in `/api/ledger`, a new shell and styles for `vouch/ui`) is kept in `git stash` ("redesign: wired dashboard start…"), not on any branch.
+- **Why (track):** "Would you hire it?" for a manager: one screen that answers what needs a decision, why, and what was caught.
+- **Tests:** none; nothing in Python changed. The script passes a syntax check.
