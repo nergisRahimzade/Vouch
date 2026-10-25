@@ -1,18 +1,17 @@
 """Splitting an amount across lines without losing or inventing a cent.
 
-Rule (T5): each line gets its share rounded half up to the cent; whatever is left over goes to
-one fixed line, the first line in the fixed order that has a share. The fixed orders are the
-company's department order and entity order, so the same split always lands the same way."""
+Rule: each line gets its share rounded half up to the cent; whatever is left over goes to one fixed
+line, the first line in the fixed order that has a share. The fixed order is the chart of accounts,
+so the same split always lands the same way."""
 from __future__ import annotations
 
 from decimal import Decimal
 from typing import Hashable, Iterable, Mapping
 
-from vouch.calc import fx
+from vouch.db.accounts import CHART
 from vouch.money import ZERO, cents
 
-DEPARTMENT_ORDER = ("Engineering", "Product", "GTM", "G&A")
-ENTITY_ORDER = ("US", "UK", "DE")
+ACCOUNT_ORDER = tuple(a.code for a in CHART)
 
 
 def fixed_line(weights: Mapping[Hashable, Decimal], order: Iterable[Hashable]) -> Hashable:
@@ -37,14 +36,3 @@ def allocate(total: Decimal, weights: Mapping[Hashable, Decimal], order: Iterabl
     shares = {k: cents(total * Decimal(w) / base) for k, w in weights.items()}
     shares[fixed_line(weights, order)] += total - sum(shares.values(), ZERO)
     return shares
-
-
-def translate_split(usd_by_line: Mapping[Hashable, Decimal], currency: str, month: str,
-                    order: Iterable[Hashable]) -> tuple[dict, fx.Translation]:
-    """Translate the total once at the month's rate, then split it by the USD weights.
-    The lines always add up to the translated total."""
-    total = sum((Decimal(v) for v in usd_by_line.values()), ZERO)
-    translation = fx.translate(total, currency, month)
-    if translation.amount_local == 0:
-        return {k: ZERO for k in usd_by_line}, translation
-    return allocate(translation.amount_local, usd_by_line, order), translation

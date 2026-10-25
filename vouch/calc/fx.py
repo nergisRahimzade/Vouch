@@ -1,93 +1,49 @@
-"""Recorded USD exchange rates (Open Exchange Rates snapshot). A month is translated at
-its average rate (policy FIN-02); a month missing any business day has no rate."""
+"""Period exchange rates (`period_rates`; GBP/USD frozen at 1.27 for 2026, simulated). A GBP invoice is
+converted to USD at its month's rate for approval thresholds. A month with no rate uses the last known
+earlier month's rate and says so in a warning (spec §8.3); with no earlier rate at all, it raises."""
 from __future__ import annotations
 
-import csv
 from dataclasses import dataclass
-from datetime import timedelta
-from decimal import ROUND_HALF_UP, Decimal
-from functools import lru_cache
-from pathlib import Path
+from decimal import Decimal
 
-from vouch import dates
 from vouch.money import cents
-
-SNAPSHOT = Path(__file__).resolve().parents[1] / "reference" / "fx_oxr_usd.csv"
-SOURCE = "Open Exchange Rates, USD base, daily historical rates"
 
 
 class MissingFxRate(LookupError):
-    """No complete set of recorded rates for the month. The conversion must be held."""
+    """No rate for the month and none before it."""
 
 
 @dataclass(frozen=True)
-class FxRate:
+class Conversion:
+    """A converted amount that names its rate, the period the rate is for, and any warning."""
+    amount: Decimal
     currency: str
-    month: str
-    rate: Decimal          # units of currency per 1 USD
-    method: str
-    days: int
-    first_date: str
-    last_date: str
-
-    @property
-    def citation(self) -> str:
-        if self.currency == "USD":
-            return f"USD, no translation ({self.month})"
-        return (f"USD->{self.currency} {self.rate} = {self.method} for {self.month} "
-                f"({self.days} business days {self.first_date}..{self.last_date}; {SOURCE})")
-
-
-@dataclass(frozen=True)
-class Translation:
-    """A converted amount that names its rate and the dates the rate comes from."""
     amount_usd: Decimal
-    amount_local: Decimal
-    kind: str              # expense | balance (both use the month's average rate, policy FIN-02)
-    rate: FxRate
+    rate: Decimal          # USD per one unit of `currency`
+    period: str            # the period the rate was taken from
+    warning: str = ""
 
     @property
     def basis(self) -> str:
-        return self.rate.citation
+        if self.currency == "USD":
+            return "USD, no conversion"
+        return f"{self.currency}/USD {self.rate} (period rate {self.period})"
 
 
-@lru_cache(maxsize=1)
-def _daily() -> dict[str, dict[str, str]]:
-    with SNAPSHOT.open(newline="", encoding="utf-8") as f:
-        return {row["date"]: row for row in csv.DictReader(f)}
-
-
-def business_days(month: str) -> list[str]:
-    d, end, out = dates.month_start(month), dates.month_end(month), []
-    while d <= end:
-        if d.weekday() < 5:
-            out.append(d.isoformat())
-        d += timedelta(days=1)
-    return out
-
-
-def month_average(currency: str, month: str) -> FxRate:
+def rate(rates: dict[tuple[str, str], Decimal], currency: str, period: str) -> tuple[Decimal, str, str]:
+    """(rate, period it is for, warning). `rates` maps (pair, period) -> USD per unit, e.g. ("GBP/USD", "2026-09")."""
     if currency == "USD":
-        return FxRate("USD", month, Decimal(1), "identity", 0, "", "")
-    days = business_days(month)
-    daily = _daily()
-    missing = [d for d in days if d not in daily]
-    if missing:
-        raise MissingFxRate(f"USD->{currency} for {month}: {len(missing)} business days have no recorded rate "
-                            f"(first missing {missing[0]})")
-    total = sum((Decimal(daily[d][currency]) for d in days), Decimal(0))
-    rate = (total / len(days)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
-    return FxRate(currency, month, rate, "monthly average of business-day rates", len(days), days[0], days[-1])
+        return Decimal(1), period, ""
+    pair = f"{currency}/USD"
+    if (pair, period) in rates:
+        return rates[(pair, period)], period, ""
+    earlier = sorted(p for (q, p) in rates if q == pair and p < period)
+    if not earlier:
+        raise MissingFxRate(f"no {pair} rate for {period} or any month before it")
+    last = earlier[-1]
+    return rates[(pair, last)], last, f"no {pair} rate for {period}; used the last known rate, for {last}"
 
 
-def to_local(amount_usd: Decimal, rate: FxRate) -> Decimal:
-    return cents(amount_usd * rate.rate)
-
-
-def translate(amount_usd: Decimal, currency: str, month: str, kind: str = "expense") -> Translation:
-    """USD -> local at the month's average rate. Policy FIN-02 uses one rate for expenses and
-    balances alike; a month without every business day recorded raises MissingFxRate."""
-    if kind not in ("expense", "balance"):
-        raise ValueError(f"unknown translation kind {kind!r}")
-    rate = month_average(currency, month)
-    return Translation(amount_usd, to_local(amount_usd, rate), kind, rate)
+def to_usd(amount: Decimal, currency: str, period: str, rates: dict[tuple[str, str], Decimal]) -> Conversion:
+    value, used, warning = rate(rates, currency, period)
+    return Conversion(Decimal(amount), currency, cents(Decimal(amount) * value), value, used, warning)

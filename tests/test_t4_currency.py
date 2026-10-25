@@ -1,66 +1,32 @@
-"""T4: real recorded rates; one rate per month (the monthly average, policy FIN-02);
-every converted amount names its rate and the dates it comes from."""
+"""Currency: GBP converts to USD at the invoice month's period rate (frozen 1.27, simulated); a missing
+month falls back to the last known rate with a warning (spec §8.3); thresholds use the USD amount."""
 from decimal import Decimal as D
 
 import pytest
 
-from vouch.calc import fx
-from vouch.db.ledger import Entry, EntryRefused, Line, SourceRef, post_entry
-from vouch.world import config as C
+from vouch.calc.fx import MissingFxRate, to_usd
+
+RATES = {("GBP/USD", f"2026-{m:02d}"): D("1.27") for m in range(1, 13)}
 
 
-def test_translation_names_its_rate_month_and_days():
-    t = fx.translate(D("1000.00"), "GBP", "2026-03")
-    assert t.amount_local == fx.to_local(D("1000.00"), t.rate)
-    assert "2026-03" in t.basis and "monthly average" in t.basis and "Open Exchange Rates" in t.basis
-    assert f"{t.rate.first_date}..{t.rate.last_date}" in t.basis and t.rate.days == len(fx.business_days("2026-03"))
+def test_gbp_converts_at_the_period_rate():
+    # P07: approved 15,242.70 x 1.27 = 19,358.229 -> 19,358.23; disputed 1,871.10 x 1.27 = 2,376.297 -> 2,376.30.
+    assert to_usd(D("15242.70"), "GBP", "2026-09", RATES).amount_usd == D("19358.23")
+    assert to_usd(D("1871.10"), "GBP", "2026-09", RATES).amount_usd == D("2376.30")
+    assert to_usd(D("31920.00"), "GBP", "2026-09", RATES).basis == "GBP/USD 1.27 (period rate 2026-09)"
 
 
-def test_expenses_and_balances_use_the_same_monthly_average():
-    expense = fx.translate(D("500.00"), "EUR", "2026-06", "expense")
-    balance = fx.translate(D("500.00"), "EUR", "2026-06", "balance")
-    assert expense.rate == balance.rate and expense.amount_local == balance.amount_local
-    with pytest.raises(ValueError):
-        fx.translate(D("1"), "EUR", "2026-06", "spot")
+def test_usd_needs_no_rate():
+    conversion = to_usd(D("100.00"), "USD", "2030-01", {})
+    assert (conversion.amount_usd, conversion.warning) == (D("100.00"), "")
 
 
-def test_a_month_without_every_business_day_is_held_not_guessed():
-    with pytest.raises(fx.MissingFxRate, match="no recorded rate"):
-        fx.translate(D("1"), "GBP", "2030-02")
+def test_a_missing_month_uses_the_last_known_rate_and_says_so():
+    conversion = to_usd(D("100.00"), "GBP", "2027-02", RATES)
+    assert conversion.amount_usd == D("127.00") and conversion.period == "2026-12"
+    assert "last known rate" in conversion.warning
 
 
-def test_every_booked_conversion_names_the_policy_rate(world):
-    checked = 0
-    for month in world.months():
-        for line in world.csv(f"months/{month}/ledger_booked.csv"):
-            if not line["fx_rate"] or line["entry_id"].endswith("-OPENING"):
-                continue
-            currency = line["currency"]
-            rate = fx.month_average(currency, line["period"])
-            assert line["fx_rate"] == str(rate.rate) and line["fx_rate_basis"] == rate.citation, line
-            checked += 1
-    assert checked > 50
-
-
-def test_every_platform_conversion_names_a_basis(world):
-    for month in world.months():
-        for row in world.csv(f"months/{month}/equity_report.csv"):
-            assert row["fx_rate"] and month in row["fx_rate_basis"], row
-
-
-def test_opening_capital_names_the_cutover_rate(world):
-    for row in world.csv("standing/opening_balances.csv"):
-        if row["account"] == "3100" and row["currency"] != "USD":
-            assert row["fx_rate"] and "monthly average" in row["basis"] and row["fx_rate"] in row["basis"]
-
-
-def test_ledger_stores_the_basis_and_refuses_a_rate_without_one(db, scratch_db):
-    assert db.execute("SELECT COUNT(*) FROM journal_lines WHERE fx_rate IS NOT NULL AND "
-                      "(fx_basis IS NULL OR fx_basis = '')").fetchone()[0] == 0
-    doc, row = scratch_db.execute("SELECT doc_id, row_no FROM v_equity_report WHERE month = ? LIMIT 1",
-                                  (C.OPEN_MONTH,)).fetchone()
-    entry = Entry("TEST-FX", "UK", C.OPEN_MONTH, f"{C.OPEN_MONTH}-30", "stock comp", [
-        Line("6300", debit=D("10.00"), department="GTM", fx_rate="0.75", sources=[SourceRef(doc, row)]),
-        Line("3100", credit=D("10.00"), fx_rate="0.75", sources=[SourceRef(doc, row)])], "Vouch")
-    with pytest.raises(EntryRefused, match="must name its rate"):
-        post_entry(scratch_db, entry)
+def test_no_rate_at_all_is_refused():
+    with pytest.raises(MissingFxRate):
+        to_usd(D("100.00"), "GBP", "2025-06", RATES)
