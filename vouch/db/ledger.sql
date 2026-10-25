@@ -1,20 +1,20 @@
--- Double-entry general ledger, one functional currency per entity.
+-- Double-entry general ledger (ENT-DE, EUR).
 
 CREATE TABLE journal_entries (
     entry_id         TEXT PRIMARY KEY,
     entity           TEXT NOT NULL,
     period           TEXT NOT NULL REFERENCES periods(period),
     entry_date       TEXT NOT NULL,
-    type             TEXT NOT NULL,             -- ap_deposit | ap_invoice | payment | prepaid_release | accrual
-                                                -- | accrual_reversal | reclass | discount | history
+    type             TEXT NOT NULL,             -- staff_event | hospitality | gift | promo | working_meal | program
+                                                -- | flat_tax_40 | flat_tax_37b | vat_reversal | reclass | wages | history
     reason           TEXT NOT NULL CHECK (length(trim(reason)) > 0),
     currency         TEXT NOT NULL,
     status           TEXT NOT NULL CHECK (status IN ('draft', 'posted')),
     origin           TEXT NOT NULL,             -- history (as loaded) | vouch
     created_by       TEXT NOT NULL,
-    source_ref       TEXT,                      -- the invoice (or task) the entry books
+    source_ref       TEXT,                      -- the event, invoice or gift the entry books
     corrects_period  TEXT,                      -- set when the entry books something that belongs to a closed month
-    reverses         TEXT,                      -- the accrual an automatic reversal mirrors
+    corrects         TEXT,                      -- the earlier entry a correction corrects
     created_at       TEXT NOT NULL
 );
 
@@ -24,15 +24,15 @@ CREATE TABLE journal_lines (
     account      TEXT NOT NULL REFERENCES accounts(code),
     cost_center  TEXT,
     event        TEXT,
+    item         TEXT,                          -- the invoice, invoice line or gift this line books
+    person       TEXT,                          -- the recipient or employee the line concerns, if one
     debit        TEXT NOT NULL,                 -- exact decimal text, two places
     credit       TEXT NOT NULL,
-    fx_rate      TEXT,
-    fx_basis     TEXT,                          -- which rate and period fx_rate is (required with fx_rate)
     memo         TEXT,
     PRIMARY KEY (entry_id, line_no)
 );
 
--- What each line rests on: rows of the system of record (an invoice line, a clause, an evidence row, ...).
+-- What each line rests on: rules and rows of the system of record.
 CREATE TABLE line_sources (
     entry_id   TEXT NOT NULL,
     line_no    INTEGER NOT NULL,

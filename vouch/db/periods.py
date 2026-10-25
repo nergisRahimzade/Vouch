@@ -1,4 +1,4 @@
-"""Period close: month M closes on the 5th of M+1 and is then locked; something that belongs to a
+"""Period close: month M closes on the 10th of M+1 (the monthly VAT return deadline) and is then locked; something that belongs to a
 closed month is booked in the current open period; only the controller can lock or reopen a month."""
 from __future__ import annotations
 
@@ -9,13 +9,13 @@ from datetime import date, datetime, timezone
 from vouch import dates
 from vouch.db.ledger import Entry, post_entry
 
-CLOSE_DAY = 5          # month M closes on the 5th of M+1
+CLOSE_DAY = 10         # month M closes on the 10th of M+1 (spec §5.7)
 
 
 @dataclass(frozen=True)
 class Actor:
     name: str
-    role: str        # vouch | event_owner | controller | vp_finance | event_ops | vendor_master_admin | vendor
+    role: str        # vouch | tax_manager | controller | payroll | cfo | organizer | vendor
 
 
 class PeriodLocked(PermissionError):
@@ -31,7 +31,7 @@ def close_date(period: str) -> date:
 
 
 def closed_at(period: str, as_of: date) -> bool:
-    """A month is closed once its close date has passed: on the 5th itself it can still take entries."""
+    """A month is closed once its close date has passed: on the 10th itself it can still take entries."""
     return as_of > close_date(period)
 
 

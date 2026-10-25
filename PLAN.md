@@ -7,7 +7,7 @@ its T5 when v3 superseded it; its domain-neutral work is reused here.
 | # | Branch | Task | Done when | Status |
 |---|---|---|---|---|
 | T1 | `v3-t1-mapping` | `MAPPING.md` + legacy tags | Every module mapped | done |
-| T2 | `v3-t2-schema` | Schema, rules table, base fixtures, employee generator, time travel (reuse) | Seed reproducible | |
+| T2 | `v3-t2-schema` | Schema, rules table, base fixtures, employee generator, time travel (reuse) | Seed reproducible | done |
 | T3 | `v3-t3-engine` | Event tax engine + unit tests (§6.1, POL-ROUND) | All rules hand-checked | |
 | T4 | `v3-t4-ledgers` | Per-person ledgers, optimizer, corrections + tests | Retro cases pass in unit tests | |
 | T5 | `v3-t5-detectors` | Entries, period lock, detectors, routing | Unit tests pass | |

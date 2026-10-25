@@ -1,148 +1,99 @@
-# Base company fixtures: VOUCH_EVENT_AP_SPEC.md Appendix A, seeded exactly.
-# All people, vendors, events and amounts are simulated. Every value from Appendix A is kept as given.
-# Fields this file adds (Appendix A leaves them out): vendors.category (which expense account their
-# goods go to), contract_clauses.type and .text (structured type + one line of wording), and
-# purchase_orders.event/contract/lines (which clauses each PO covers).
-# as_of: the date the base company is built at when no scenario names one.
-as_of: 2026-10-25
+# Base company fixtures: VOUCH_DE_EVENT_TAX_SPEC.md Appendix A, seeded exactly, plus the rules and
+# company tax policies of spec §4.4. The company, people, events and amounts are simulated; the rules are
+# real German tax law. Rule source links are given as the spec names them and are labelled
+# `checked: not yet verified` until a person checks each against the official text.
+# Fields this file adds to Appendix A: rules/policies rows (from §4.4) and as_of (the date the base company
+# is built at when no scenario names one).
+as_of: 2026-12-31
 
 entities:
-  - {id: ENT-US, name: "Anthropic, PBC", currency: USD}
-  - {id: ENT-UK, name: "Anthropic UK Ltd", currency: GBP}
+  - {id: ENT-DE, name: "Nordlicht Maschinenbau GmbH", currency: EUR, state: Bavaria, fiscal_year: calendar}
 cost_centers:
-  - {id: CC-EVT, name: Events & Marketing}
-  - {id: CC-DEVREL, name: Developer Relations}
-  - {id: CC-RES, name: Research}
+  - {id: CC-PROD,  name: Production,  members: "E001-E200"}
+  - {id: CC-SALES, name: Sales,       members: "E201-E300"}
+  - {id: CC-ENG,   name: Engineering, members: "E301-E400"}
+  - {id: CC-ADMIN, name: Administration, members: "E401-E450"}
+employees:
+  generator: {ids: "E001-E450", names: "Faker de_DE, seed 42", cost_center: from cost_centers}
+  managers: [E010, E020, E030, E040, E050, E060, E070, E080, E090, E100, E210, E220, E230, E240, E250, E310, E320, E330, E340, E350, E360, E410, E420, E430, E440]   # 25
 people:   # fictional
-  - {id: P-OWN-SF,  name: Maya Chen,   role: event_owner,  entity: ENT-US}
-  - {id: P-OWN-LDN, name: Tom Hale,    role: event_owner,  entity: ENT-UK}
-  - {id: P-OWN-OFF, name: Priya Nair,  role: event_owner,  entity: ENT-US}
-  - {id: P-OWN-NYC, name: Leo Grant,   role: event_owner,  entity: ENT-US}
-  - {id: P-CTRL,    name: Dana Ortiz,  role: controller,   entity: ENT-US}
-  - {id: P-VPF,     name: Sam Reyes,   role: vp_finance,   entity: ENT-US}
-  - {id: P-OPS,     name: Jordan Kim,  role: event_ops,    entity: ENT-US}
-  - {id: P-VMA,     name: Lee Park,    role: vendor_master_admin, entity: ENT-US}
+  - {id: P-TAX,        name: Katrin Weber,     role: tax_manager}
+  - {id: P-CTRL,       name: Jonas Albrecht,   role: controller}
+  - {id: P-PAY,        name: Mehmet Yilmaz,    role: payroll}
+  - {id: P-CFO,        name: Dr. Sabine Hoffmann, role: cfo}
+  - {id: P-HR-EVT,     name: Lena Fischer,     role: organizer}
+  - {id: P-SALES-HEAD, name: Tobias Brandt,    role: organizer}
+  - {id: P-MKT,        name: Anna Schulz,      role: organizer}
 delegations:
-  - {from: P-CTRL, to: P-VPF, role: controller, valid_from: 2026-01-01, valid_to: 2026-12-31}
-events:
-  - {id: EVT-MAR26, name: Spring Builder Meetup, entity: ENT-US, cost_center: CC-DEVREL, owner: P-OWN-SF, start: 2026-03-12, end: 2026-03-12, status: held}
-  - {id: EVT-SF26,  name: Builder Summit SF,     entity: ENT-US, cost_center: CC-DEVREL, owner: P-OWN-SF, start: 2026-06-11, end: 2026-06-12, status: held}
-  - {id: EVT-OFF26, name: Research Offsite,      entity: ENT-US, cost_center: CC-RES,    owner: P-OWN-OFF, start: 2026-08-18, end: 2026-08-20, status: held}
-  - {id: EVT-LDN26, name: London Customer Forum, entity: ENT-UK, cost_center: CC-EVT,    owner: P-OWN-LDN, start: 2026-09-24, end: 2026-09-24, status: held}
-  - {id: EVT-NYC26, name: New York Builder Day,  entity: ENT-US, cost_center: CC-DEVREL, owner: P-OWN-NYC, start: 2026-12-09, end: 2026-12-09, status: planned}
+  - {from: P-TAX, to: P-CFO, role: tax_manager, valid_from: 2026-01-01, valid_to: 2026-12-31}
+business_partners:
+  generator: {ids: "BP-001-BP-600", names: "Faker de_DE, seed 7", companies: "pool of 80 fictional customer companies"}
+  named:
+    - {id: BP-003, name: "Dr. Klaus Meier", company: "Bergmann Automotive AG"}
+    - {id: BP-015, name: "Petra Lang", company: "Hansa Antriebe GmbH"}
 vendors:
-  - {id: V-BAYV,   name: Bayview Conference Center,  currency: USD, email_domain: bayviewcc.com,        phone_on_file: "+1-415-555-0142", enhanced_review_until: null, category: venue}
-  - {id: V-GFORK,  name: Golden Fork Catering,       currency: USD, email_domain: goldenforkcatering.com, phone_on_file: "+1-415-555-0188", enhanced_review_until: 2026-12-31, category: catering}
-  - {id: V-LUMEN,  name: Lumen AV Productions,       currency: USD, email_domain: lumenav.com,          phone_on_file: "+1-510-555-0110", enhanced_review_until: null, category: av}
-  - {id: V-SWAG,   name: Swagwell Merch Co,          currency: USD, email_domain: swagwell.com,         phone_on_file: "+1-650-555-0177", enhanced_review_until: null, category: merchandise}
-  - {id: V-COAST,  name: Coastline Retreats,         currency: USD, email_domain: coastlineretreats.com, phone_on_file: "+1-650-555-0123", enhanced_review_until: null, category: lodging}
-  - {id: V-THAMES, name: Thames Hall Events Ltd,     currency: GBP, email_domain: thameshall.co.uk,     phone_on_file: "+44-20-5550-0161", enhanced_review_until: null, category: venue}
-  - {id: V-KETTLE, name: Kettle & Crumb Catering Ltd, currency: GBP, email_domain: kettleandcrumb.co.uk, phone_on_file: "+44-20-5550-0198", enhanced_review_until: null, category: catering}
-  - {id: V-HUDSON, name: Hudson Pier Venues,         currency: USD, email_domain: hudsonpier.com,       phone_on_file: "+1-212-555-0135", enhanced_review_until: null, category: venue}
-vendor_bank_accounts:
-  - {vendor: V-BAYV, last4: "4417", active_from: 2025-01-01}
-  - {vendor: V-GFORK, last4: "8820", active_from: 2025-01-01}
-  - {vendor: V-LUMEN, last4: "1093", active_from: 2025-01-01}
-  - {vendor: V-SWAG, last4: "5562", active_from: 2025-01-01}
-  - {vendor: V-COAST, last4: "7301", active_from: 2025-01-01}
-  - {vendor: V-THAMES, last4: "2286", active_from: 2025-01-01}
-  - {vendor: V-KETTLE, last4: "6604", active_from: 2025-01-01}
-  - {vendor: V-HUDSON, last4: "3158", active_from: 2025-01-01}
-vendor_history:
-  - {vendor: V-GFORK, event: EVT-MAR26, kind: confirmed_overbilling, amount: 4207.50, date: 2026-04-02, note: "Invoice GF-0977 billed 45 meals above guarantee; credit memo CM-0977 received"}
-contracts:
-  - {id: C-BAYV-SF26,   vendor: V-BAYV,   event: EVT-SF26,  entity: ENT-US, payment_terms: net_30}
-  - {id: C-GFORK-SF26,  vendor: V-GFORK,  event: EVT-SF26,  entity: ENT-US, payment_terms: net_15}
-  - {id: C-GFORK-NYC26, vendor: V-GFORK,  event: EVT-NYC26, entity: ENT-US, payment_terms: "2/10 net 30"}
-  - {id: C-LUMEN-SF26,  vendor: V-LUMEN,  event: EVT-SF26,  entity: ENT-US, payment_terms: net_30}
-  - {id: C-SWAG-SF26,   vendor: V-SWAG,   event: EVT-SF26,  entity: ENT-US, payment_terms: net_30}
-  - {id: C-COAST-OFF26, vendor: V-COAST,  event: EVT-OFF26, entity: ENT-US, payment_terms: net_30}
-  - {id: C-THAMES-LDN26, vendor: V-THAMES, event: EVT-LDN26, entity: ENT-UK, payment_terms: net_30}
-  - {id: C-KETTLE-LDN26, vendor: V-KETTLE, event: EVT-LDN26, entity: ENT-UK, payment_terms: net_14}
-  - {id: C-HUDSON-NYC26, vendor: V-HUDSON, event: EVT-NYC26, entity: ENT-US, payment_terms: net_30}
-contract_clauses:
-  # Bayview (venue, SF)
-  - {clause_id: VEN-RENT,    contract: C-BAYV-SF26, type: venue_hire, params: {amount: 120000.00}, text: "Hire of the conference center for the Builder Summit SF, 11-12 June 2026, for USD 120,000."}
-  - {clause_id: VEN-DEPOSIT, contract: C-BAYV-SF26, type: deposit, params: {pct: 0.50, amount: 60000.00, credited_on_final: true}, text: "A deposit of 50% (USD 60,000) is due on signature and is credited against the final invoice."}
-  - {clause_id: VEN-OT,      contract: C-BAYV-SF26, type: venue_overtime, params: {rate_per_hour: 1500.00, after: "23:00", increment_hours: 0.5, rounding: up}, text: "Use of the venue after 23:00 is charged at USD 1,500 per hour in half-hour increments, rounded up."}
-  # Golden Fork (SF)
-  - {clause_id: CAT-PRICE,     contract: C-GFORK-SF26, type: per_head_price, params: {meal: "Summit lunch 2026-06-11", price_per_head: 85.00}, text: "Summit lunch on 11 June 2026 at USD 85 per head."}
-  - {clause_id: CAT-GUARANTEE, contract: C-GFORK-SF26, type: guarantee, params: {guaranteed_count: 300, final_count_due: 2026-06-08, billed_count: "max(guarantee, verified_served) capped at invoiced count"}, text: "Client guarantees 300 meals; the final count is due 8 June. Billed count is the greater of the guarantee and the verified count served, never more than invoiced."}
-  - {clause_id: CAT-STAFF,     contract: C-GFORK-SF26, type: staff_count, params: {counts_toward_headcount: false}, text: "Staff meals do not count toward the headcount."}
-  - {clause_id: CAT-SVC,       contract: C-GFORK-SF26, type: service_charge, params: {service_charge_pct: 0.20, base: food}, text: "A 20% service charge applies to food."}
-  - {clause_id: CAT-TAX,       contract: C-GFORK-SF26, type: sales_tax, params: {rate_ref: TAX-SF, base: food_plus_service}, text: "San Francisco sales tax applies to food plus service charge."}
-  - {clause_id: CAT-DEPOSIT,   contract: C-GFORK-SF26, type: deposit, params: {amount: 6375.00, credited_on_final: true}, text: "A deposit of USD 6,375 is credited against the final invoice."}
-  - {clause_id: GF-DIN,        contract: C-GFORK-SF26, type: fixed_price, params: {fixed: 14800.00, inclusive: true, desc: "Speaker dinner 2026-06-11"}, text: "Speaker dinner on 11 June 2026 for USD 14,800, inclusive of service and tax."}
-  - {clause_id: GF-COF,        contract: C-GFORK-SF26, type: fixed_price, params: {fixed: 3900.00, inclusive: true, desc: "Coffee service 2026-06-11/12"}, text: "Coffee service on 11-12 June 2026 for USD 3,900, inclusive of service and tax."}
-  - {clause_id: GF-TAST,       contract: C-GFORK-NYC26, type: fixed_price, params: {fixed: 12400.00, inclusive: true, desc: "Menu tasting"}, text: "Menu tasting for the New York Builder Day for USD 12,400, inclusive."}
-  - {clause_id: GF-TAST-TERMS, contract: C-GFORK-NYC26, type: early_pay_terms, params: {discount_pct: 0.02, discount_days: 10, net_days: 30}, text: "2% discount if paid within 10 days; otherwise the full amount is due in 30 days."}
-  # Lumen (AV, SF)
-  - {clause_id: AV-PKG,     contract: C-LUMEN-SF26, type: av_package, params: {amount: 48000.00, show_days: [2026-06-11, 2026-06-12]}, text: "AV production package for the two show days, 11-12 June 2026, for USD 48,000."}
-  - {clause_id: AV-DAYRATE, contract: C-LUMEN-SF26, type: day_rate, params: {rate: 4800.00, days: {rehearsal: 2026-06-10, strike: 2026-06-13}}, text: "Additional days at USD 4,800 per day, billable only for days on the purchase order."}
-  - {clause_id: AV-OT,      contract: C-LUMEN-SF26, type: crew_overtime, params: {rate_per_crew_hour: 225.00, call_length_hours: 12, crew_size: 6}, text: "Crew overtime beyond a 12-hour call at USD 225 per crew member per hour; crew of 6."}
-  - {clause_id: AV-CO,      contract: C-LUMEN-SF26, type: change_order, params: {requires_signed_change_order_by: event_owner}, text: "Changes to scope are billable only with a change order signed by the event owner."}
-  # Swagwell (SF)
-  - {clause_id: SWG-UNIT,  contract: C-SWAG-SF26, type: unit_items, params: {items: {hoodie: {qty: 350, unit_price: 32.00}, speaker_gift: {qty: 60, unit_price: 40.00}}}, text: "350 hoodies at USD 32 each and 60 speaker gifts at USD 40 each."}
-  - {clause_id: SWG-DELIV, contract: C-SWAG-SF26, type: delivery_basis, params: {bill_on: delivered_qty}, text: "Goods are billed on the quantity delivered."}
-  # Coastline (offsite)
-  - {clause_id: LDG-BLOCK,     contract: C-COAST-OFF26, type: lodging_block, params: {room_nights: 120, rate: 310.00, inclusive_of_taxes: true}, text: "Room block of 120 room-nights at USD 310 per night, taxes included."}
-  - {clause_id: LDG-ATTRITION, contract: C-COAST-OFF26, type: attrition, params: {min_pct: 0.80, min_room_nights: 96}, text: "Client pays for at least 80% of the block (96 room-nights) or the actual pickup, whichever is greater."}
-  - {clause_id: MTG-SPACE,     contract: C-COAST-OFF26, type: meeting_space, params: {amount: 9000.00}, text: "Meeting space for the offsite for USD 9,000."}
-  - {clause_id: LDG-DEPOSIT,   contract: C-COAST-OFF26, type: deposit, params: {amount: 15000.00, applied_to: lodging, credited_on_final: true}, text: "A deposit of USD 15,000 is applied to lodging and credited against the final invoice."}
-  # Thames Hall (London venue)
-  - {clause_id: THM-HIRE,    contract: C-THAMES-LDN26, type: venue_hire, params: {net: 38000.00, vat_pct: 0.20}, text: "Hire of Thames Hall for the London Customer Forum for GBP 38,000 plus VAT at 20%."}
-  - {clause_id: THM-DEPOSIT, contract: C-THAMES-LDN26, type: deposit, params: {net: 11400.00, vat: 2280.00, gross: 13680.00, credited_on_final: gross}, text: "A deposit of GBP 11,400 plus VAT (GBP 13,680 gross) is credited gross against the final invoice."}
-  # Kettle & Crumb (London catering)
-  - {clause_id: KTL-PRICE,     contract: C-KETTLE-LDN26, type: per_head_price, params: {price_per_head: 62.00}, text: "Forum lunch at GBP 62 per head."}
-  - {clause_id: KTL-GUARANTEE, contract: C-KETTLE-LDN26, type: guarantee, params: {guaranteed_count: 220, final_count_due: 2026-09-21}, text: "Client guarantees 220 meals; the final count is due 21 September."}
-  - {clause_id: KTL-SVC,       contract: C-KETTLE-LDN26, type: service_charge, params: {service_charge_pct: 0.125, base: food}, text: "A 12.5% service charge applies to food."}
-  - {clause_id: KTL-VAT,       contract: C-KETTLE-LDN26, type: vat, params: {vat_pct: 0.20, base: food_plus_service}, text: "VAT at 20% applies to food plus service charge."}
-  - {clause_id: KTL-DEPOSIT,   contract: C-KETTLE-LDN26, type: deposit, params: {net: 3410.00, vat: 682.00, gross: 4092.00, credited_on_final: gross}, text: "A deposit of GBP 3,410 plus VAT (GBP 4,092 gross) is credited gross against the final invoice."}
-  # Hudson Pier (NYC venue)
-  - {clause_id: HUD-HIRE,    contract: C-HUDSON-NYC26, type: venue_hire, params: {amount: 140000.00}, text: "Hire of Hudson Pier for the New York Builder Day for USD 140,000."}
-  - {clause_id: HUD-DEPOSIT, contract: C-HUDSON-NYC26, type: deposit, params: {pct: 0.40, amount: 56000.00}, text: "A deposit of 40% (USD 56,000) is due on signature."}
-purchase_orders:   # requester P-OPS unless noted
-  - {id: PO-SF26-VEN,  vendor: V-BAYV,   amount: 120000.00, requester: P-OPS, event: EVT-SF26, contract: C-BAYV-SF26, lines: [VEN-RENT, VEN-DEPOSIT, VEN-OT]}
-  - {id: PO-SF26-CAT,  vendor: V-GFORK,  amount: 35455.20,  requester: P-OPS, event: EVT-SF26, contract: C-GFORK-SF26, lines: [CAT-PRICE, CAT-DEPOSIT]}   # sized for up to 320 meals incl. service + tax
-  - {id: PO-SF26-DIN,  vendor: V-GFORK,  amount: 14800.00,  requester: P-OWN-SF, event: EVT-SF26, contract: C-GFORK-SF26, lines: [GF-DIN]}
-  - {id: PO-SF26-COF,  vendor: V-GFORK,  amount: 3900.00,   requester: P-OPS, event: EVT-SF26, contract: C-GFORK-SF26, lines: [GF-COF]}
-  - {id: PO-NYC26-TAST, vendor: V-GFORK, amount: 12400.00,  requester: P-OPS, event: EVT-NYC26, contract: C-GFORK-NYC26, lines: [GF-TAST]}
-  - {id: PO-SF26-AV,   vendor: V-LUMEN,  amount: 57600.00,  requester: P-OPS, event: EVT-SF26, contract: C-LUMEN-SF26, lines: [AV-PKG, AV-DAYRATE.rehearsal, AV-DAYRATE.strike]}
-  - {id: PO-SF26-SWAG, vendor: V-SWAG,   amount: 11200.00,  requester: P-OPS, event: EVT-SF26, contract: C-SWAG-SF26, lines: [SWG-UNIT.hoodie]}
-  - {id: PO-SF26-GIFT, vendor: V-SWAG,   amount: 2400.00,   requester: P-OPS, event: EVT-SF26, contract: C-SWAG-SF26, lines: [SWG-UNIT.speaker_gift]}
-  - {id: PO-OFF26-LDG, vendor: V-COAST,  amount: 46200.00,  requester: P-OPS, event: EVT-OFF26, contract: C-COAST-OFF26, lines: [LDG-BLOCK, MTG-SPACE, LDG-DEPOSIT]}
-  - {id: PO-LDN26-VEN, vendor: V-THAMES, amount: 45600.00,  requester: P-OPS, currency: GBP, event: EVT-LDN26, contract: C-THAMES-LDN26, lines: [THM-HIRE, THM-DEPOSIT]}
-  - {id: PO-LDN26-CAT, vendor: V-KETTLE, amount: 20088.00,  requester: P-OPS, currency: GBP, event: EVT-LDN26, contract: C-KETTLE-LDN26, lines: [KTL-PRICE, KTL-DEPOSIT]}   # sized for up to 240 meals incl. service + VAT
-  - {id: PO-NYC26-VEN, vendor: V-HUDSON, amount: 140000.00, requester: P-OPS, event: EVT-NYC26, contract: C-HUDSON-NYC26, lines: [HUD-HIRE, HUD-DEPOSIT]}
-# Deposit invoices: one deposit line (+ one VAT line for ENT-UK). Each has an invoice row (received_at = paid_at minus 5 days unless given),
-# a correct entry to 1310 (and 1400 for VAT) dated paid_at, and a payment on paid_at. Time travel hides whatever is after as_of.
-deposits_paid:
-  - {vendor: V-BAYV,   invoice: INV-BV-5400, amount: 60000.00, paid_at: 2026-03-02}
-  - {vendor: V-THAMES, invoice: TH-4300,     amount: 13680.00, currency: GBP, paid_at: 2026-04-10}   # 11,400 to 1310 + 2,280 to 1400
-  - {vendor: V-GFORK,  invoice: GF-1100,     amount: 6375.00,  paid_at: 2026-04-15}
-  - {vendor: V-COAST,  invoice: CR-8700,     amount: 15000.00, paid_at: 2026-05-20}
-  - {vendor: V-KETTLE, invoice: INV-KC-2210, amount: 4092.00,  currency: GBP, received_at: 2026-09-01, paid_at: 2026-09-05}  # 3,410 to 1310 + 682 to 1400
-  - {vendor: V-HUDSON, invoice: INV-HP-0412, amount: 56000.00, received_at: 2026-09-10, paid_at: 2026-09-15}
-evidence:
-  - {id: EV-SF26-BADGE-0611, event: EVT-SF26, type: badge_scans, date: 2026-06-11, value: {lunch_attendees: 280}}
-  - {id: EV-SF26-STAFF-0611, event: EVT-SF26, type: staff_meal_roster, date: 2026-06-11, value: {staff_meals: 25}}
-  - {id: EV-SF26-CREW-0611,  event: EVT-SF26, type: crew_log, date: 2026-06-11, value: {vendor: V-LUMEN, call_start: "07:00", call_end: "21:30", crew: 6}}
-  - {id: EV-SF26-CREW-0612,  event: EVT-SF26, type: crew_log, date: 2026-06-12, value: {vendor: V-LUMEN, call_start: "07:00", call_end: "18:00", crew: 6}}
-  - {id: EV-SF26-LOADOUT,    event: EVT-SF26, type: load_out_log, date: 2026-06-13, value: {vendor: V-BAYV, ended_at: "2026-06-13T00:47"}}
-  - {id: EV-SF26-DELIV-HOOD, event: EVT-SF26, type: delivery_receipt, date: 2026-06-09, value: {vendor: V-SWAG, item: hoodie, qty: 350}, signed_by: P-OPS}
-  - {id: EV-SF26-DELIV-GIFT, event: EVT-SF26, type: delivery_receipt, date: 2026-06-10, value: {vendor: V-SWAG, item: speaker_gift, qty: 60}, signed_by: P-OPS}
-  - {id: EV-OFF26-PICKUP,    event: EVT-OFF26, type: room_pickup, date: 2026-08-20, value: {room_nights: 82}, signed_by: P-OPS}
-  - {id: EV-LDN26-BADGE,     event: EVT-LDN26, type: badge_scans, date: 2026-09-24, value: {lunch_attendees: 228}}
-  - {id: EV-LDN26-MEAL,      event: EVT-LDN26, type: signed_meal_count, date: 2026-09-24, value: {meals: 231}, signed_by: P-OPS}
-period_rates:   # simulated, frozen for tests
-  - {pair: GBP/USD, periods: [2026-01, 2026-12], rate: 1.27}
-periods: {rule: "month M closes on the 5th of M+1", first: 2026-01}
-policies:
-  - {id: TAX-SF,   value: 0.08625, note: "simulated; verify against CDTFA before demo"}
-  - {id: POL-AP-01, text: "Approval matrix (spec §5.7)"}
-  - {id: POL-AP-03, text: "Never approve more than the invoice asks; under-billing is an info flag"}
-  - {id: POL-AP-05, text: "Same vendor + same PO within 7 days are aggregated for approval thresholds"}
-  - {id: POL-AP-07, text: "Vendor with confirmed overbilling in last 12 months: enhanced review, no policy approval"}
-  - {id: POL-VM-01, text: "Bank changes need call-back to phone on file, SoD on change, controller approval"}
-  - {id: POL-CL-03, text: "Reclasses below $10,000 not required; note in close memo"}
-  - {id: POL-CL-04, text: "Close entries >= $10,000 need controller approval"}
+  - {id: V-SAAL,    name: "Isarhalle Events GmbH"}
+  - {id: V-CATER,   name: "Gutes Essen Catering GmbH"}
+  - {id: V-BAND,    name: "Die Bavaria Brass GbR"}
+  - {id: V-BUS,     name: "Münchner Shuttle GmbH"}
+  - {id: V-RST,     name: "Restaurant Schwabinger Tafel"}
+  - {id: V-AGENTUR, name: "Kundenwelt Eventagentur GmbH"}
+  - {id: V-WERBE,   name: "Promo Artikel Süd GmbH"}
+  - {id: V-FEUER,   name: "Feuerwerk & DJ Service KG"}
+elections:
+  - {year: 2026, scope: third_parties, regime: "37b", elected: true,  decided_by: P-CFO, decided_at: 2026-01-15}
+  - {year: 2026, scope: employees,     regime: "37b", elected: false, decided_by: P-CFO, decided_at: 2026-01-15}
+events:
+  - {id: EVT-FAS26, name: Faschingsfeier, type_declared: staff_event, date: 2026-02-12, organizer: P-HR-EVT, open_to: all, purpose: "Staff carnival party"}
+  - {id: EVT-SOM26, name: Sommerfest,     type_declared: staff_event, date: 2026-07-03, organizer: P-HR-EVT, open_to: all, purpose: "Staff summer party"}
+  - {id: EVT-XMAS26, name: Weihnachtsfeier, type_declared: staff_event, date: 2026-12-11, organizer: P-HR-EVT, open_to: all, purpose: "Staff Christmas party"}
+attendance:
+  - {event: EVT-FAS26, employees: "E001-E200", companions: []}
+  - {event: EVT-SOM26, employees: "E001-E300", companions: [{host_range: "E201-E260", count_each: 1}]}   # 300 + 60 = 360
+  # EVT-XMAS26 attendance is defined per case
+invoices_history:   # processed, with entries and payment (time travel applies)
+  - {id: INV-FAS-01, event: EVT-FAS26, vendor: V-CATER, invoice_date: 2026-02-13, received_at: 2026-02-16, net: 6000.00, vat: 1140.00, gross: 7140.00, processed: {per_participant: 35.70, vat_recoverable: 1140.00, wage_taxable: 0.00, entries_date: 2026-02-20}}
+invoices_unprocessed:   # visible from received_at
+  - {id: INV-SOM-VEN,  event_ref: "Sommerfest", vendor: V-SAAL,  delivery_date: 2026-07-03, received_at: 2026-07-06, lines: [{category: venue,     net: 7000.00,  vat_rate: 0.19, vat: 1330.00, gross: 8330.00}]}
+  - {id: INV-SOM-CAT,  event_ref: "Sommerfest", vendor: V-CATER, delivery_date: 2026-07-03, received_at: 2026-07-07, lines: [{category: catering,  net: 21000.00, vat_rate: 0.19, vat: 3990.00, gross: 24990.00}]}
+  - {id: INV-SOM-BAND, event_ref: "Sommerfest", vendor: V-BAND,  delivery_date: 2026-07-03, received_at: 2026-07-08, lines: [{category: program,   net: 3500.00,  vat_rate: 0.19, vat: 665.00,  gross: 4165.00}]}
+  - {id: INV-SOM-BUS,  event_ref: "Sommerfest", vendor: V-BUS,   delivery_date: 2026-07-03, received_at: 2026-07-10, lines: [{category: transport, net: 1000.00,  vat_rate: 0.19, vat: 190.00,  gross: 1190.00}]}
+gift_history:
+  - {id: GIFT-0318, recipient: BP-003, date: 2026-03-18, item: "Wine", net: 30.00, vat: 5.70, gross: 35.70, treatment: {deductible: true, account: "6420", vat_recovered: 5.70, flat_37b: 12.05, flat_account: "6450"}}
+periods: {rule: "month M closes on the 10th of M+1", first: 2026-01}
+
+# Spec §4.4, seeded exactly. `value` is the rule's number (EUR amounts and rates as exact decimals).
+rules:
+  - {rule_id: R-BV-ALLOW, version: 1, valid_from: 2015-01-01, value: 110.00, text: "EUR 110.00 per employee per event, gross; excess taxable", basis: "§19(1) No. 1a EStG", source_url: "https://www.gesetze-im-internet.de/estg/__19.html", checked: not yet verified}
+  - {rule_id: R-BV-MAX, version: 1, valid_from: 2015-01-01, value: 2, text: "2 qualifying events per employee per calendar year; employer chooses which", basis: "§19(1) No. 1a EStG", source_url: "https://www.gesetze-im-internet.de/estg/__19.html", checked: not yet verified}
+  - {rule_id: R-BV-DEF, version: 1, valid_from: 2015-01-01, value: 0.50, text: "Social character; open to all staff of the company or an org unit; > 50% of attendees are employees + their companions", basis: "§19(1) No. 1a EStG", source_url: "https://www.gesetze-im-internet.de/estg/__19.html", checked: not yet verified}
+  - {rule_id: R-BV-COST, version: 1, valid_from: 2015-01-01, text: "All costs incl. VAT (food, drinks, venue, program, transport, gifts handed out at the event); divided by actual attendees incl. companions; companion share attributed to host employee", basis: "§19(1) No. 1a EStG", source_url: "https://www.gesetze-im-internet.de/estg/__19.html", checked: not yet verified}
+  - {rule_id: R-BV-FLAT, version: 1, valid_from: 2015-01-01, value: 0.25, text: "Taxable excess may be flat-taxed at 25% (+ surcharge + church tax)", basis: "§40(2) S.1 No. 2 EStG", source_url: "https://www.gesetze-im-internet.de/estg/__40.html", checked: not yet verified}
+  - {rule_id: R-BV-VAT, version: 1, valid_from: 2015-01-01, value: 110.00, text: "Input VAT recoverable only if cost per participant (gross) <= EUR 110.00; otherwise no input VAT for the whole event (Freigrenze)", basis: "UStG §3(9a), §15; BFH V R 16/21", source_url: "https://www.gesetze-im-internet.de/ustg_1980/__15.html", checked: not yet verified}
+  - {rule_id: R-BEW-70, version: 1, valid_from: 2004-01-01, value: 0.70, text: "Business hospitality: 70% of net deductible, 30% non-deductible", basis: "§4(5) No. 2 EStG", source_url: "https://www.gesetze-im-internet.de/estg/__4.html", checked: not yet verified}
+  - {rule_id: R-BEW-DOC, version: 1, valid_from: 2004-01-01, value: 250.00, text: "Required: date, place, host, every participant's name, specific occasion; invoice > EUR 250 gross must name the host", basis: "§4(5) No. 2 EStG, R 4.10 EStR", source_url: "https://www.gesetze-im-internet.de/estg/__4.html", checked: not yet verified}
+  - {rule_id: R-BEW-VAT, version: 1, valid_from: 2004-01-01, text: "Input VAT on documented, reasonable hospitality is fully recoverable", basis: "§15(1a) UStG", source_url: "https://www.gesetze-im-internet.de/ustg_1980/__15.html", checked: not yet verified}
+  - {rule_id: R-GIFT-50, version: 1, valid_from: 2024-01-01, value: 50.00, text: "Gifts to a non-employee deductible only if that recipient's gifts in the year total <= EUR 50.00 (net if VAT recoverable, else gross); over -> all non-deductible, input VAT blocked", basis: "§4(5) No. 1 EStG; §15(1a) UStG", source_url: "https://www.gesetze-im-internet.de/estg/__4.html", checked: not yet verified}
+  - {rule_id: R-GIFT-REC, version: 1, valid_from: 2004-01-01, text: "Gifts recorded separately with recipient name", basis: "§4(7) EStG", source_url: "https://www.gesetze-im-internet.de/estg/__4.html", checked: not yet verified}
+  - {rule_id: R-GIFT-VER, version: 1, valid_from: 2004-01-01, valid_to: 2023-12-31, value: 35.00, text: "Limit EUR 35.00 for gifts before 2024-01-01", basis: "Wachstumschancengesetz", source_url: "https://www.gesetze-im-internet.de/estg/__4.html", checked: not yet verified}
+  - {rule_id: R-GIFT-VER, version: 2, valid_from: 2024-01-01, value: 50.00, text: "Limit EUR 50.00 for gifts from 2024-01-01", basis: "Wachstumschancengesetz", source_url: "https://www.gesetze-im-internet.de/estg/__4.html", checked: not yet verified}
+  - {rule_id: R-PROMO, version: 1, valid_from: 2004-01-01, value: 10.00, text: "Items <= EUR 10.00 net per unit: no recipient record, no §37b", basis: "BMF practice", source_url: "https://www.bundesfinanzministerium.de", checked: not yet verified}
+  - {rule_id: R-37B-RATE, version: 1, valid_from: 2007-01-01, value: 0.30, text: "30% of gross value; + 5.5% surcharge on the tax; + church tax (TAX-KIST) on the tax", basis: "§37b EStG", source_url: "https://www.gesetze-im-internet.de/estg/__37b.html", checked: not yet verified}
+  - {rule_id: R-37B-CAP, version: 1, valid_from: 2007-01-01, value: 10000.00, text: "Not available above EUR 10,000 per recipient per year (gross)", basis: "§37b(1) EStG", source_url: "https://www.gesetze-im-internet.de/estg/__37b.html", checked: not yet verified}
+  - {rule_id: R-37B-UNI, version: 1, valid_from: 2007-01-01, text: "Election applies uniformly to all qualifying benefits of the year per group", basis: "§37b EStG", source_url: "https://www.gesetze-im-internet.de/estg/__37b.html", checked: not yet verified}
+  - {rule_id: R-37B-DED, version: 1, valid_from: 2007-01-01, text: "Flat tax deductible only if the underlying benefit is deductible; flat tax not added to the EUR 50 test", basis: "BMF practice (BFH IV R 13/14 stricter; policy POL-37B-01 follows BMF)", source_url: "https://www.bundesfinanzministerium.de", checked: not yet verified}
+  - {rule_id: R-37B-NOTE, version: 1, valid_from: 2007-01-01, text: "Recipient must be notified", basis: "§37b(3) EStG", source_url: "https://www.gesetze-im-internet.de/estg/__37b.html", checked: not yet verified}
+  - {rule_id: R-AE-60, version: 1, valid_from: 2015-01-01, value: 60.00, text: "Working meal <= EUR 60.00 gross per person during an exceptional assignment: not pay, 100% deductible; above -> full value is pay", basis: "R 19.6(2) LStR", source_url: "https://www.bundesfinanzministerium.de", checked: not yet verified}
+  - {rule_id: R-VAT-FIX, version: 1, valid_from: 2004-01-01, text: "VAT corrections when an earlier reclaim becomes blocked are booked in the current open period", basis: "§17(2) No. 5 UStG", source_url: "https://www.gesetze-im-internet.de/ustg_1980/__17.html", checked: not yet verified}
+  - {rule_id: TAX-SOLI, version: 1, valid_from: 1995-01-01, value: 0.055, text: "Solidarity surcharge 5.5% on the tax", basis: "SolZG", source_url: "https://www.gesetze-im-internet.de/solzg_1995/__4.html", checked: not yet verified}
+  - {rule_id: TAX-KIST, version: 1, valid_from: 2026-01-01, value: 0.07, text: "Church tax 7% on the tax (simulated: Bavarian simplified rate; verify)", basis: "Church tax law", source_url: "https://www.gesetze-bayern.de", checked: not yet verified}
+  - {rule_id: TAX-VAT, version: 1, valid_from: 2007-01-01, value: 0.19, text: "0.19 standard; never assumed, read from invoice; arithmetic validated", basis: "UStG", source_url: "https://www.gesetze-im-internet.de/ustg_1980/__12.html", checked: not yet verified}
+policies:   # company tax policies, simulated, owned by the tax manager
+  - {id: POL-BV-OPT, owner: P-TAX, text: "Allowance per employee goes to the 2 events that maximize the exempt amount (min(attributed, 110)); ties -> earlier event. Re-evaluated whenever a new event is added; changes produce payroll corrections in the current period."}
+  - {id: POL-BV-VATBASIS, owner: P-TAX, text: "VAT test uses cost per participant (incl. companions), not per employee."}
+  - {id: POL-BV-FLAT, owner: P-TAX, text: "Taxable excess on qualifying staff events is always flat-taxed (§40). Non-qualifying events (e.g. not open to all): escalate whether flat tax may be used."}
+  - {id: POL-BEW-02, owner: P-TAX, text: "At customer events: catering and venue = hospitality (70%); entertainment program = non-gift benefit, 100% deductible, input VAT recoverable, §37b applies to the business partners' pro-rata share (by headcount)."}
+  - {id: POL-LUMP, owner: P-TAX, text: "A package line that mixes categories must be itemized by the vendor before classification; if the vendor refuses, escalate (no guessed split)."}
+  - {id: POL-37B-01, owner: P-TAX, text: "§37b flat tax not counted toward the EUR 50 test (BMF practice); flat tax follows deductibility of the gift."}
+  - {id: POL-ROUND, owner: P-TAX, text: "Per-participant cost kept at full precision; attributed amount per employee = round(per_participant x (1 + companions)); flat taxes computed per run on the summed base: tax = round(base x rate), surcharge = round(tax x 0.055), church = round(tax x 0.07)."}
+  - {id: POL-MAT, owner: P-TAX, text: "Routing thresholds in spec §5.9: policy approval only with no non-info flags, no taxable pay, no corrections, non-deductible < EUR 1,000 and §37b < EUR 1,000; else the tax manager; correction entries >= EUR 5,000 add the controller."}

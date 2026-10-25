@@ -1,9 +1,9 @@
 [project]
 name = "vouch"
 version = "0.1.0"
-description = "Event vendor payables specialist on Anthropic's finance team (simulated data)"
+description = "Event tax accountant for Nordlicht Maschinenbau GmbH (simulated data, real German tax rules)"
 requires-python = ">=3.11"
-dependencies = ["anthropic>=2.3,<3", "pyyaml>=6"]
+dependencies = ["anthropic>=2.3,<3", "pyyaml>=6", "faker==40.43.0"]  # faker pinned: generated names must never move
 
 [project.optional-dependencies]
 ui = ["fastapi>=0.110", "uvicorn>=0.29"]

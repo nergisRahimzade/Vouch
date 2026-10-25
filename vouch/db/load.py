@@ -43,21 +43,19 @@ def _period_range(rows: dict, meta: dict) -> list[str]:
 def _history_entry(conn: sqlite3.Connection, row: dict, line_rows: list[dict]) -> Entry:
     """A journal entry the company booked before Vouch looked (fixtures or a scenario's setup)."""
     lines = []
-    events = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM events")}
     invoice = conn.execute("SELECT event, entity FROM invoices WHERE id = ?", (row.get("source_ref"),)).fetchone()
     for raw in (row.get("lines") or []) + line_rows:
         event = raw.get("event") or row.get("event") or (invoice["event"] if invoice else None)
-        cost_center = raw.get("cost_center") or (events[event]["cost_center"] if event in events else None)
         lines.append(Line(account=str(raw["account"]), debit=Decimal(str(raw.get("debit") or "0")),
-                          credit=Decimal(str(raw.get("credit") or "0")), cost_center=cost_center, event=event,
-                          memo=str(raw.get("memo") or "")))
+                          credit=Decimal(str(raw.get("credit") or "0")), cost_center=raw.get("cost_center"),
+                          event=event, item=raw.get("item"), person=raw.get("person"), memo=str(raw.get("memo") or "")))
     entity = row.get("entity") or (invoice["entity"] if invoice else None) or \
-        next((events[l.event]["entity"] for l in lines if l.event in events), None)
+        conn.execute("SELECT id FROM entities ORDER BY id").fetchone()[0]
     day = str(row["entry_date"])[:10]
     return Entry(entry_id=str(row["entry_id"]), entity=str(entity), period=day[:7], entry_date=day,
                  type=str(row.get("type") or "history"), reason=str(row.get("reason") or "booked before Vouch"),
                  lines=lines, created_by=str(row.get("booked_by") or "history"), origin="history", status="posted",
-                 source_ref=row.get("source_ref"))
+                 source_ref=row.get("source_ref"), corrects=row.get("corrects"))
 
 
 def load(conn: sqlite3.Connection, rows: dict, meta: dict) -> dict:

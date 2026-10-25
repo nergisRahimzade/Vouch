@@ -1,5 +1,5 @@
-"""Journal entries: dated, with a type and a reason, entity, cost center and event on expense lines,
-linked to the rows they rest on, and balanced, or they are refused."""
+"""Journal entries: dated, with a type and a reason, event and cost center on expense lines, linked to
+the rules and rows they rest on, and balanced, or they are refused."""
 from __future__ import annotations
 
 import sqlite3
@@ -11,8 +11,8 @@ from vouch import dates
 from vouch.db.accounts import BY_CODE
 from vouch.money import ZERO, fmt
 
-ENTRY_TYPES = {"ap_deposit", "ap_invoice", "payment", "prepaid_release", "accrual", "accrual_reversal", "reclass",
-               "discount", "history"}
+ENTRY_TYPES = {"staff_event", "hospitality", "gift", "promo", "working_meal", "program", "flat_tax_40",
+               "flat_tax_37b", "vat_reversal", "reclass", "wages", "history"}
 
 
 class EntryRefused(ValueError):
@@ -27,7 +27,7 @@ class UnbalancedEntry(EntryRefused):
 
 @dataclass(frozen=True)
 class SourceRef:
-    table: str          # a system-of-record table: invoice_lines, contract_clauses, evidence, invoices, ...
+    table: str          # a system-of-record table: rules, invoice_lines, attendance, invoices, ...
     id: str
 
 
@@ -38,9 +38,9 @@ class Line:
     credit: Decimal = ZERO
     cost_center: str | None = None
     event: str | None = None
+    item: str | None = None             # the invoice, invoice line or gift the line books
+    person: str | None = None           # the recipient or employee it concerns
     memo: str = ""
-    fx_rate: str | None = None
-    fx_basis: str | None = None
     sources: list[SourceRef] = field(default_factory=list)
 
 
@@ -58,7 +58,7 @@ class Entry:
     status: str = "draft"
     source_ref: str | None = None
     corrects_period: str | None = None
-    reverses: str | None = None
+    corrects: str | None = None
 
     def total(self) -> Decimal:
         return sum((Decimal(l.debit) for l in self.lines), ZERO)
@@ -104,11 +104,10 @@ def problems(conn: sqlite3.Connection, entry: Entry) -> list[str]:
             out.append(f"line {n}: amounts must be non-negative with at most two decimals")
         elif (Decimal(line.debit) > 0) == (Decimal(line.credit) > 0):
             out.append(f"line {n}: exactly one of debit or credit must be positive")
-        if account and account.needs_tags and entry.origin == "vouch" and not (line.cost_center and line.event):
-            out.append(f"line {n}: an expense line needs a cost center and an event "
-                       f"(got {line.cost_center!r}, {line.event!r})")
-        if line.fx_rate and not (line.fx_basis or "").strip():
-            out.append(f"line {n}: a converted amount must name its rate and the period it comes from")
+        if account and account.needs_tags and entry.origin == "vouch" and not (line.cost_center and
+                                                                                (line.event or line.item)):
+            out.append(f"line {n}: an expense line needs a cost center and the event (or item) it books "
+                       f"(got {line.cost_center!r}, {line.event!r}, {line.item!r})")
         if entry.origin == "vouch" and not line.sources:
             out.append(f"line {n}: no source rows")
         for source in line.sources:
@@ -122,9 +121,9 @@ def problems(conn: sqlite3.Connection, entry: Entry) -> list[str]:
 
 
 # Tables a line may rest on, with their key column.
-SOURCE_TABLES = {"invoices": "id", "invoice_lines": "id", "contract_clauses": "clause_id", "evidence": "id",
-                 "payments": "id", "journal_entries": "entry_id", "purchase_orders": "id", "events": "id",
-                 "policies": "id", "emails": "id"}
+SOURCE_TABLES = {"invoices": "id", "invoice_lines": "id", "rules": "rule_id", "policies": "id", "events": "id",
+                 "attendance": "id", "gift_distributions": "id", "payroll_exports": "id", "journal_entries": "entry_id",
+                 "emails": "id", "business_partners": "id", "employees": "id"}
 
 
 def balance(entry: Entry) -> Decimal:
@@ -152,11 +151,11 @@ def post_entry(conn: sqlite3.Connection, entry: Entry) -> None:
             "INSERT INTO journal_entries VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (entry.entry_id, entry.entity, entry.period, entry.entry_date, entry.type, entry.reason,
              currency_of(conn, entry.entity), entry.status, entry.origin, entry.created_by, entry.source_ref,
-             entry.corrects_period, entry.reverses, created))
+             entry.corrects_period, entry.corrects, created))
         for n, line in enumerate(entry.lines, 1):
             conn.execute("INSERT INTO journal_lines VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                         (entry.entry_id, n, line.account, line.cost_center, line.event, fmt(line.debit),
-                          fmt(line.credit), line.fx_rate, line.fx_basis, line.memo))
+                         (entry.entry_id, n, line.account, line.cost_center, line.event, line.item, line.person,
+                          fmt(line.debit), fmt(line.credit), line.memo))
             conn.executemany("INSERT INTO line_sources VALUES (?, ?, ?, ?)",
                              [(entry.entry_id, n, s.table, s.id) for s in line.sources])
     except Exception:

@@ -3,11 +3,9 @@ from vouch.db.accounts import BY_CODE, CHART
 
 
 def test_chart_is_the_spec_chart():
-    assert {a.code: a.name for a in CHART} == {
-        "1000": "Cash", "1310": "Prepaid event costs", "1400": "VAT receivable (ENT-UK)", "2000": "Accounts payable",
-        "2100": "Accrued liabilities", "6100": "Event venue and space", "6110": "Event catering",
-        "6120": "Event AV and production", "6130": "Event merchandise", "6140": "Event lodging",
-        "6190": "Purchase discounts (contra-expense)"}
+    assert [a.code for a in CHART] == ["1200", "1400", "1600", "1750", "1760", "6400", "6410", "6420", "6430", "6440",
+                                       "6445", "6450", "6460", "6470", "6480", "6490", "6500"]
+    assert BY_CODE["6430"].name == "Gifts — non-deductible (incl. blocked VAT)"
     assert all(a.needs_tags == (a.type == "expense") for a in CHART)
 
 

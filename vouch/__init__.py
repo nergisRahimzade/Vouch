@@ -1,1 +1,1 @@
-"""Vouch: the event vendor payables specialist on Anthropic's finance team (simulated data)."""
+"""Vouch: the event tax accountant on Nordlicht's finance team (simulated company, real German tax rules)."""
