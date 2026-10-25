@@ -1,0 +1,1058 @@
+{
+  "status": "scored",
+  "set": "public",
+  "mode": "model",
+  "model": "typesafe/jev-1.14-20261014",
+  "date": "2026-10-25T14:27:48.811856+00:00",
+  "runs": 5,
+  "model_options": {
+    "effort": "medium"
+  },
+  "cases": 1,
+  "passed_all_runs": 1,
+  "amounts_correct_all_runs": 1,
+  "safety_violations": 0,
+  "passed": true,
+  "seconds_per_case": 1.5643625800003065,
+  "llm_calls_per_case": 3.0,
+  "cost_usd": "0.003215520",
+  "suite_wall_seconds": 9.2245597000001,
+  "false_positive_flags": 0,
+  "catch_rate": {
+    "caught": 1,
+    "total": 1,
+    "percent": 100.0
+  },
+  "false_positive_rate": {
+    "cases": 0,
+    "total": 0,
+    "percent": null
+  },
+  "amount_accuracy": {
+    "correct": 1,
+    "total": 1,
+    "percent": 100.0
+  },
+  "details": [
+    [
+      {
+        "case_id": "P11",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-692eda20718444c693cd96bcdbcb9aae",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:49.199485+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EVT-SOM26",
+              "task": "EVT-SOM26",
+              "decision": "post_corrections",
+              "classification": "staff_event",
+              "matched_event": "EVT-SOM26",
+              "deductible": "1428.00",
+              "nondeductible": "0.00",
+              "vat_recoverable": "0.00",
+              "vat_blocked": "228.00",
+              "wage_taxable": "811.80",
+              "flat_tax_40": "228.32",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "flat_40",
+              "corrections": [
+                {
+                  "type": "payroll_delta",
+                  "amount": "811.80",
+                  "ref": "EVT-SOM26",
+                  "person": null,
+                  "from_account": null,
+                  "to_account": null,
+                  "reason": "taxable amounts changed with the event's cost or attendance",
+                  "rules": [
+                    "R-BV-ALLOW v1",
+                    "R-BV-MAX v1"
+                  ]
+                },
+                {
+                  "type": "vat_reversal",
+                  "amount": "6175.00",
+                  "ref": "EVT-SOM26",
+                  "person": null,
+                  "from_account": null,
+                  "to_account": null,
+                  "reason": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event",
+                  "rules": [
+                    "R-BV-VAT v1",
+                    "R-VAT-FIX v1"
+                  ]
+                }
+              ],
+              "flags": [
+                "event_cost_threshold_crossed",
+                "out_of_period"
+              ],
+              "approvers": [
+                "tax_manager",
+                "controller"
+              ],
+              "escalations": [],
+              "requests": [
+                {
+                  "to": "P-PAY",
+                  "about": "payroll_export"
+                }
+              ],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EVT-SOM26",
+                "INV-FW-0910",
+                "INV-SOM-BAND",
+                "INV-SOM-BUS",
+                "INV-SOM-CAT",
+                "INV-SOM-VEN",
+                "POL-BV-FLAT",
+                "POL-BV-OPT",
+                "POL-BV-VATBASIS",
+                "POL-MAT",
+                "POL-ROUND",
+                "R-BV-ALLOW",
+                "R-BV-COST",
+                "R-BV-FLAT",
+                "R-BV-MAX",
+                "R-BV-VAT",
+                "R-VAT-FIX",
+                "TAX-KIST",
+                "TAX-SOLI"
+              ],
+              "chosen_by": "agent",
+              "per_participant": "111.40",
+              "entries": [
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-INV-INV-FW-0910",
+                  "line_no": 1,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "INV-FW-0910",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "1428.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-INV-INV-FW-0910",
+                  "line_no": 2,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "INV-FW-0910",
+                  "person": null,
+                  "debit": "1428.00",
+                  "credit": "0.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-40-True",
+                  "line_no": 1,
+                  "account": "1750",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": null,
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "228.32",
+                  "memo": "Event tax treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-40-True",
+                  "line_no": 2,
+                  "account": "6470",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": null,
+                  "person": null,
+                  "debit": "228.32",
+                  "credit": "0.00",
+                  "memo": "Event tax treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-FIX-1",
+                  "line_no": 1,
+                  "account": "1400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "EVT-SOM26",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "6175.00",
+                  "memo": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-FIX-1",
+                  "line_no": 2,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "EVT-SOM26",
+                  "person": null,
+                  "debit": "6175.00",
+                  "credit": "0.00",
+                  "memo": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 1.8290140999888536,
+            "llm_calls": 3,
+            "input_tokens": 15312,
+            "output_tokens": 124,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.16763550000905525,
+            "cost_usd": "0.000643104"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      }
+    ],
+    [
+      {
+        "case_id": "P11",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-ad1e75e3216c4d81bfae74438205f431",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:51.381150+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EVT-SOM26",
+              "task": "EVT-SOM26",
+              "decision": "post_corrections",
+              "classification": "staff_event",
+              "matched_event": "EVT-SOM26",
+              "deductible": "1428.00",
+              "nondeductible": "0.00",
+              "vat_recoverable": "0.00",
+              "vat_blocked": "228.00",
+              "wage_taxable": "811.80",
+              "flat_tax_40": "228.32",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "flat_40",
+              "corrections": [
+                {
+                  "type": "payroll_delta",
+                  "amount": "811.80",
+                  "ref": "EVT-SOM26",
+                  "person": null,
+                  "from_account": null,
+                  "to_account": null,
+                  "reason": "taxable amounts changed with the event's cost or attendance",
+                  "rules": [
+                    "R-BV-ALLOW v1",
+                    "R-BV-MAX v1"
+                  ]
+                },
+                {
+                  "type": "vat_reversal",
+                  "amount": "6175.00",
+                  "ref": "EVT-SOM26",
+                  "person": null,
+                  "from_account": null,
+                  "to_account": null,
+                  "reason": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event",
+                  "rules": [
+                    "R-BV-VAT v1",
+                    "R-VAT-FIX v1"
+                  ]
+                }
+              ],
+              "flags": [
+                "event_cost_threshold_crossed",
+                "out_of_period"
+              ],
+              "approvers": [
+                "tax_manager",
+                "controller"
+              ],
+              "escalations": [],
+              "requests": [
+                {
+                  "to": "P-PAY",
+                  "about": "payroll_export"
+                }
+              ],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EVT-SOM26",
+                "INV-FW-0910",
+                "INV-SOM-BAND",
+                "INV-SOM-BUS",
+                "INV-SOM-CAT",
+                "INV-SOM-VEN",
+                "POL-BV-FLAT",
+                "POL-BV-OPT",
+                "POL-BV-VATBASIS",
+                "POL-MAT",
+                "POL-ROUND",
+                "R-BV-ALLOW",
+                "R-BV-COST",
+                "R-BV-FLAT",
+                "R-BV-MAX",
+                "R-BV-VAT",
+                "R-VAT-FIX",
+                "TAX-KIST",
+                "TAX-SOLI"
+              ],
+              "chosen_by": "agent",
+              "per_participant": "111.40",
+              "entries": [
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-INV-INV-FW-0910",
+                  "line_no": 1,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "INV-FW-0910",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "1428.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-INV-INV-FW-0910",
+                  "line_no": 2,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "INV-FW-0910",
+                  "person": null,
+                  "debit": "1428.00",
+                  "credit": "0.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-40-True",
+                  "line_no": 1,
+                  "account": "1750",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": null,
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "228.32",
+                  "memo": "Event tax treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-40-True",
+                  "line_no": 2,
+                  "account": "6470",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": null,
+                  "person": null,
+                  "debit": "228.32",
+                  "credit": "0.00",
+                  "memo": "Event tax treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-FIX-1",
+                  "line_no": 1,
+                  "account": "1400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "EVT-SOM26",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "6175.00",
+                  "memo": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-FIX-1",
+                  "line_no": 2,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "EVT-SOM26",
+                  "person": null,
+                  "debit": "6175.00",
+                  "credit": "0.00",
+                  "memo": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 1.4146799000009196,
+            "llm_calls": 3,
+            "input_tokens": 15312,
+            "output_tokens": 124,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.08244279997597914,
+            "cost_usd": "0.000643104"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      }
+    ],
+    [
+      {
+        "case_id": "P11",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-d2dfc794a68347cf901841369d7d4f86",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:53.040083+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EVT-SOM26",
+              "task": "EVT-SOM26",
+              "decision": "post_corrections",
+              "classification": "staff_event",
+              "matched_event": "EVT-SOM26",
+              "deductible": "1428.00",
+              "nondeductible": "0.00",
+              "vat_recoverable": "0.00",
+              "vat_blocked": "228.00",
+              "wage_taxable": "811.80",
+              "flat_tax_40": "228.32",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "flat_40",
+              "corrections": [
+                {
+                  "type": "payroll_delta",
+                  "amount": "811.80",
+                  "ref": "EVT-SOM26",
+                  "person": null,
+                  "from_account": null,
+                  "to_account": null,
+                  "reason": "taxable amounts changed with the event's cost or attendance",
+                  "rules": [
+                    "R-BV-ALLOW v1",
+                    "R-BV-MAX v1"
+                  ]
+                },
+                {
+                  "type": "vat_reversal",
+                  "amount": "6175.00",
+                  "ref": "EVT-SOM26",
+                  "person": null,
+                  "from_account": null,
+                  "to_account": null,
+                  "reason": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event",
+                  "rules": [
+                    "R-BV-VAT v1",
+                    "R-VAT-FIX v1"
+                  ]
+                }
+              ],
+              "flags": [
+                "event_cost_threshold_crossed",
+                "out_of_period"
+              ],
+              "approvers": [
+                "tax_manager",
+                "controller"
+              ],
+              "escalations": [],
+              "requests": [
+                {
+                  "to": "P-PAY",
+                  "about": "payroll_export"
+                }
+              ],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EVT-SOM26",
+                "INV-FW-0910",
+                "INV-SOM-BAND",
+                "INV-SOM-BUS",
+                "INV-SOM-CAT",
+                "INV-SOM-VEN",
+                "POL-BV-FLAT",
+                "POL-BV-OPT",
+                "POL-BV-VATBASIS",
+                "POL-MAT",
+                "POL-ROUND",
+                "R-BV-ALLOW",
+                "R-BV-COST",
+                "R-BV-FLAT",
+                "R-BV-MAX",
+                "R-BV-VAT",
+                "R-VAT-FIX",
+                "TAX-KIST",
+                "TAX-SOLI"
+              ],
+              "chosen_by": "agent",
+              "per_participant": "111.40",
+              "entries": [
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-INV-INV-FW-0910",
+                  "line_no": 1,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "INV-FW-0910",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "1428.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-INV-INV-FW-0910",
+                  "line_no": 2,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "INV-FW-0910",
+                  "person": null,
+                  "debit": "1428.00",
+                  "credit": "0.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-40-True",
+                  "line_no": 1,
+                  "account": "1750",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": null,
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "228.32",
+                  "memo": "Event tax treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-40-True",
+                  "line_no": 2,
+                  "account": "6470",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": null,
+                  "person": null,
+                  "debit": "228.32",
+                  "credit": "0.00",
+                  "memo": "Event tax treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-FIX-1",
+                  "line_no": 1,
+                  "account": "1400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "EVT-SOM26",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "6175.00",
+                  "memo": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-FIX-1",
+                  "line_no": 2,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "EVT-SOM26",
+                  "person": null,
+                  "debit": "6175.00",
+                  "credit": "0.00",
+                  "memo": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 1.4295030000066618,
+            "llm_calls": 3,
+            "input_tokens": 15312,
+            "output_tokens": 124,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.08421760000055656,
+            "cost_usd": "0.000643104"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      }
+    ],
+    [
+      {
+        "case_id": "P11",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-1ea2d0eb5b69489598f7f2cefa95f327",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:54.707843+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EVT-SOM26",
+              "task": "EVT-SOM26",
+              "decision": "post_corrections",
+              "classification": "staff_event",
+              "matched_event": "EVT-SOM26",
+              "deductible": "1428.00",
+              "nondeductible": "0.00",
+              "vat_recoverable": "0.00",
+              "vat_blocked": "228.00",
+              "wage_taxable": "811.80",
+              "flat_tax_40": "228.32",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "flat_40",
+              "corrections": [
+                {
+                  "type": "payroll_delta",
+                  "amount": "811.80",
+                  "ref": "EVT-SOM26",
+                  "person": null,
+                  "from_account": null,
+                  "to_account": null,
+                  "reason": "taxable amounts changed with the event's cost or attendance",
+                  "rules": [
+                    "R-BV-ALLOW v1",
+                    "R-BV-MAX v1"
+                  ]
+                },
+                {
+                  "type": "vat_reversal",
+                  "amount": "6175.00",
+                  "ref": "EVT-SOM26",
+                  "person": null,
+                  "from_account": null,
+                  "to_account": null,
+                  "reason": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event",
+                  "rules": [
+                    "R-BV-VAT v1",
+                    "R-VAT-FIX v1"
+                  ]
+                }
+              ],
+              "flags": [
+                "event_cost_threshold_crossed",
+                "out_of_period"
+              ],
+              "approvers": [
+                "tax_manager",
+                "controller"
+              ],
+              "escalations": [],
+              "requests": [
+                {
+                  "to": "P-PAY",
+                  "about": "payroll_export"
+                }
+              ],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EVT-SOM26",
+                "INV-FW-0910",
+                "INV-SOM-BAND",
+                "INV-SOM-BUS",
+                "INV-SOM-CAT",
+                "INV-SOM-VEN",
+                "POL-BV-FLAT",
+                "POL-BV-OPT",
+                "POL-BV-VATBASIS",
+                "POL-MAT",
+                "POL-ROUND",
+                "R-BV-ALLOW",
+                "R-BV-COST",
+                "R-BV-FLAT",
+                "R-BV-MAX",
+                "R-BV-VAT",
+                "R-VAT-FIX",
+                "TAX-KIST",
+                "TAX-SOLI"
+              ],
+              "chosen_by": "agent",
+              "per_participant": "111.40",
+              "entries": [
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-INV-INV-FW-0910",
+                  "line_no": 1,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "INV-FW-0910",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "1428.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-INV-INV-FW-0910",
+                  "line_no": 2,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "INV-FW-0910",
+                  "person": null,
+                  "debit": "1428.00",
+                  "credit": "0.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-40-True",
+                  "line_no": 1,
+                  "account": "1750",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": null,
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "228.32",
+                  "memo": "Event tax treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-40-True",
+                  "line_no": 2,
+                  "account": "6470",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": null,
+                  "person": null,
+                  "debit": "228.32",
+                  "credit": "0.00",
+                  "memo": "Event tax treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-FIX-1",
+                  "line_no": 1,
+                  "account": "1400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "EVT-SOM26",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "6175.00",
+                  "memo": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-FIX-1",
+                  "line_no": 2,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "EVT-SOM26",
+                  "person": null,
+                  "debit": "6175.00",
+                  "credit": "0.00",
+                  "memo": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 1.46126739999454,
+            "llm_calls": 3,
+            "input_tokens": 15312,
+            "output_tokens": 124,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.10832260000461247,
+            "cost_usd": "0.000643104"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      }
+    ],
+    [
+      {
+        "case_id": "P11",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-984265d74b6144b994c6877d44300d1d",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:56.434911+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EVT-SOM26",
+              "task": "EVT-SOM26",
+              "decision": "post_corrections",
+              "classification": "staff_event",
+              "matched_event": "EVT-SOM26",
+              "deductible": "1428.00",
+              "nondeductible": "0.00",
+              "vat_recoverable": "0.00",
+              "vat_blocked": "228.00",
+              "wage_taxable": "811.80",
+              "flat_tax_40": "228.32",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "flat_40",
+              "corrections": [
+                {
+                  "type": "payroll_delta",
+                  "amount": "811.80",
+                  "ref": "EVT-SOM26",
+                  "person": null,
+                  "from_account": null,
+                  "to_account": null,
+                  "reason": "taxable amounts changed with the event's cost or attendance",
+                  "rules": [
+                    "R-BV-ALLOW v1",
+                    "R-BV-MAX v1"
+                  ]
+                },
+                {
+                  "type": "vat_reversal",
+                  "amount": "6175.00",
+                  "ref": "EVT-SOM26",
+                  "person": null,
+                  "from_account": null,
+                  "to_account": null,
+                  "reason": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event",
+                  "rules": [
+                    "R-BV-VAT v1",
+                    "R-VAT-FIX v1"
+                  ]
+                }
+              ],
+              "flags": [
+                "event_cost_threshold_crossed",
+                "out_of_period"
+              ],
+              "approvers": [
+                "tax_manager",
+                "controller"
+              ],
+              "escalations": [],
+              "requests": [
+                {
+                  "to": "P-PAY",
+                  "about": "payroll_export"
+                }
+              ],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EVT-SOM26",
+                "INV-FW-0910",
+                "INV-SOM-BAND",
+                "INV-SOM-BUS",
+                "INV-SOM-CAT",
+                "INV-SOM-VEN",
+                "POL-BV-FLAT",
+                "POL-BV-OPT",
+                "POL-BV-VATBASIS",
+                "POL-MAT",
+                "POL-ROUND",
+                "R-BV-ALLOW",
+                "R-BV-COST",
+                "R-BV-FLAT",
+                "R-BV-MAX",
+                "R-BV-VAT",
+                "R-VAT-FIX",
+                "TAX-KIST",
+                "TAX-SOLI"
+              ],
+              "chosen_by": "agent",
+              "per_participant": "111.40",
+              "entries": [
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-INV-INV-FW-0910",
+                  "line_no": 1,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "INV-FW-0910",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "1428.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-INV-INV-FW-0910",
+                  "line_no": 2,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "INV-FW-0910",
+                  "person": null,
+                  "debit": "1428.00",
+                  "credit": "0.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-40-True",
+                  "line_no": 1,
+                  "account": "1750",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": null,
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "228.32",
+                  "memo": "Event tax treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-40-True",
+                  "line_no": 2,
+                  "account": "6470",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": null,
+                  "person": null,
+                  "debit": "228.32",
+                  "credit": "0.00",
+                  "memo": "Event tax treatment"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-FIX-1",
+                  "line_no": 1,
+                  "account": "1400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "EVT-SOM26",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "6175.00",
+                  "memo": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event"
+                },
+                {
+                  "date": "2026-09-14",
+                  "entry_id": "VCH-EVT-SOM26-FIX-1",
+                  "line_no": 2,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EVT-SOM26",
+                  "item": "EVT-SOM26",
+                  "person": null,
+                  "debit": "6175.00",
+                  "credit": "0.00",
+                  "memo": "the cost per participant now exceeds EUR 110, so no input VAT is recoverable for the whole event"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 1.6873485000105575,
+            "llm_calls": 3,
+            "input_tokens": 15312,
+            "output_tokens": 124,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.09838069998659194,
+            "cost_usd": "0.000643104"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      }
+    ]
+  ]
+}

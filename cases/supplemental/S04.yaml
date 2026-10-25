@@ -1,0 +1,84 @@
+{
+  "id": "S04",
+  "title": "Supplemental S04",
+  "as_of": "2026-01-16",
+  "setup": {
+    "events": [
+      {
+        "id": "EXTRA-EVENT-S04",
+        "name": "Independent regression event",
+        "date": "2026-01-15",
+        "type_declared": "hospitality",
+        "organizer": "P-HR-EVT",
+        "open_to": "all",
+        "purpose": "Delivery acceptance meeting for customer tooling",
+        "exceptional_assignment": false,
+        "location": "Munich",
+        "host": "P-HR-EVT"
+      }
+    ],
+    "attendance": [
+      {
+        "event": "EXTRA-EVENT-S04",
+        "employees": [
+          "E401",
+          "E402"
+        ],
+        "business_partners": [
+          "BP-004",
+          "BP-005"
+        ]
+      }
+    ],
+    "invoices": [
+      {
+        "id": "EXTRA-INVOICE-S04",
+        "event": "EXTRA-EVENT-S04",
+        "vendor": "V-RST",
+        "entity": "ENT-DE",
+        "invoice_date": "2026-01-15",
+        "delivery_date": "2026-01-15",
+        "received_at": "2026-01-15",
+        "net": "400.00",
+        "vat": "76.00",
+        "gross": "476.00",
+        "lines": [
+          {
+            "category": "catering",
+            "net": "400.00",
+            "vat": "76.00",
+            "gross": "476.00",
+            "vat_rate": "0.19"
+          }
+        ],
+        "occasion": "Delivery acceptance meeting for customer tooling",
+        "participants": [
+          "E401",
+          "E402",
+          "BP-004",
+          "BP-005"
+        ],
+        "host": "P-HR-EVT",
+        "place": "Munich"
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "type": "process_event",
+      "event": "EXTRA-EVENT-S04"
+    }
+  ],
+  "expect": {
+    "decision": "classify_and_book",
+    "classification": "hospitality",
+    "deductible": "280.00",
+    "nondeductible": "120.00",
+    "vat_recoverable": "76.00",
+    "wage_taxable": "0.00",
+    "flags": [],
+    "approvers": [
+      "policy"
+    ]
+  }
+}

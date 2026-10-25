@@ -18,22 +18,27 @@ class Runs:
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.items, self.latest = {}, None
+        self.settings = {}
         self.lock = threading.Lock()
 
-    def start(self, scenario, scripted=True, model=None, effort="medium"):
-        run_id = uuid4().hex
-        path = self.root / (run_id + ".db")
+    def start(self, scenario, scripted=True, model=None, effort="medium", *, existing=None, run_id=None):
+        run_id = run_id or uuid4().hex
+        path = existing or self.root / (run_id + ".db")
         job = {"run_id": run_id, "status": "running", "timeline": [], "result": None, "error": None,
                "db": path, "scenario_id": scenario.id}
         with self.lock:
+            if existing:
+                job["timeline"] = list(self.items[run_id]["timeline"])
             self.items[run_id] = job
+            self.settings[run_id] = (scenario, scripted, model, effort)
         def emit(step):
             with self.lock:
                 job["timeline"].append(step)
         def work():
             conn = None
             try:
-                rebuild(path, scenario)
+                if existing is None:
+                    rebuild(path, scenario)
                 conn = connect(path)
                 conn.execute("PRAGMA journal_mode=WAL")
                 result = run_scenario(conn, scenario, ScriptedPolicy() if scripted else ModelPolicy(model=model,effort=effort), emit)
@@ -53,6 +58,14 @@ class Runs:
                     conn.close()
         threading.Thread(target=work, name="vouch-run-" + run_id, daemon=True).start()
         return run_id
+
+    def resume(self, run_id):
+        with self.lock:
+            job = self.items[run_id]
+            if job["status"] == "running":
+                raise ValueError("The run is already working.")
+            settings, path = self.settings[run_id], job["db"]
+        return self.start(*settings, existing=path, run_id=run_id)
 
     def snapshot(self, run_id):
         with self.lock:

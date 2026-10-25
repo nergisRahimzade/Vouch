@@ -44,3 +44,47 @@ def test_jev_records_actual_resolved_model_and_usage(monkeypatch):
     p = ModelPolicy(model="jev-latest")
     assert jev_backend.choose(p, {}, "Ready?", {"ready":"Ready"}) == "ready"
     assert p.model == "jev-1.13.0" and p.calls == 1 and p.usage.input_tokens == 100
+
+
+def test_openrouter_key_is_sent_only_to_the_openrouter_decisions_endpoint(monkeypatch):
+    monkeypatch.setenv('JEV_API_KEY','sk-or-test-not-a-real-key')
+    monkeypatch.delenv('VOUCH_BASE_URL',raising=False)
+    requests=[]
+    def post(url,**kw):
+        requests.append(url)
+        return response({'model':'typesafe/jev-1.14-20261014','answers':{'decision':{'choice':'ready'}},
+            'usage':{'input_tokens':100,'output_tokens':4,'cost':0.0000042}})
+    monkeypatch.setattr(jev_backend.httpx,'post',post)
+    p=ModelPolicy(model='jev-latest')
+    assert jev_backend.choose(p,{},'Ready?',{'ready':'Ready'})=='ready'
+    assert requests==['https://openrouter.ai/api/v1/systemone']
+    assert p.provider_name=='openrouter' and str(p.usage.cost(p.model))=='0.0000042'
+
+
+def test_expected_answer_never_enters_a_jev_request(tmp_path,monkeypatch):
+    import json
+    from vouch.world.scenario import parse
+    from vouch.db.rebuild import rebuild
+    from vouch.db import connect
+    from vouch.evaluator.answer_key import load_cases
+    from pathlib import Path
+    raw=json.loads((Path(__file__).resolve().parents[1]/'cases'/'supplemental'/'S01.yaml').read_text())
+    sentinel='PRIVATE_EXPECTATION_NOT_FOR_THE_AGENT'
+    raw['expect']['private_canary']=sentinel
+    scenario=parse(raw)
+    assert not hasattr(scenario,'expect')
+    payloads=[]
+    monkeypatch.setenv('JEV_API_KEY','test')
+    def post(url,**kw):
+        payloads.append(kw['json'])
+        criteria=kw['json']['questions']['decision']['criteria']
+        selected='classify_and_book' if 'classify_and_book' in criteria else next(iter(criteria))
+        return response({'model':'jev-test','answers':{'decision':{'choice':selected}},'usage':{'input_tokens':100,'output_tokens':4}})
+    monkeypatch.setattr(jev_backend.httpx,'post',post)
+    db=tmp_path/'case.db';rebuild(db,scenario)
+    with connect(db) as conn:
+        result=run_scenario(conn,scenario,ModelPolicy(model='jev-latest'))
+    assert not result['decisions'][0].get('failure')
+    assert len(payloads)>=3
+    encoded=json.dumps(payloads)
+    assert sentinel not in encoded and '"expect"' not in encoded and '"private_canary"' not in encoded

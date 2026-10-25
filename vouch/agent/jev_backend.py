@@ -17,7 +17,10 @@ class Choice(BaseModel):
 
 def choose(policy, state, instructions, criteria, toolbox=None):
     key = os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY") or os.environ.get("VOUCH_API_KEY")
-    base = os.environ.get("VOUCH_BASE_URL", "https://api.typesafe.ai/v1").rstrip("/")
+    # OpenRouter credentials belong at OpenRouter; direct TypeSafe credentials stay direct.
+    default_base = "https://openrouter.ai/api/v1" if key and key.startswith("sk-or-") else "https://api.typesafe.ai/v1"
+    base = os.environ.get("VOUCH_BASE_URL", default_base).rstrip("/")
+    policy.provider_name = "openrouter" if base == "https://openrouter.ai/api/v1" else "jev"
     if not key:
         raise PolicyFailed(PAUSED)
     for attempt in range(3):
@@ -34,7 +37,7 @@ def choose(policy, state, instructions, criteria, toolbox=None):
                 if toolbox:
                     from vouch.controls import audit, gates
                     audit.log(toolbox.conn, gates.VOUCH, "model_unavailable", toolbox.case_id, "failed",
-                        "Jev unavailable; the case remains held", {"provider": "jev", "model": policy.model,
+                        "Jev unavailable; the case remains held", {"provider": policy.provider_name, "model": policy.model,
                         "http_status": response.status_code})
                     toolbox.conn.commit()
                 raise PolicyFailed(PAUSED)
@@ -91,10 +94,47 @@ def work(policy, case, toolbox):
         call("flag_issue", {"flag": kind, "reason": finding["summary"]})
     rec = toolbox.option(classification)["decision"]
     facts = call("get_case_file", {"trigger_id": case["case_id"]})
-    decision = choose(policy, {"case": facts, "computed_treatment": rec}, SYSTEM +
-        "\nSelect the final action. Missing unanswered facts require hold; unresolved policy treatment requires escalate. "
-        "Use post_corrections only for previously booked trigger items with corrections. Use classify_and_book for new items.",
-        {k: k.replace("_", " ") for k in ["classify_and_book", "post_corrections", "hold", "escalate", "reject_duplicate", "no_action"]}, toolbox)
+    pending = [r for r in facts["replies"] if r["status"] != "answered" and r["about"] != "payroll_export"]
+    context = toolbox.option(classification)
+    action_state = {"facts": facts["facts"], "classification": classification,
+        "computed_action": rec["decision"], "blockers": context["blocked_by"],
+        "pending_questions": pending, "escalations": facts["escalations"],
+        "new_invoices": [i["id"] for i in context["new_invoices"]],
+        "corrections": rec["corrections"], "flags": sorted(toolbox.seen_findings)}
+    criteria = {
+        "classify_and_book": "New accounting work is complete and bookable; includes changes to other events' allowances.",
+        "post_corrections": "The trigger's own previously booked treatment needs correcting; computed_action is post_corrections.",
+        "hold": "Facts remain missing or invoice arithmetic is invalid; a question was asked and remains unanswered.",
+        "escalate": "A policy treatment is unresolved and an actual escalation to the tax manager exists.",
+        "reject_duplicate": "Detector evidence proves the invoice is a duplicate.",
+        "no_action": "No new invoice or correction remains."}
+    instructions = ("Select the accounting workflow action using these verified facts. computed_action is code's "
+        "determination from rule tests, not an organizer label. Do not contradict a proven state transition. "
+        "Resolved questions and informational history flags do not block booking. "
+        "Corrections to another event do not make a new event a post_corrections trigger. "
+        "No_action requires no remaining work. Escalate requires a recorded unresolved escalation.")
+    for attempt in range(2):
+        decision = choose(policy, action_state, instructions, criteria, toolbox)
+        problem = None
+        if decision in {"classify_and_book", "post_corrections"} and context["blocked_by"]:
+            problem = "Booking is blocked by the listed unresolved facts or policy treatment."
+        elif decision == "escalate" and rec["decision"] in {"classify_and_book", "post_corrections"} and not context["blocked_by"]:
+            problem = "The recorded escalation concerns a separate request, not a blocker to this correct accounting treatment. Continue the computed booking; keep the separate escalation recorded."
+        elif decision == "escalate" and not facts["escalations"]:
+            problem = "There is no supported unresolved policy escalation."
+        elif decision == "hold" and not pending and not context["blocked_by"]:
+            problem = "No missing unanswered facts or accounting blockers remain."
+        elif decision == "reject_duplicate" and "duplicate_invoice" not in toolbox.seen_findings:
+            problem = "No duplicate evidence exists."
+        elif decision == "no_action" and (context["new_invoices"] or rec["corrections"]):
+            problem = "New work or corrections remain."
+        elif decision in {"classify_and_book", "post_corrections"} and decision != rec["decision"]:
+            problem = "The computed trigger history requires " + rec["decision"] + "."
+        if problem is None:
+            break
+        action_state["rejected_choice"] = {"choice": decision, "error": problem}
+        if attempt:
+            raise PolicyFailed(MODEL_ERROR + ": repeated contradiction of verified workflow facts")
     if decision in {"classify_and_book", "post_corrections"}:
         for name in ["draft_entries", "draft_payroll_export", "draft_recipient_notice"]:
             call(name, {"classification": classification})
@@ -117,7 +157,7 @@ def preflight():
         return [("jev/" + policy.model, True, "GREEN")]
     except PolicyFailed:
         status = getattr(policy, "last_http_status", None)
-        reason = {401: "HTTP 401: the TypeSafe API key was rejected", 402: "HTTP 402: insufficient credit",
+        reason = {401: "HTTP 401: the configured provider rejected the API key", 402: "HTTP 402: insufficient credit",
                   403: "HTTP 403: model access denied", 429: "HTTP 429: rate limit or quota exhausted"}.get(status,
                   "Jev unavailable: check endpoint, model and account credits")
         return [("jev/jev-latest", False, reason)]

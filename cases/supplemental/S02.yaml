@@ -1,0 +1,73 @@
+{
+  "id": "S02",
+  "title": "Supplemental S02",
+  "as_of": "2026-01-16",
+  "setup": {
+    "events": [
+      {
+        "id": "EXTRA-EVENT-S02",
+        "name": "Independent regression event",
+        "date": "2026-01-15",
+        "type_declared": "staff_event",
+        "organizer": "P-HR-EVT",
+        "open_to": "all",
+        "purpose": "Annual company gathering",
+        "exceptional_assignment": false,
+        "location": "Munich",
+        "host": "P-HR-EVT"
+      }
+    ],
+    "attendance": [
+      {
+        "event": "EXTRA-EVENT-S02",
+        "employees": [
+          "E401",
+          "E402"
+        ]
+      }
+    ],
+    "invoices": [
+      {
+        "id": "EXTRA-INVOICE-S02",
+        "event": "EXTRA-EVENT-S02",
+        "vendor": "V-RST",
+        "entity": "ENT-DE",
+        "invoice_date": "2026-01-15",
+        "delivery_date": "2026-01-15",
+        "received_at": "2026-01-15",
+        "net": "184.89",
+        "vat": "35.13",
+        "gross": "220.02",
+        "lines": [
+          {
+            "category": "catering",
+            "net": "184.89",
+            "vat": "35.13",
+            "gross": "220.02",
+            "vat_rate": "0.19"
+          }
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "type": "process_event",
+      "event": "EXTRA-EVENT-S02"
+    }
+  ],
+  "expect": {
+    "decision": "classify_and_book",
+    "classification": "staff_event",
+    "per_participant": "110.01",
+    "deductible": "220.02",
+    "vat_recoverable": "0.00",
+    "vat_blocked": "35.13",
+    "wage_taxable": "0.02",
+    "flat_tax_40": "0.01",
+    "flags": [],
+    "approvers": [
+      "tax_manager"
+    ]
+  }
+}

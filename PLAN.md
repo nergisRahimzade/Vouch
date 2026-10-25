@@ -28,3 +28,7 @@ The requested single-agent architecture and rolling ten-year Books view are impl
 Task branches are local cumulative checkpoints; nothing has been pushed.
 
 Final owner-holdout status: the user configured the set and approved live scenario-input transfer to Anthropic. The scorer stopped during loading with ScenarioError. No holdout accuracy result is claimed; private cases and expected answers were not inspected or changed. T9 remains pending investigation of that loading failure.
+
+## Jev verification checkpoint (2026-10-25)
+
+Live OpenRouter Jev resolved to `typesafe/jev-1.14-20261014`. Full public suite passed 15/15 across three repetitions, amounts 15/15 exact, zero safety breaks. Dedicated P11/P01/P03/P10 rehearsal passed all 12 runs. Four agent-authored supplemental cases passed all 12 live runs; expectations are scorer-only and a canary verifies they are absent from provider requests. These are not the owner's blind holdout. Full suite: 243 passed, no skips/failures; the subsequently added score-selection regression also passed. Live server and browser verified approval/posting, tax-manager answer/resumption, custom inputs, SSE, ledgers and safe mid-run provider outage. See DEMO_VIDEO_SCRIPT.md and nergis_DOC.md. T9's owner-holdout gate remains pending; no new private file was read or transmitted.

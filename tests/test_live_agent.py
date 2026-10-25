@@ -7,7 +7,7 @@ The ordinary full suite includes these tests; missing credentials fail explicitl
 from pathlib import Path
 import pytest
 
-from vouch.agent.policy import MODEL, api_key_available
+from vouch.agent.policy import MODEL, ModelPolicy, api_key_available, is_jev_model
 from vouch.evaluator.run import evaluate
 
 pytestmark = pytest.mark.live
@@ -16,10 +16,12 @@ pytestmark = pytest.mark.live
 @pytest.fixture(scope="module")
 def live_public_report():
     if not api_key_available():
-        pytest.fail("Live tests require ANTHROPIC_API_KEY in the environment or project .env; no live run was performed.")
+        pytest.fail("Live tests require the configured provider API key in the environment or project .env; no live run was performed.")
     report = evaluate(scripted=False, runs=3, concurrency=6)
     assert report["status"] == "scored", report
-    assert report["mode"] == "model" and report["model"] == MODEL
+    selected = ModelPolicy()
+    assert report["mode"] == "model"
+    assert is_jev_model(report["model"]) if selected.provider == "jev" else report["model"] == selected.model
     return report
 
 
@@ -40,15 +42,20 @@ def test_live_prompt_cache_and_usage_are_measured(live_public_report):
     metrics = [row["run"]["metrics"] for batch in live_public_report["details"] for row in batch]
     assert all(m["input_tokens"] > 0 and m["output_tokens"] > 0 for m in metrics)
     assert all(m["cost_usd"] is not None for m in metrics)
-    assert sum(m["cache_read_input_tokens"] for m in metrics) > 0
+    if all(row["run"]["provider"] == "anthropic" for batch in live_public_report["details"] for row in batch):
+        assert sum(m["cache_read_input_tokens"] for m in metrics) > 0
+    else:
+        assert all(m["cache_read_input_tokens"] >= 0 for m in metrics)
     assert live_public_report["runs"] == 3 and live_public_report["date"]
 
 
 def test_live_p11_passes_five_consecutive_runs():
     if not api_key_available():
-        pytest.fail("Live P11 rehearsal requires ANTHROPIC_API_KEY; no live run was performed.")
+        pytest.fail("Live P11 rehearsal requires the configured provider API key; no live run was performed.")
     report = evaluate(scripted=False, runs=5, concurrency=1, case_ids=["P11"])
-    assert report["mode"] == "model" and report["model"] == MODEL
+    selected = ModelPolicy()
+    assert report["mode"] == "model"
+    assert is_jev_model(report["model"]) if selected.provider == "jev" else report["model"] == selected.model
     assert report["runs"] == 5 and report["cases"] == 1
     assert len(report["details"]) == 5
     for batch in report["details"]:

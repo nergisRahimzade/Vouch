@@ -73,3 +73,9 @@ It displays actual entries and labels years without recorded history. The suppli
 has 2026 records; earlier financial history is not invented.
 
 Jev uses the official TypeSafe decision API rather than Chat Completions. Set `JEV_API_KEY` (or `TYPESAFE_API_KEY`) locally; absent an explicit provider/model selection, this selects `jev-latest` for live runs. Explicit configuration is also supported: `VOUCH_PROVIDER=jev`, `VOUCH_BASE_URL=https://api.typesafe.ai/v1`, `VOUCH_MODEL=jev-latest`, `VOUCH_API_KEY=...`. Run `python -m vouch preflight` before live evaluation. A rejected key pauses the case safely; it is not an accuracy score. No Anthropic effort or prompt-cache settings are sent to Jev.
+
+### Jev through OpenRouter
+
+The supplied JEV_API_KEY uses OpenRouter's key format, so Vouch now routes it to `https://openrouter.ai/api/v1/systemone`. Preflight resolves the actual model ID (currently `typesafe/jev-1.14-20261014`). A direct TypeSafe key continues to use TypeSafe's endpoint. Explicit VOUCH_BASE_URL overrides remain supported. See [DEMO_VIDEO_SCRIPT.md](DEMO_VIDEO_SCRIPT.md) for the recording sequence and what is real versus simulated.
+
+Supplemental cases live in `cases/supplemental`; they are excluded from the UI list and expected answers are evaluator-only. They are agent-authored regressions, not the owner's blind holdout. Run their live checks with `python -m pytest tests/test_live_supplemental.py -q`.

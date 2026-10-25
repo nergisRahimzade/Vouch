@@ -61,6 +61,11 @@ You cannot approve, post, change elections, file returns, run payroll or write c
 """
 
 
+def is_jev_model(model):
+    name = str(model or "").lstrip("~").split("/")[-1]
+    return name.startswith("jev") and name != "jev-router"
+
+
 class PolicyFailed(RuntimeError):
     pass
 
@@ -73,13 +78,17 @@ class Usage:
     cache_write_tokens: int = 0
 
     def add(self, usage):
+        if getattr(usage, "cost", None) is not None:
+            self.provider_cost_usd = getattr(self, "provider_cost_usd", Decimal(0)) + Decimal(str(usage.cost))
         self.input_tokens += getattr(usage, "input_tokens", 0) or 0
         self.output_tokens += getattr(usage, "output_tokens", 0) or 0
         self.cache_read_tokens += getattr(usage, "cache_read_input_tokens", 0) or 0
         self.cache_write_tokens += getattr(usage, "cache_creation_input_tokens", 0) or 0
 
     def cost(self, model):
-        if model.startswith("jev"):
+        if hasattr(self, "provider_cost_usd"):
+            return self.provider_cost_usd
+        if is_jev_model(model):
             return Decimal(self.input_tokens) * Decimal("0.042") / 1_000_000
         prices = {"claude-opus-5-5": ("4", "20", "0.20", "5"),
                   "claude-sonnet-5-5": ("2", "10", "0.10", "2.50"),
@@ -105,7 +114,7 @@ def load_credentials():
 def api_key_available(model=None):
     load_credentials()
     from vouch.agent import chat_backend
-    selected_jev = (model or os.environ.get("VOUCH_MODEL", "")).startswith("jev") or os.environ.get("VOUCH_PROVIDER") == "jev" or (model is None and not chat_backend.configured() and (os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY")))
+    selected_jev = is_jev_model(model or os.environ.get("VOUCH_MODEL", "")) or os.environ.get("VOUCH_PROVIDER") == "jev" or (model is None and not chat_backend.configured() and (os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY")))
     if selected_jev:
         return bool(os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY") or os.environ.get("VOUCH_API_KEY"))
     if chat_backend.configured():
@@ -183,7 +192,7 @@ def record_model_call(toolbox, policy, stop_reason, usage, tools, notes):
                                                    "cache_creation_input_tokens")}
     audit.log(toolbox.conn, gates.VOUCH, "model_call", toolbox.case_id if toolbox.context else "trigger", "done",
               f"{policy.model} call {policy.calls}: " + (", ".join(tools) or "no tool"),
-              {"model": policy.model, "effort": policy.effort, "provider": policy.provider, "call": policy.calls,
+              {"model": policy.model, "effort": policy.effort, "provider": getattr(policy, "provider_name", policy.provider), "call": policy.calls,
                "stop_reason": stop_reason, "tools_requested": tools, "agent_notes": notes, "usage": tokens})
     toolbox.conn.commit()
 
@@ -243,7 +252,7 @@ class ModelPolicy:
         from vouch.agent import chat_backend
         primary = chat_backend.config("VOUCH_")
         self.backups = [c for c in [chat_backend.config("VOUCH_BACKUP_")] if c]
-        self.provider = "jev" if self.model.startswith("jev") else "chat" if primary and (model is None or model == primary["model"]) else \
+        self.provider = "jev" if is_jev_model(self.model) else "chat" if primary and (model is None or model == primary["model"]) else \
             "openai" if self.model.startswith("gpt-") else "anthropic"
         if self.provider == "jev":
             self.effort = None

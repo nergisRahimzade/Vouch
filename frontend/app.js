@@ -76,12 +76,12 @@ async function loadRun() {
   return state.run;
 }
 
-async function startRun(form) {
+async function startRun(form, payload = null) {
   const button = form.querySelector("button[type=submit]");
   button.disabled = true;
   try {
     const {run_id} = await api("/api/runs", {method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({scenario_id: form.scenario.value, mode: form.mode.value})});
+      body: JSON.stringify(payload || {scenario_id: form.scenario.value, mode: form.mode.value})});
     state.lastRunId = run_id; store.set("vouch.lastRun", run_id); state.timeline = [];
     const stream = new EventSource(`/api/runs/${encodeURIComponent(run_id)}/stream`);
     stream.onmessage = e => { state.timeline.push(JSON.parse(e.data)); const list = document.getElementById("live-steps"); if (list) list.innerHTML = steps(state.timeline); };
@@ -127,18 +127,51 @@ async function dashboard() {
             `<a class="flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground" href="#/approvals">View all${I("arrow-right")}</a>`) +
     section("Recent activity", activity ? `<ul class="divide-y">${activity}</ul>` : empty("No activity yet."),
             `<span class="flex items-center gap-1 text-[12px] ${audit.verified ? "text-success" : "text-danger"}">${I("lock")}${audit.verified ? "Tamper-evident" : "Chain broken"}</span>`) +
-    `</div>`;
+    `</div>` + section("Try your own event", `<form id="custom-form" class="flex flex-wrap gap-2 p-4">
+      <input name="name" class="control" placeholder="Event name" aria-label="Event name" required>
+      <input name="date" type="date" class="control" aria-label="Event date" required>
+      <input name="attendees" type="number" min="1" max="450" class="control" placeholder="Actual employees" aria-label="Actual employee count" required>
+      <input name="net" class="control" placeholder="Invoice net, e.g. 100.00" aria-label="Invoice net" required>
+      <input name="vat" class="control" placeholder="VAT, e.g. 19.00" aria-label="Invoice VAT" required>
+      <input name="gross" class="control" placeholder="Gross, e.g. 119.00" aria-label="Invoice gross" required>
+      ${primaryBtn("Process staff event live", "check", 'type="submit"')}</form>`);
+  document.getElementById("custom-form").addEventListener("submit", e => {
+    e.preventDefault(); const f = e.target.elements;
+    startRun(e.target, {mode: "model", custom: {event_type: "staff_event", name: f.namedItem("name").value,
+      date: f.namedItem("date").value, attendees: Number(f.namedItem("attendees").value),
+      invoices: [{net: f.namedItem("net").value, vat: f.namedItem("vat").value, gross: f.namedItem("gross").value, vat_rate: "0.19"}]}});
+  });
   document.getElementById("run-form").addEventListener("submit", e => { e.preventDefault(); startRun(e.target); });
 }
 
 async function approvalsPage() {
-  const items = await api("/api/approvals");
+  const [items, questions] = await Promise.all([api("/api/approvals"), api("/api/questions")]);
   const tabs = [["all", "All"], ["pending", "Pending Approval"], ["escalated", "Escalated"]];
   const shown = items.filter(a => state.filter === "all" || a.status === state.filter);
   const rows = shown.map(a => `<tr class="hover:bg-muted/40"><td class="px-4 py-3"><a class="font-medium hover:underline" href="#/cases">${esc(a.case_id || a.subject_ref)}</a><div class="text-[12px] text-muted-foreground">${esc(a.subject_ref)}</div></td><td>${esc((a.needs || []).join(" → ").replace(/_/g, " "))}<div class="text-[12px] text-muted-foreground">now: ${esc(a.assigned_role.replace("_", " "))}</div></td><td class="tabular text-right">${eur(a.amount)}</td><td class="px-4">${badge(a.status === "escalated" ? "Escalated" : "Pending Approval", a.status === "escalated" ? "warning" : "ai", true)}</td><td class="px-4 text-right"><div class="inline-flex gap-1.5"><button class="inline-flex h-7 items-center gap-1 rounded-md border px-2.5 hover:bg-muted" data-decide="reject" data-id="${esc(a.request_id)}">${I("arrow-up-right")}Reject</button><button class="inline-flex h-7 items-center gap-1 rounded-md bg-primary px-2.5 text-primary-foreground hover:opacity-90" data-decide="approve" data-id="${esc(a.request_id)}">${I("check")}Approve</button></div></td></tr>`).join("");
   view.innerHTML = title("Approvals", "Drafts waiting for a person's decision. Vouch drafts; people approve.") +
     `<div class="flex gap-1">${tabs.map(([k, label]) => `<button class="h-8 rounded-md px-3 hover:bg-muted ${state.filter === k ? "bg-muted font-medium text-foreground" : "text-muted-foreground"}" data-filter="${k}">${label}</button>`).join("")}</div>` +
     `<div class="overflow-hidden rounded-lg border bg-card"><table class="w-full"><thead class="border-b text-left text-[12px] text-muted-foreground"><tr><th class="px-4 py-2.5 font-medium">Case</th><th class="font-medium">Review by</th><th class="text-right font-medium">Amount</th><th class="px-4 font-medium">Status</th><th class="px-4 text-right font-medium">Action</th></tr></thead><tbody class="divide-y">${rows || `<tr><td class="px-4 py-3 text-muted-foreground" colspan="5">Nothing is waiting for a decision.</td></tr>`}</tbody></table></div>`;
+  view.insertAdjacentHTML("beforeend", section("Questions for the finance team", questions.length ? questions.map(q =>
+    q.about === "nonqualifying_event" ? `<form class="p-4 flex flex-wrap gap-2" data-question="${esc(q.request_id)}" data-recipient="${esc(q.recipient)}">
+      <p class="w-full">${esc(q.case_id)}: ${esc(q.recipient_name || q.recipient)} must choose how payroll taxes this event.</p>
+      <select name="method" class="control" aria-label="Authorized payroll method" required><option value="">Choose treatment</option><option value="individual">Individual payroll taxation</option><option value="flat_40">Flat payroll tax</option></select>
+      <input name="reason" class="control" placeholder="Reason for your ruling" aria-label="Reason for ruling" required>
+      ${primaryBtn("Record tax-manager answer and continue", "check", 'type="submit"')}</form>`
+    : `<p class="p-4">Waiting for ${esc(q.recipient_name || q.recipient)}: ${esc(human(q.about))} (${esc(q.case_id)})</p>`).join("")
+    : empty("No unanswered questions.")));
+  view.querySelectorAll("[data-question]").forEach(f => f.addEventListener("submit", async e => {
+    e.preventDefault(); const b = f.querySelector("button"); b.disabled = true;
+    try {
+      if (!state.lastRunId) throw new Error("Open the current case before answering.");
+      const r = await api(`/api/questions/${encodeURIComponent(f.dataset.question)}`, {method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({run_id: state.lastRunId, actor_id: f.dataset.recipient,
+          data: {method: f.elements.namedItem("method").value, reason: f.elements.namedItem("reason").value}})});
+      location.hash = "#/cases";
+      for (;;) { const run = await api(`/api/runs/${encodeURIComponent(r.run_id)}`); if (run.status !== "running") break; await new Promise(resolve => setTimeout(resolve, 400)); }
+      await render();
+    } catch (error) { view.insertAdjacentHTML("afterbegin", banner(error.message)); b.disabled = false; }
+  }));
   view.querySelectorAll("[data-filter]").forEach(b => b.addEventListener("click", () => { state.filter = b.dataset.filter; render(); }));
   view.querySelectorAll("[data-decide]").forEach(b => b.addEventListener("click", async () => {
     const reason = window.prompt(`Reason to ${b.dataset.decide} (required, recorded in the audit log):`);
@@ -215,13 +248,21 @@ async function booksPage() {
   const rows = entries.slice().reverse().slice(0, 150).map(e => {
     const total = e.lines.reduce((s, l) => s + num(l.debit), 0);
     const [label, tone] = e.voided ? ["Voided", "danger"] : e.status === "posted" ? ["Posted", "success"] : ["Draft", "ai"];
-    return `<tr class="hover:bg-muted/40"><td class="px-4 py-3 text-muted-foreground">${esc(e.entry_date)}</td><td><details><summary class="font-medium">${esc(e.entry_id)}</summary><div class="mt-2 text-[12px]">${e.lines.map(l => `${esc(l.account)} · ${num(l.debit) ? "Dr " + eur(l.debit) : "Cr " + eur(l.credit)} · ${esc(l.event || l.item || "")}`).join("<br>")}</div></details></td><td>${esc(human(e.type))}</td><td class="tabular text-right">${eur(total)}</td><td class="px-4">${badge(label, tone, true)}</td></tr>`;
+    return `<tr class="hover:bg-muted/40"><td class="px-4 py-3 text-muted-foreground">${esc(e.entry_date)}</td><td><details><summary class="font-medium">${esc(e.entry_id)}</summary><div class="mt-2 text-[12px]">${e.lines.map(l => `${esc(l.account)} · ${num(l.debit) ? "Dr " + eur(l.debit) : "Cr " + eur(l.credit)} · ${esc(l.event || l.item || "")}`).join("<br>")}</div></details></td><td>${esc(human(e.type))}</td><td class="tabular text-right">${eur(total)}</td><td class="px-4">${badge(label, tone, true)}${e.status === "draft" && !e.voided ? `<button class="control" data-post="${esc(e.entry_id)}">Post as controller</button>` : ""}</td></tr>`;
   }).join("");
   const pay = payroll.slice(0, 100).map(p => `<tr><td class="px-4 py-2.5">${esc(p.employee)}</td><td>${esc(p.event)}</td><td>${esc(p.method === "flat_40" ? "§40 flat" : "Individual")}</td><td class="tabular text-right">${eur(p.taxable_amount)}</td><td class="px-4">${badge(p.status, p.status === "accepted" ? "success" : "ai")}</td></tr>`).join("");
   view.innerHTML = title("Books", `Last ten years · ${books.from_year}–${books.to_year}. Only recorded entries are shown; a year without records is not a zero balance.`) +
     `<div class="grid grid-cols-2 divide-x overflow-hidden rounded-lg border bg-card lg:grid-cols-4">${years}</div>` +
     `<div class="overflow-hidden rounded-lg border bg-card"><table class="w-full"><thead class="border-b text-left text-[12px] text-muted-foreground"><tr><th class="px-4 py-2.5 font-medium">Date</th><th class="font-medium">Entry</th><th class="font-medium">Type</th><th class="text-right font-medium">Amount</th><th class="px-4 font-medium">Status</th></tr></thead><tbody class="divide-y">${rows || `<tr><td class="px-4 py-3 text-muted-foreground" colspan="5">No entries.</td></tr>`}</tbody></table></div>` +
     section(`Payroll export drafts (${payroll.length})`, pay ? `<div class="overflow-x-auto"><table class="w-full"><thead class="border-b text-left text-[12px] text-muted-foreground"><tr><th class="px-4 py-2 font-medium">Employee</th><th class="font-medium">Event</th><th class="font-medium">Method</th><th class="text-right font-medium">Taxable</th><th class="px-4 font-medium">Status</th></tr></thead><tbody class="divide-y">${pay}</tbody></table></div>` : empty("No payroll rows. Payroll receives drafts; it runs separately."));
+  view.querySelectorAll("[data-post]").forEach(b => b.addEventListener("click", async () => {
+    const reason = window.prompt("Controller posting reason (all required approvals must already be complete):");
+    if (!reason || !reason.trim()) return;
+    b.disabled = true;
+    try { await api(`/api/entries/${encodeURIComponent(b.dataset.post)}/post`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({reason})}); await render(); }
+    catch (error) { view.insertAdjacentHTML("afterbegin", banner(error.message)); b.disabled = false; }
+  }));
+
 }
 
 async function auditPage() {

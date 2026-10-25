@@ -1,0 +1,170 @@
+{
+  "date": "2026-10-25T14:38:34.115995+00:00",
+  "provider": "openrouter",
+  "model": "typesafe/jev-1.14-20261014",
+  "public": {
+    "date": "2026-10-25T14:32:05.457297+00:00",
+    "cases": 15,
+    "runs": 3,
+    "passed_all_runs": 15,
+    "amounts_correct_all_runs": 15,
+    "safety_violations": 0,
+    "cost_usd": "0.014549976"
+  },
+  "dedicated_demo": {
+    "scenarios": 4,
+    "repetitions": 3,
+    "passed_runs": 12,
+    "safety_violations": 0
+  },
+  "supplemental": {
+    "description": "agent-authored; expected answers withheld from Vouch; not independent blind holdout",
+    "scenarios": 4,
+    "repetitions": 3,
+    "passed_runs": 12,
+    "safety_violations": 0
+  },
+  "checks": {
+    "full_suite_passed": 243,
+    "full_suite_failed": 0,
+    "full_suite_skipped": 0,
+    "subsequent_score_selection_regression_passed": true
+  },
+  "browser": {
+    "liveP11ExactValues": true,
+    "routes": [
+      "#/approvals",
+      "#/books",
+      "#/people",
+      "#/audit",
+      "#/"
+    ],
+    "uncaughtErrors": 0
+  },
+  "outage": {
+    "status": "paused: model unavailable",
+    "friendly": true,
+    "successful_calls_before_outage": 1,
+    "no_vouch_postings": true
+  },
+  "http": {
+    "P01": {
+      "run_id": "c48cfd9efcdd423ca97301f3325f4fa2",
+      "model": "typesafe/jev-1.14-20261014",
+      "provider": "openrouter",
+      "decision": "classify_and_book",
+      "failure": null,
+      "amount_mismatches": {},
+      "sse": 200,
+      "approval_steps": 5,
+      "posted_entries": 5,
+      "payroll_http": 200,
+      "person_http": 200,
+      "audit_verified": true,
+      "metrics": {
+        "wall_seconds": 1.6005204999964917,
+        "llm_calls": 3,
+        "input_tokens": 7642,
+        "output_tokens": 124,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "tool_seconds": 0.12327349997940473,
+        "cost_usd": "0.000320964"
+      }
+    },
+    "P03": {
+      "run_id": "b2e64402c7d949bc8f8d381116aacb5c",
+      "model": "typesafe/jev-1.14-20261014",
+      "provider": "openrouter",
+      "decision": "post_corrections",
+      "failure": null,
+      "amount_mismatches": {},
+      "sse": 200,
+      "approval_steps": 5,
+      "posted_entries": 5,
+      "payroll_http": 200,
+      "person_http": 200,
+      "audit_verified": true,
+      "metrics": {
+        "wall_seconds": 1.7626770000060787,
+        "llm_calls": 3,
+        "input_tokens": 8172,
+        "output_tokens": 120,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "tool_seconds": 0.04031419999955688,
+        "cost_usd": "0.000343224"
+      }
+    },
+    "P10": {
+      "run_id": "0bb23ed0711243d19fbc7133061c32a4",
+      "model": "typesafe/jev-1.14-20261014",
+      "provider": "openrouter",
+      "decision": "escalate",
+      "failure": null,
+      "amount_mismatches": {},
+      "sse": 200,
+      "answer_http": 200,
+      "resumed_decision": "classify_and_book",
+      "resumed_payroll_method": "individual",
+      "resumed_wage_taxable": "4165.00",
+      "approval_steps": 1,
+      "posted_entries": 1,
+      "payroll_http": 200,
+      "audit_verified": true,
+      "metrics": {
+        "wall_seconds": 3.097192500004894,
+        "llm_calls": 4,
+        "input_tokens": 10135,
+        "output_tokens": 227,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "tool_seconds": 0.06313380000938196,
+        "cost_usd": "0.000425670"
+      }
+    },
+    "P11": {
+      "run_id": "e8a5c5ccecf645d0bf05b88de6571fbd",
+      "model": "typesafe/jev-1.14-20261014",
+      "provider": "openrouter",
+      "decision": "post_corrections",
+      "failure": null,
+      "amount_mismatches": {},
+      "sse": 200,
+      "approval_steps": 6,
+      "posted_entries": 3,
+      "payroll_http": 200,
+      "audit_verified": true,
+      "metrics": {
+        "wall_seconds": 1.831000199992559,
+        "llm_calls": 3,
+        "input_tokens": 15312,
+        "output_tokens": 124,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "tool_seconds": 0.117682500029332,
+        "cost_usd": "0.000643104"
+      }
+    },
+    "custom": {
+      "run_id": "8a8c1d7049144c16a5305d8081e07610",
+      "status": "done",
+      "decision": "classify_and_book",
+      "per_participant": "59.50",
+      "failure": null,
+      "metrics": {
+        "wall_seconds": 1.6099912000063341,
+        "llm_calls": 3,
+        "input_tokens": 5474,
+        "output_tokens": 124,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "tool_seconds": 0.023329599993303418,
+        "cost_usd": "0.000229908"
+      }
+    }
+  },
+  "owner_holdout": "untouched and not evaluated",
+  "demo_script": "DEMO_VIDEO_SCRIPT.md",
+  "app_url": "http://127.0.0.1:8080/"
+}

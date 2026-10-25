@@ -36,6 +36,19 @@ class StartRun(BaseModel):
     effort: str = "medium"
 
 
+class Answer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    run_id: str
+    actor_id: str
+    data: dict
+
+
+class PostEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    actor_id: str | None = None
+    reason: str
+
+
 class Decide(BaseModel):
     model_config = ConfigDict(extra="forbid")
     decision: str
@@ -222,6 +235,45 @@ def create_app(db_path=DEFAULT_DB, *, run_root=None, scenarios_dir=None, results
                               "gift":fmt(limit),"flat_37b_cap":fmt(src.rules.value("R-37B-CAP",f"{year}-12-31"))},
                     "corrections":[dict(r) for r in conn.execute("SELECT * FROM payroll_exports WHERE employee=? AND corrects IS NOT NULL",(person_id,))]}
 
+    @app.get("/api/questions")
+    def pending_questions():
+        with open_db() as conn:
+            return [dict(r) for r in conn.execute("SELECT q.*,p.name AS recipient_name FROM info_requests q "
+                "LEFT JOIN people p ON p.id=q.recipient WHERE q.status='pending' AND q.about<>'payroll_export'")]
+
+    @app.post("/api/questions/{request_id}")
+    def answer_question(request_id: str, body: Answer):
+        from vouch.agent import questions
+        try:
+            job = registry.items[body.run_id]
+            if job["status"] == "running":
+                raise HTTPException(409, "Wait for Vouch to finish before answering.")
+            with closing(connect(job["db"])) as conn:
+                questions.answer(conn, request_id, body.actor_id, body.data)
+                conn.commit()
+            return {"run_id": registry.resume(body.run_id), "status": "running"}
+        except KeyError:
+            raise HTTPException(404, "run or question not found")
+        except PermissionError:
+            raise HTTPException(403, "Only the recorded authorized recipient may answer this question.")
+        except ValueError as error:
+            raise HTTPException(422, str(error))
+
+    @app.post("/api/entries/{entry_id}/post")
+    def post_entry(entry_id: str, body: PostEntry):
+        with open_db() as conn:
+            person = conn.execute("SELECT name,role FROM people WHERE id=?", (body.actor_id,)).fetchone()
+            if (body.actor_id and not person) or not body.reason.strip():
+                raise HTTPException(403, "An authorized human and a reason are required.")
+            actor = Actor(person["name"], person["role"]) if person else person_actor(conn, "controller")
+            try:
+                gates.post_approved_entry(conn, actor, entry_id)
+                audit.log(conn, actor, "human_post_reason", entry_id, "done", body.reason)
+                conn.commit()
+                return {"entry_id": entry_id, "status": "posted"}
+            except gates.Refused as error:
+                raise HTTPException(403, str(error))
+
     @app.get("/api/approvals")
     def inbox():
         with open_db() as conn:
@@ -295,11 +347,14 @@ def create_app(db_path=DEFAULT_DB, *, run_root=None, scenarios_dir=None, results
 
     @app.get("/api/scores")
     def scores():
-        def latest(pattern):
+        def latest(pattern, full_suite=False):
             reports=[r for r in (json.loads(p.read_text(encoding="utf-8")) for p in sorted(results_dir.glob(pattern)))
                      if not invalid_run(r)]
+            if full_suite:
+                complete = [r for r in reports if r.get("cases") == len(scenarios)]
+                reports = complete or reports
             return max(reports,key=lambda r:r["date"]) if reports else None
-        public=latest("public-*.json")
+        public=latest("public-*.json", full_suite=True)
         holdout=latest("holdout-*.json")
         # Spec §10: the held-out set is shown as aggregates only, whatever the saved report holds.
         holdout={k:v for k,v in holdout.items() if k!="details"} if holdout else {"status":"not_scored"}

@@ -1,0 +1,71 @@
+{
+  "id": "S03",
+  "title": "Supplemental S03",
+  "as_of": "2026-01-16",
+  "setup": {
+    "events": [
+      {
+        "id": "EXTRA-EVENT-S03",
+        "name": "Independent regression event",
+        "date": "2026-01-15",
+        "type_declared": "working_meal",
+        "organizer": "P-HR-EVT",
+        "open_to": "all",
+        "purpose": "Emergency production shift",
+        "exceptional_assignment": true,
+        "location": "Munich",
+        "host": "P-HR-EVT"
+      }
+    ],
+    "attendance": [
+      {
+        "event": "EXTRA-EVENT-S03",
+        "employees": [
+          "E401",
+          "E402"
+        ]
+      }
+    ],
+    "invoices": [
+      {
+        "id": "EXTRA-INVOICE-S03",
+        "event": "EXTRA-EVENT-S03",
+        "vendor": "V-RST",
+        "entity": "ENT-DE",
+        "invoice_date": "2026-01-15",
+        "delivery_date": "2026-01-15",
+        "received_at": "2026-01-15",
+        "net": "100.84",
+        "vat": "19.16",
+        "gross": "120.00",
+        "lines": [
+          {
+            "category": "catering",
+            "net": "100.84",
+            "vat": "19.16",
+            "gross": "120.00",
+            "vat_rate": "0.19"
+          }
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "type": "process_event",
+      "event": "EXTRA-EVENT-S03"
+    }
+  ],
+  "expect": {
+    "decision": "classify_and_book",
+    "classification": "working_meal",
+    "deductible": "100.84",
+    "vat_recoverable": "19.16",
+    "wage_taxable": "0.00",
+    "flat_tax_40": "0.00",
+    "flags": [],
+    "approvers": [
+      "policy"
+    ]
+  }
+}

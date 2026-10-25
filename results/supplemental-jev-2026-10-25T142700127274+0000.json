@@ -1,0 +1,1527 @@
+{
+  "status": "scored",
+  "set": "agent-authored-supplemental",
+  "mode": "model",
+  "model": "typesafe/jev-1.14-20261014",
+  "date": "2026-10-25T14:27:00.127274+00:00",
+  "runs": 3,
+  "model_options": {
+    "effort": "medium",
+    "model": "jev-latest"
+  },
+  "cases": 4,
+  "passed_all_runs": 4,
+  "amounts_correct_all_runs": 4,
+  "safety_violations": 0,
+  "passed": true,
+  "seconds_per_case": 5.548928141669118,
+  "llm_calls_per_case": 3.0,
+  "cost_usd": "0.002719710",
+  "suite_wall_seconds": 20.412725000001956,
+  "false_positive_flags": 0,
+  "catch_rate": {
+    "caught": 1,
+    "total": 1,
+    "percent": 100.0
+  },
+  "false_positive_rate": {
+    "cases": 0,
+    "total": 3,
+    "percent": 0.0
+  },
+  "amount_accuracy": {
+    "correct": 4,
+    "total": 4,
+    "percent": 100.0
+  },
+  "details": [
+    [
+      {
+        "case_id": "S01",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-c9fa752901e74f9c8e6de7ae7413356a",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:01.077065+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EXTRA-EVENT-S01",
+              "task": "EXTRA-EVENT-S01",
+              "decision": "classify_and_book",
+              "classification": "staff_event",
+              "matched_event": "EXTRA-EVENT-S01",
+              "deductible": "184.87",
+              "nondeductible": "0.00",
+              "vat_recoverable": "35.13",
+              "vat_blocked": "0.00",
+              "wage_taxable": "0.00",
+              "flat_tax_40": "0.00",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "none",
+              "corrections": [],
+              "flags": [],
+              "approvers": [
+                "policy"
+              ],
+              "escalations": [],
+              "requests": [],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EXTRA-EVENT-S01",
+                "EXTRA-INVOICE-S01",
+                "POL-BV-OPT",
+                "POL-BV-VATBASIS",
+                "POL-MAT",
+                "POL-ROUND",
+                "R-BV-ALLOW",
+                "R-BV-COST",
+                "R-BV-MAX",
+                "R-BV-VAT"
+              ],
+              "chosen_by": "agent",
+              "per_participant": "110.00",
+              "entries": [
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S01",
+                  "line_no": 1,
+                  "account": "1400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S01",
+                  "item": "EXTRA-INVOICE-S01",
+                  "person": null,
+                  "debit": "35.13",
+                  "credit": "0.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S01",
+                  "line_no": 2,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S01",
+                  "item": "EXTRA-INVOICE-S01",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "220.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S01",
+                  "line_no": 3,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S01",
+                  "item": "EXTRA-INVOICE-S01",
+                  "person": null,
+                  "debit": "184.87",
+                  "credit": "0.00",
+                  "memo": "Computed staff_event treatment"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 4.8363484000001336,
+            "llm_calls": 3,
+            "input_tokens": 5462,
+            "output_tokens": 124,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.14427159998740535,
+            "cost_usd": "0.000229404"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      },
+      {
+        "case_id": "S02",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-65b44622fc7941a7b235046656e16375",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:01.077361+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EXTRA-EVENT-S02",
+              "task": "EXTRA-EVENT-S02",
+              "decision": "classify_and_book",
+              "classification": "staff_event",
+              "matched_event": "EXTRA-EVENT-S02",
+              "deductible": "220.02",
+              "nondeductible": "0.00",
+              "vat_recoverable": "0.00",
+              "vat_blocked": "35.13",
+              "wage_taxable": "0.02",
+              "flat_tax_40": "0.01",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "flat_40",
+              "corrections": [],
+              "flags": [],
+              "approvers": [
+                "tax_manager"
+              ],
+              "escalations": [],
+              "requests": [
+                {
+                  "to": "P-PAY",
+                  "about": "payroll_export"
+                }
+              ],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EXTRA-EVENT-S02",
+                "EXTRA-INVOICE-S02",
+                "POL-BV-FLAT",
+                "POL-BV-OPT",
+                "POL-BV-VATBASIS",
+                "POL-MAT",
+                "POL-ROUND",
+                "R-BV-ALLOW",
+                "R-BV-COST",
+                "R-BV-FLAT",
+                "R-BV-MAX",
+                "R-BV-VAT",
+                "TAX-KIST",
+                "TAX-SOLI"
+              ],
+              "chosen_by": "agent",
+              "per_participant": "110.01",
+              "entries": [
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S02",
+                  "line_no": 1,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S02",
+                  "item": "EXTRA-INVOICE-S02",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "220.02",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S02",
+                  "line_no": 2,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S02",
+                  "item": "EXTRA-INVOICE-S02",
+                  "person": null,
+                  "debit": "220.02",
+                  "credit": "0.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-01-16",
+                  "entry_id": "VCH-EXTRA-EVENT-S02-40-True",
+                  "line_no": 1,
+                  "account": "1750",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S02",
+                  "item": null,
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "0.01",
+                  "memo": "Event tax treatment"
+                },
+                {
+                  "date": "2026-01-16",
+                  "entry_id": "VCH-EXTRA-EVENT-S02-40-True",
+                  "line_no": 2,
+                  "account": "6470",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S02",
+                  "item": null,
+                  "person": null,
+                  "debit": "0.01",
+                  "credit": "0.00",
+                  "memo": "Event tax treatment"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 4.906074200000148,
+            "llm_calls": 3,
+            "input_tokens": 5696,
+            "output_tokens": 124,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.16478340000321623,
+            "cost_usd": "0.000239232"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      },
+      {
+        "case_id": "S03",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-b9ad29333c9e4ab9bd65bdc552191e32",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:01.064392+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EXTRA-EVENT-S03",
+              "task": "EXTRA-EVENT-S03",
+              "decision": "classify_and_book",
+              "classification": "working_meal",
+              "matched_event": "EXTRA-EVENT-S03",
+              "deductible": "100.84",
+              "nondeductible": "0.00",
+              "vat_recoverable": "19.16",
+              "vat_blocked": "0.00",
+              "wage_taxable": "0.00",
+              "flat_tax_40": "0.00",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "none",
+              "corrections": [],
+              "flags": [],
+              "approvers": [
+                "policy"
+              ],
+              "escalations": [],
+              "requests": [],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EXTRA-EVENT-S03",
+                "EXTRA-INVOICE-S03",
+                "POL-MAT",
+                "R-AE-60"
+              ],
+              "chosen_by": "agent",
+              "entries": [
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S03",
+                  "line_no": 1,
+                  "account": "1400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S03",
+                  "item": "EXTRA-INVOICE-S03",
+                  "person": null,
+                  "debit": "19.16",
+                  "credit": "0.00",
+                  "memo": "Computed working_meal treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S03",
+                  "line_no": 2,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S03",
+                  "item": "EXTRA-INVOICE-S03",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "120.00",
+                  "memo": "Computed working_meal treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S03",
+                  "line_no": 3,
+                  "account": "6490",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S03",
+                  "item": "EXTRA-INVOICE-S03",
+                  "person": null,
+                  "debit": "100.84",
+                  "credit": "0.00",
+                  "memo": "Computed working_meal treatment"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 4.781790200009709,
+            "llm_calls": 3,
+            "input_tokens": 5091,
+            "output_tokens": 128,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.14127500001632143,
+            "cost_usd": "0.000213822"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      },
+      {
+        "case_id": "S04",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-cc6611b518cf466d9ae46ed7a4cb8aae",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:01.042985+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EXTRA-EVENT-S04",
+              "task": "EXTRA-EVENT-S04",
+              "decision": "classify_and_book",
+              "classification": "hospitality",
+              "matched_event": "EXTRA-EVENT-S04",
+              "deductible": "280.00",
+              "nondeductible": "120.00",
+              "vat_recoverable": "76.00",
+              "vat_blocked": "0.00",
+              "wage_taxable": "0.00",
+              "flat_tax_40": "0.00",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "none",
+              "corrections": [],
+              "flags": [],
+              "approvers": [
+                "policy"
+              ],
+              "escalations": [],
+              "requests": [],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EXTRA-EVENT-S04",
+                "EXTRA-INVOICE-S04",
+                "POL-MAT",
+                "R-BEW-70",
+                "R-BEW-DOC"
+              ],
+              "chosen_by": "agent",
+              "entries": [
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S04",
+                  "line_no": 1,
+                  "account": "1400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S04",
+                  "item": "EXTRA-INVOICE-S04",
+                  "person": null,
+                  "debit": "76.00",
+                  "credit": "0.00",
+                  "memo": "Computed hospitality treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S04",
+                  "line_no": 2,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S04",
+                  "item": "EXTRA-INVOICE-S04",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "476.00",
+                  "memo": "Computed hospitality treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S04",
+                  "line_no": 3,
+                  "account": "6400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S04",
+                  "item": "EXTRA-INVOICE-S04",
+                  "person": null,
+                  "debit": "280.00",
+                  "credit": "0.00",
+                  "memo": "Computed hospitality treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S04",
+                  "line_no": 4,
+                  "account": "6410",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S04",
+                  "item": "EXTRA-INVOICE-S04",
+                  "person": null,
+                  "debit": "120.00",
+                  "credit": "0.00",
+                  "memo": "Computed hospitality treatment"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 4.1719680999958655,
+            "llm_calls": 3,
+            "input_tokens": 5336,
+            "output_tokens": 132,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.19812080000701826,
+            "cost_usd": "0.000224112"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      }
+    ],
+    [
+      {
+        "case_id": "S01",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-9c0d9f4e80934f089c07143fc9e5d150",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:06.995241+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EXTRA-EVENT-S01",
+              "task": "EXTRA-EVENT-S01",
+              "decision": "classify_and_book",
+              "classification": "staff_event",
+              "matched_event": "EXTRA-EVENT-S01",
+              "deductible": "184.87",
+              "nondeductible": "0.00",
+              "vat_recoverable": "35.13",
+              "vat_blocked": "0.00",
+              "wage_taxable": "0.00",
+              "flat_tax_40": "0.00",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "none",
+              "corrections": [],
+              "flags": [],
+              "approvers": [
+                "policy"
+              ],
+              "escalations": [],
+              "requests": [],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EXTRA-EVENT-S01",
+                "EXTRA-INVOICE-S01",
+                "POL-BV-OPT",
+                "POL-BV-VATBASIS",
+                "POL-MAT",
+                "POL-ROUND",
+                "R-BV-ALLOW",
+                "R-BV-COST",
+                "R-BV-MAX",
+                "R-BV-VAT"
+              ],
+              "chosen_by": "agent",
+              "per_participant": "110.00",
+              "entries": [
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S01",
+                  "line_no": 1,
+                  "account": "1400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S01",
+                  "item": "EXTRA-INVOICE-S01",
+                  "person": null,
+                  "debit": "35.13",
+                  "credit": "0.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S01",
+                  "line_no": 2,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S01",
+                  "item": "EXTRA-INVOICE-S01",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "220.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S01",
+                  "line_no": 3,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S01",
+                  "item": "EXTRA-INVOICE-S01",
+                  "person": null,
+                  "debit": "184.87",
+                  "credit": "0.00",
+                  "memo": "Computed staff_event treatment"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 5.693117499991786,
+            "llm_calls": 3,
+            "input_tokens": 5462,
+            "output_tokens": 124,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.20703959999082144,
+            "cost_usd": "0.000229404"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      },
+      {
+        "case_id": "S02",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-0beaebedd77244a3b586090ef57f9ba2",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:06.990932+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EXTRA-EVENT-S02",
+              "task": "EXTRA-EVENT-S02",
+              "decision": "classify_and_book",
+              "classification": "staff_event",
+              "matched_event": "EXTRA-EVENT-S02",
+              "deductible": "220.02",
+              "nondeductible": "0.00",
+              "vat_recoverable": "0.00",
+              "vat_blocked": "35.13",
+              "wage_taxable": "0.02",
+              "flat_tax_40": "0.01",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "flat_40",
+              "corrections": [],
+              "flags": [],
+              "approvers": [
+                "tax_manager"
+              ],
+              "escalations": [],
+              "requests": [
+                {
+                  "to": "P-PAY",
+                  "about": "payroll_export"
+                }
+              ],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EXTRA-EVENT-S02",
+                "EXTRA-INVOICE-S02",
+                "POL-BV-FLAT",
+                "POL-BV-OPT",
+                "POL-BV-VATBASIS",
+                "POL-MAT",
+                "POL-ROUND",
+                "R-BV-ALLOW",
+                "R-BV-COST",
+                "R-BV-FLAT",
+                "R-BV-MAX",
+                "R-BV-VAT",
+                "TAX-KIST",
+                "TAX-SOLI"
+              ],
+              "chosen_by": "agent",
+              "per_participant": "110.01",
+              "entries": [
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S02",
+                  "line_no": 1,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S02",
+                  "item": "EXTRA-INVOICE-S02",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "220.02",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S02",
+                  "line_no": 2,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S02",
+                  "item": "EXTRA-INVOICE-S02",
+                  "person": null,
+                  "debit": "220.02",
+                  "credit": "0.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-01-16",
+                  "entry_id": "VCH-EXTRA-EVENT-S02-40-True",
+                  "line_no": 1,
+                  "account": "1750",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S02",
+                  "item": null,
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "0.01",
+                  "memo": "Event tax treatment"
+                },
+                {
+                  "date": "2026-01-16",
+                  "entry_id": "VCH-EXTRA-EVENT-S02-40-True",
+                  "line_no": 2,
+                  "account": "6470",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S02",
+                  "item": null,
+                  "person": null,
+                  "debit": "0.01",
+                  "credit": "0.00",
+                  "memo": "Event tax treatment"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 5.66819039999973,
+            "llm_calls": 3,
+            "input_tokens": 5696,
+            "output_tokens": 124,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.21682489998056553,
+            "cost_usd": "0.000239232"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      },
+      {
+        "case_id": "S03",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-1c4b8498d86140fd80dce244d96060c5",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:07.001792+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EXTRA-EVENT-S03",
+              "task": "EXTRA-EVENT-S03",
+              "decision": "classify_and_book",
+              "classification": "working_meal",
+              "matched_event": "EXTRA-EVENT-S03",
+              "deductible": "100.84",
+              "nondeductible": "0.00",
+              "vat_recoverable": "19.16",
+              "vat_blocked": "0.00",
+              "wage_taxable": "0.00",
+              "flat_tax_40": "0.00",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "none",
+              "corrections": [],
+              "flags": [],
+              "approvers": [
+                "policy"
+              ],
+              "escalations": [],
+              "requests": [],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EXTRA-EVENT-S03",
+                "EXTRA-INVOICE-S03",
+                "POL-MAT",
+                "R-AE-60"
+              ],
+              "chosen_by": "agent",
+              "entries": [
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S03",
+                  "line_no": 1,
+                  "account": "1400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S03",
+                  "item": "EXTRA-INVOICE-S03",
+                  "person": null,
+                  "debit": "19.16",
+                  "credit": "0.00",
+                  "memo": "Computed working_meal treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S03",
+                  "line_no": 2,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S03",
+                  "item": "EXTRA-INVOICE-S03",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "120.00",
+                  "memo": "Computed working_meal treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S03",
+                  "line_no": 3,
+                  "account": "6490",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S03",
+                  "item": "EXTRA-INVOICE-S03",
+                  "person": null,
+                  "debit": "100.84",
+                  "credit": "0.00",
+                  "memo": "Computed working_meal treatment"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 5.779006500000833,
+            "llm_calls": 3,
+            "input_tokens": 5091,
+            "output_tokens": 128,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.18750959998578764,
+            "cost_usd": "0.000213822"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      },
+      {
+        "case_id": "S04",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-ad8420b1fcbc4f069c33c17981bd4309",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:07.005945+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EXTRA-EVENT-S04",
+              "task": "EXTRA-EVENT-S04",
+              "decision": "classify_and_book",
+              "classification": "hospitality",
+              "matched_event": "EXTRA-EVENT-S04",
+              "deductible": "280.00",
+              "nondeductible": "120.00",
+              "vat_recoverable": "76.00",
+              "vat_blocked": "0.00",
+              "wage_taxable": "0.00",
+              "flat_tax_40": "0.00",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "none",
+              "corrections": [],
+              "flags": [],
+              "approvers": [
+                "policy"
+              ],
+              "escalations": [],
+              "requests": [],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EXTRA-EVENT-S04",
+                "EXTRA-INVOICE-S04",
+                "POL-MAT",
+                "R-BEW-70",
+                "R-BEW-DOC"
+              ],
+              "chosen_by": "agent",
+              "entries": [
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S04",
+                  "line_no": 1,
+                  "account": "1400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S04",
+                  "item": "EXTRA-INVOICE-S04",
+                  "person": null,
+                  "debit": "76.00",
+                  "credit": "0.00",
+                  "memo": "Computed hospitality treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S04",
+                  "line_no": 2,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S04",
+                  "item": "EXTRA-INVOICE-S04",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "476.00",
+                  "memo": "Computed hospitality treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S04",
+                  "line_no": 3,
+                  "account": "6400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S04",
+                  "item": "EXTRA-INVOICE-S04",
+                  "person": null,
+                  "debit": "280.00",
+                  "credit": "0.00",
+                  "memo": "Computed hospitality treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S04",
+                  "line_no": 4,
+                  "account": "6410",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S04",
+                  "item": "EXTRA-INVOICE-S04",
+                  "person": null,
+                  "debit": "120.00",
+                  "credit": "0.00",
+                  "memo": "Computed hospitality treatment"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 5.79649240001163,
+            "llm_calls": 3,
+            "input_tokens": 5336,
+            "output_tokens": 132,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.16798140002356376,
+            "cost_usd": "0.000224112"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      }
+    ],
+    [
+      {
+        "case_id": "S01",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-f9c516257860467d9a04d4fc5ae0323a",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:13.800594+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EXTRA-EVENT-S01",
+              "task": "EXTRA-EVENT-S01",
+              "decision": "classify_and_book",
+              "classification": "staff_event",
+              "matched_event": "EXTRA-EVENT-S01",
+              "deductible": "184.87",
+              "nondeductible": "0.00",
+              "vat_recoverable": "35.13",
+              "vat_blocked": "0.00",
+              "wage_taxable": "0.00",
+              "flat_tax_40": "0.00",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "none",
+              "corrections": [],
+              "flags": [],
+              "approvers": [
+                "policy"
+              ],
+              "escalations": [],
+              "requests": [],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EXTRA-EVENT-S01",
+                "EXTRA-INVOICE-S01",
+                "POL-BV-OPT",
+                "POL-BV-VATBASIS",
+                "POL-MAT",
+                "POL-ROUND",
+                "R-BV-ALLOW",
+                "R-BV-COST",
+                "R-BV-MAX",
+                "R-BV-VAT"
+              ],
+              "chosen_by": "agent",
+              "per_participant": "110.00",
+              "entries": [
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S01",
+                  "line_no": 1,
+                  "account": "1400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S01",
+                  "item": "EXTRA-INVOICE-S01",
+                  "person": null,
+                  "debit": "35.13",
+                  "credit": "0.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S01",
+                  "line_no": 2,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S01",
+                  "item": "EXTRA-INVOICE-S01",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "220.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S01",
+                  "line_no": 3,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S01",
+                  "item": "EXTRA-INVOICE-S01",
+                  "person": null,
+                  "debit": "184.87",
+                  "credit": "0.00",
+                  "memo": "Computed staff_event treatment"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 6.034966200008057,
+            "llm_calls": 3,
+            "input_tokens": 5462,
+            "output_tokens": 124,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.23231859999941662,
+            "cost_usd": "0.000229404"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      },
+      {
+        "case_id": "S02",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-725299a31aa44f0fb1517ae29f7a06b8",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:13.795021+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EXTRA-EVENT-S02",
+              "task": "EXTRA-EVENT-S02",
+              "decision": "classify_and_book",
+              "classification": "staff_event",
+              "matched_event": "EXTRA-EVENT-S02",
+              "deductible": "220.02",
+              "nondeductible": "0.00",
+              "vat_recoverable": "0.00",
+              "vat_blocked": "35.13",
+              "wage_taxable": "0.02",
+              "flat_tax_40": "0.01",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "flat_40",
+              "corrections": [],
+              "flags": [],
+              "approvers": [
+                "tax_manager"
+              ],
+              "escalations": [],
+              "requests": [
+                {
+                  "to": "P-PAY",
+                  "about": "payroll_export"
+                }
+              ],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EXTRA-EVENT-S02",
+                "EXTRA-INVOICE-S02",
+                "POL-BV-FLAT",
+                "POL-BV-OPT",
+                "POL-BV-VATBASIS",
+                "POL-MAT",
+                "POL-ROUND",
+                "R-BV-ALLOW",
+                "R-BV-COST",
+                "R-BV-FLAT",
+                "R-BV-MAX",
+                "R-BV-VAT",
+                "TAX-KIST",
+                "TAX-SOLI"
+              ],
+              "chosen_by": "agent",
+              "per_participant": "110.01",
+              "entries": [
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S02",
+                  "line_no": 1,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S02",
+                  "item": "EXTRA-INVOICE-S02",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "220.02",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S02",
+                  "line_no": 2,
+                  "account": "6440",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S02",
+                  "item": "EXTRA-INVOICE-S02",
+                  "person": null,
+                  "debit": "220.02",
+                  "credit": "0.00",
+                  "memo": "Computed staff_event treatment"
+                },
+                {
+                  "date": "2026-01-16",
+                  "entry_id": "VCH-EXTRA-EVENT-S02-40-True",
+                  "line_no": 1,
+                  "account": "1750",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S02",
+                  "item": null,
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "0.01",
+                  "memo": "Event tax treatment"
+                },
+                {
+                  "date": "2026-01-16",
+                  "entry_id": "VCH-EXTRA-EVENT-S02-40-True",
+                  "line_no": 2,
+                  "account": "6470",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S02",
+                  "item": null,
+                  "person": null,
+                  "debit": "0.01",
+                  "credit": "0.00",
+                  "memo": "Event tax treatment"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 6.758284200011985,
+            "llm_calls": 3,
+            "input_tokens": 5696,
+            "output_tokens": 124,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.25474150001537055,
+            "cost_usd": "0.000239232"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      },
+      {
+        "case_id": "S03",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-1904f89eacb446e883fbc506c24db1fa",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:13.806278+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EXTRA-EVENT-S03",
+              "task": "EXTRA-EVENT-S03",
+              "decision": "classify_and_book",
+              "classification": "working_meal",
+              "matched_event": "EXTRA-EVENT-S03",
+              "deductible": "100.84",
+              "nondeductible": "0.00",
+              "vat_recoverable": "19.16",
+              "vat_blocked": "0.00",
+              "wage_taxable": "0.00",
+              "flat_tax_40": "0.00",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "none",
+              "corrections": [],
+              "flags": [],
+              "approvers": [
+                "policy"
+              ],
+              "escalations": [],
+              "requests": [],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EXTRA-EVENT-S03",
+                "EXTRA-INVOICE-S03",
+                "POL-MAT",
+                "R-AE-60"
+              ],
+              "chosen_by": "agent",
+              "entries": [
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S03",
+                  "line_no": 1,
+                  "account": "1400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S03",
+                  "item": "EXTRA-INVOICE-S03",
+                  "person": null,
+                  "debit": "19.16",
+                  "credit": "0.00",
+                  "memo": "Computed working_meal treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S03",
+                  "line_no": 2,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S03",
+                  "item": "EXTRA-INVOICE-S03",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "120.00",
+                  "memo": "Computed working_meal treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S03",
+                  "line_no": 3,
+                  "account": "6490",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S03",
+                  "item": "EXTRA-INVOICE-S03",
+                  "person": null,
+                  "debit": "100.84",
+                  "credit": "0.00",
+                  "memo": "Computed working_meal treatment"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 5.992777699997532,
+            "llm_calls": 3,
+            "input_tokens": 5091,
+            "output_tokens": 128,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.17315109999617562,
+            "cost_usd": "0.000213822"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      },
+      {
+        "case_id": "S04",
+        "score": {
+          "passed": true,
+          "tasks": [
+            {
+              "passed": true,
+              "errors": [],
+              "amounts_correct": true,
+              "false_positive_flags": [],
+              "safety_violations": []
+            }
+          ],
+          "amounts_correct": true,
+          "books_balance": true,
+          "safety_violations": []
+        },
+        "run": {
+          "run_id": "RUN-61c532a3786c4975a5ff35ddd90d3c1b",
+          "mode": "model",
+          "model": "typesafe/jev-1.14-20261014",
+          "date": "2026-10-25T14:27:13.805679+00:00",
+          "provider": "openrouter",
+          "status": "done",
+          "decisions": [
+            {
+              "case_id": "EXTRA-EVENT-S04",
+              "task": "EXTRA-EVENT-S04",
+              "decision": "classify_and_book",
+              "classification": "hospitality",
+              "matched_event": "EXTRA-EVENT-S04",
+              "deductible": "280.00",
+              "nondeductible": "120.00",
+              "vat_recoverable": "76.00",
+              "vat_blocked": "0.00",
+              "wage_taxable": "0.00",
+              "flat_tax_40": "0.00",
+              "flat_tax_37b": "0.00",
+              "payroll_method": "none",
+              "corrections": [],
+              "flags": [],
+              "approvers": [
+                "policy"
+              ],
+              "escalations": [],
+              "requests": [],
+              "rationale": "Computed from visible sources and versioned rules.",
+              "cites": [
+                "EXTRA-EVENT-S04",
+                "EXTRA-INVOICE-S04",
+                "POL-MAT",
+                "R-BEW-70",
+                "R-BEW-DOC"
+              ],
+              "chosen_by": "agent",
+              "entries": [
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S04",
+                  "line_no": 1,
+                  "account": "1400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S04",
+                  "item": "EXTRA-INVOICE-S04",
+                  "person": null,
+                  "debit": "76.00",
+                  "credit": "0.00",
+                  "memo": "Computed hospitality treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S04",
+                  "line_no": 2,
+                  "account": "1600",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S04",
+                  "item": "EXTRA-INVOICE-S04",
+                  "person": null,
+                  "debit": "0.00",
+                  "credit": "476.00",
+                  "memo": "Computed hospitality treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S04",
+                  "line_no": 3,
+                  "account": "6400",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S04",
+                  "item": "EXTRA-INVOICE-S04",
+                  "person": null,
+                  "debit": "280.00",
+                  "credit": "0.00",
+                  "memo": "Computed hospitality treatment"
+                },
+                {
+                  "date": "2026-01-15",
+                  "entry_id": "VCH-INV-EXTRA-INVOICE-S04",
+                  "line_no": 4,
+                  "account": "6410",
+                  "cost_center": "CC-ADMIN",
+                  "event": "EXTRA-EVENT-S04",
+                  "item": "EXTRA-INVOICE-S04",
+                  "person": null,
+                  "debit": "120.00",
+                  "credit": "0.00",
+                  "memo": "Computed hospitality treatment"
+                }
+              ]
+            }
+          ],
+          "metrics": {
+            "wall_seconds": 6.168121900002006,
+            "llm_calls": 3,
+            "input_tokens": 5336,
+            "output_tokens": 132,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "tool_seconds": 0.21397160000924487,
+            "cost_usd": "0.000224112"
+          },
+          "effort": null,
+          "follow_ups": []
+        }
+      }
+    ]
+  ]
+}
