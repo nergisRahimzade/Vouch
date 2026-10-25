@@ -1,0 +1,83 @@
+{
+  "id": "P06",
+  "title": "P06",
+  "as_of": "2026-04-30",
+  "setup": {
+    "events": [
+      {
+        "id": "EVT-MESSE",
+        "name": "EVT-MESSE",
+        "date": "2026-04-29",
+        "type_declared": "gift",
+        "organizer": "P-MKT",
+        "open_to": "all",
+        "purpose": "Project completion with customers",
+        "location": "Munich",
+        "host": "P-MKT"
+      }
+    ],
+    "invoices": [
+      {
+        "id": "INV-MESSE-01",
+        "event": "EVT-MESSE",
+        "vendor": "V-RST",
+        "entity": "ENT-DE",
+        "invoice_date": "2026-04-29",
+        "delivery_date": "2026-04-29",
+        "received_at": "2026-04-29",
+        "net": "7000",
+        "vat": "1330",
+        "gross": "8330",
+        "occasion": "Project completion with customers",
+        "host": "P-SALES-HEAD",
+        "place": "Munich",
+        "participants": [],
+        "lines": [
+          {
+            "category": "gift",
+            "net": "7000",
+            "vat": "1330",
+            "gross": "8330",
+            "vat_rate": "0.19",
+            "qty": 500,
+            "unit_net": "14"
+          }
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "type": "process_event",
+      "event": "EVT-MESSE"
+    }
+  ],
+  "expect": {
+    "decision": "classify_and_book",
+    "classification": "gift",
+    "deductible": "7000.00",
+    "vat_recoverable": "1330.00",
+    "flat_tax_37b": "2811.38",
+    "flags": [
+      "gift_recipients_missing"
+    ],
+    "requests": [
+      {
+        "to": "P-MKT",
+        "about": "gift_recipient_list"
+      }
+    ],
+    "approvers": [
+      "tax_manager"
+    ]
+  },
+  "people_responses": [
+    {
+      "person": "P-MKT",
+      "about": "gift_recipient_list",
+      "data": {
+        "recipients": "BP-101-BP-600"
+      }
+    }
+  ]
+}

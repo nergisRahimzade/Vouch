@@ -1,0 +1,38 @@
+{
+  "id": "P01",
+  "title": "P01",
+  "as_of": "2026-07-20",
+  "setup": {},
+  "tasks": [
+    {
+      "type": "process_event",
+      "event": "EVT-SOM26"
+    }
+  ],
+  "expect": {
+    "decision": "classify_and_book",
+    "classification": "staff_event",
+    "per_participant": "107.43",
+    "deductible": "32500.00",
+    "vat_recoverable": "6175.00",
+    "wage_taxable": "6291.60",
+    "flat_tax_40": "1769.51",
+    "payroll_method": "flat_40",
+    "approvers": [
+      "tax_manager"
+    ],
+    "requests": [
+      {
+        "to": "P-PAY",
+        "about": "payroll_export"
+      }
+    ],
+    "cites": [
+      "R-BV-ALLOW",
+      "R-BV-COST",
+      "R-BV-VAT",
+      "R-BV-FLAT",
+      "EVT-SOM26"
+    ]
+  }
+}

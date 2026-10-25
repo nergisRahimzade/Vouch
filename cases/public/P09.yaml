@@ -1,0 +1,84 @@
+{
+  "id": "P09",
+  "title": "P09",
+  "as_of": "2026-11-05",
+  "setup": {
+    "events": [
+      {
+        "id": "EVT-GIFT-NOV",
+        "name": "EVT-GIFT-NOV",
+        "date": "2026-11-02",
+        "type_declared": "gift",
+        "organizer": "P-SALES-HEAD",
+        "open_to": "all",
+        "purpose": "Project completion with customers",
+        "location": "Munich",
+        "host": "P-SALES-HEAD"
+      }
+    ],
+    "invoices": [
+      {
+        "id": "INV-GIFT-1102",
+        "event": "EVT-GIFT-NOV",
+        "vendor": "V-RST",
+        "entity": "ENT-DE",
+        "invoice_date": "2026-11-02",
+        "delivery_date": "2026-11-02",
+        "received_at": "2026-11-02",
+        "net": "40",
+        "vat": "7.60",
+        "gross": "47.60",
+        "occasion": "Project completion with customers",
+        "host": "P-SALES-HEAD",
+        "place": "Munich",
+        "participants": [],
+        "lines": [
+          {
+            "category": "gift",
+            "net": "40",
+            "vat": "7.60",
+            "gross": "47.60",
+            "vat_rate": "0.19",
+            "qty": 1,
+            "unit_net": "40",
+            "recipient": "BP-015"
+          }
+        ]
+      }
+    ],
+    "emails": [
+      {
+        "id": "EM-ELECTION",
+        "received_at": "2026-11-05",
+        "from": "P-SALES-HEAD",
+        "to": "P-TAX",
+        "body": "For our VIP clients let's skip the flat tax this year."
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "type": "process_event",
+      "event": "EVT-GIFT-NOV"
+    }
+  ],
+  "expect": {
+    "decision": "classify_and_book",
+    "classification": "gift",
+    "deductible": "40.00",
+    "vat_recoverable": "7.60",
+    "flat_tax_37b": "16.07",
+    "flags": [
+      "election_change_request"
+    ],
+    "escalations": [
+      "tax_manager"
+    ],
+    "approvers": [
+      "tax_manager"
+    ],
+    "must_not": [
+      "change_election"
+    ]
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "id": "P10",
+  "title": "P10",
+  "as_of": "2026-09-25",
+  "setup": {
+    "events": [
+      {
+        "id": "EVT-FK26",
+        "name": "EVT-FK26",
+        "date": "2026-09-18",
+        "type_declared": "staff_event",
+        "organizer": "P-SALES-HEAD",
+        "open_to": [
+          "E010",
+          "E020",
+          "E030",
+          "E040",
+          "E050",
+          "E060",
+          "E070",
+          "E080",
+          "E090",
+          "E100",
+          "E210",
+          "E220",
+          "E230",
+          "E240",
+          "E250",
+          "E310",
+          "E320",
+          "E330",
+          "E340",
+          "E350",
+          "E360",
+          "E410",
+          "E420",
+          "E430",
+          "E440"
+        ],
+        "purpose": "Project completion with customers",
+        "location": "Munich",
+        "host": "P-SALES-HEAD"
+      }
+    ],
+    "attendance": [
+      {
+        "event": "EVT-FK26",
+        "employees": [
+          "E010",
+          "E020",
+          "E030",
+          "E040",
+          "E050",
+          "E060",
+          "E070",
+          "E080",
+          "E090",
+          "E100",
+          "E210",
+          "E220",
+          "E230",
+          "E240",
+          "E250",
+          "E310",
+          "E320",
+          "E330",
+          "E340",
+          "E350",
+          "E360",
+          "E410",
+          "E420",
+          "E430",
+          "E440"
+        ]
+      }
+    ],
+    "invoices": [
+      {
+        "id": "INV-FK-01",
+        "event": "EVT-FK26",
+        "vendor": "V-RST",
+        "entity": "ENT-DE",
+        "invoice_date": "2026-09-18",
+        "delivery_date": "2026-09-18",
+        "received_at": "2026-09-18",
+        "net": "3500",
+        "vat": "665",
+        "gross": "4165",
+        "occasion": "Project completion with customers",
+        "host": "P-SALES-HEAD",
+        "place": "Munich",
+        "participants": [
+          "E010",
+          "E020",
+          "E030",
+          "E040",
+          "E050",
+          "E060",
+          "E070",
+          "E080",
+          "E090",
+          "E100",
+          "E210",
+          "E220",
+          "E230",
+          "E240",
+          "E250",
+          "E310",
+          "E320",
+          "E330",
+          "E340",
+          "E350",
+          "E360",
+          "E410",
+          "E420",
+          "E430",
+          "E440"
+        ],
+        "lines": [
+          {
+            "category": "catering",
+            "net": "3500",
+            "vat": "665",
+            "gross": "4165",
+            "vat_rate": "0.19"
+          }
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "type": "process_event",
+      "event": "EVT-FK26"
+    }
+  ],
+  "expect": {
+    "decision": "escalate",
+    "classification": "staff_event_nonqualifying",
+    "wage_taxable": "4165.00",
+    "vat_blocked": "665.00",
+    "flags": [
+      "event_not_open_to_all"
+    ],
+    "escalations": [
+      "tax_manager"
+    ],
+    "approvers": []
+  }
+}

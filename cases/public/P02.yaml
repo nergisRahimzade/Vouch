@@ -1,0 +1,96 @@
+{
+  "id": "P02",
+  "title": "P02",
+  "as_of": "2026-06-12",
+  "setup": {
+    "events": [
+      {
+        "id": "EVT-DIN-BERG",
+        "name": "EVT-DIN-BERG",
+        "date": "2026-06-11",
+        "type_declared": "hospitality",
+        "organizer": "P-SALES-HEAD",
+        "open_to": "all",
+        "purpose": "Project completion with customers",
+        "location": "Munich",
+        "host": "P-SALES-HEAD"
+      }
+    ],
+    "attendance": [
+      {
+        "event": "EVT-DIN-BERG",
+        "employees": "E201-E202",
+        "business_partners": "BP-001-BP-004"
+      }
+    ],
+    "invoices": [
+      {
+        "id": "INV-RST-0611",
+        "event": "EVT-DIN-BERG",
+        "vendor": "V-RST",
+        "entity": "ENT-DE",
+        "invoice_date": "2026-06-11",
+        "delivery_date": "2026-06-11",
+        "received_at": "2026-06-11",
+        "net": "750",
+        "vat": "142.50",
+        "gross": "892.50",
+        "occasion": "Gesch?ftsessen",
+        "host": "P-SALES-HEAD",
+        "place": "Munich",
+        "participants": [],
+        "lines": [
+          {
+            "category": "catering",
+            "net": "750",
+            "vat": "142.50",
+            "gross": "892.50",
+            "vat_rate": "0.19"
+          }
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "type": "process_event",
+      "event": "EVT-DIN-BERG"
+    }
+  ],
+  "expect": {
+    "decision": "classify_and_book",
+    "classification": "hospitality",
+    "deductible": "525.00",
+    "nondeductible": "225.00",
+    "vat_recoverable": "142.50",
+    "flags": [
+      "bewirtung_docs_missing"
+    ],
+    "requests": [
+      {
+        "to": "P-SALES-HEAD",
+        "about": "bewirtung_attendees_occasion"
+      }
+    ],
+    "approvers": [
+      "tax_manager"
+    ]
+  },
+  "people_responses": [
+    {
+      "person": "P-SALES-HEAD",
+      "about": "bewirtung_attendees_occasion",
+      "data": {
+        "participants": [
+          "BP-001",
+          "BP-002",
+          "BP-003",
+          "BP-004",
+          "E201",
+          "E202"
+        ],
+        "occasion": "Projektabschluss Linie 4 mit Bergmann Automotive"
+      }
+    }
+  ]
+}

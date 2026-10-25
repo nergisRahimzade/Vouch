@@ -1,0 +1,84 @@
+{
+  "id": "C02",
+  "title": "C02",
+  "as_of": "2026-02-26",
+  "setup": {
+    "events": [
+      {
+        "id": "EVT-WORKSHOP",
+        "name": "EVT-WORKSHOP",
+        "date": "2026-02-25",
+        "type_declared": "working_meal",
+        "organizer": "P-SALES-HEAD",
+        "open_to": "all",
+        "purpose": "Project completion with customers",
+        "location": "Munich",
+        "host": "P-SALES-HEAD",
+        "exceptional_assignment": true
+      }
+    ],
+    "attendance": [
+      {
+        "event": "EVT-WORKSHOP",
+        "employees": "E301-E312"
+      }
+    ],
+    "invoices": [
+      {
+        "id": "INV-WORKSHOP",
+        "event": "EVT-WORKSHOP",
+        "vendor": "V-RST",
+        "entity": "ENT-DE",
+        "invoice_date": "2026-02-25",
+        "delivery_date": "2026-02-25",
+        "received_at": "2026-02-25",
+        "net": "480",
+        "vat": "91.20",
+        "gross": "571.20",
+        "occasion": "Project completion with customers",
+        "host": "P-SALES-HEAD",
+        "place": "Munich",
+        "participants": [
+          "E301",
+          "E302",
+          "E303",
+          "E304",
+          "E305",
+          "E306",
+          "E307",
+          "E308",
+          "E309",
+          "E310",
+          "E311",
+          "E312"
+        ],
+        "lines": [
+          {
+            "category": "catering",
+            "net": "480",
+            "vat": "91.20",
+            "gross": "571.20",
+            "vat_rate": "0.19"
+          }
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "type": "process_event",
+      "event": "EVT-WORKSHOP"
+    }
+  ],
+  "expect": {
+    "decision": "classify_and_book",
+    "classification": "working_meal",
+    "deductible": "480.00",
+    "vat_recoverable": "91.20",
+    "wage_taxable": "0.00",
+    "flags": [],
+    "approvers": [
+      "policy"
+    ]
+  }
+}

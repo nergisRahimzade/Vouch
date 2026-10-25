@@ -1,0 +1,88 @@
+{
+  "id": "P03",
+  "title": "P03",
+  "as_of": "2026-12-15",
+  "setup": {
+    "events": [
+      {
+        "id": "EVT-GIFT-DEC",
+        "name": "EVT-GIFT-DEC",
+        "date": "2026-12-07",
+        "type_declared": "gift",
+        "organizer": "P-SALES-HEAD",
+        "open_to": "all",
+        "purpose": "Project completion with customers",
+        "location": "Munich",
+        "host": "P-SALES-HEAD"
+      }
+    ],
+    "invoices": [
+      {
+        "id": "INV-GIFT-1207",
+        "event": "EVT-GIFT-DEC",
+        "vendor": "V-RST",
+        "entity": "ENT-DE",
+        "invoice_date": "2026-12-07",
+        "delivery_date": "2026-12-07",
+        "received_at": "2026-12-07",
+        "net": "25",
+        "vat": "4.75",
+        "gross": "29.75",
+        "occasion": "Project completion with customers",
+        "host": "P-SALES-HEAD",
+        "place": "Munich",
+        "participants": [],
+        "lines": [
+          {
+            "category": "gift",
+            "net": "25",
+            "vat": "4.75",
+            "gross": "29.75",
+            "vat_rate": "0.19",
+            "qty": 1,
+            "unit_net": "25",
+            "recipient": "BP-003"
+          }
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "type": "process_event",
+      "event": "EVT-GIFT-DEC"
+    }
+  ],
+  "expect": {
+    "decision": "post_corrections",
+    "classification": "gift",
+    "nondeductible": "29.75",
+    "vat_blocked": "4.75",
+    "flat_tax_37b": "10.05",
+    "corrections": [
+      {
+        "type": "reclass",
+        "amount": "30.00"
+      },
+      {
+        "type": "vat_reversal",
+        "amount": "5.70"
+      },
+      {
+        "type": "reclass",
+        "amount": "12.05"
+      }
+    ],
+    "flags": [
+      "gift_limit_exceeded"
+    ],
+    "approvers": [
+      "tax_manager"
+    ],
+    "cites": [
+      "R-GIFT-50",
+      "R-VAT-FIX",
+      "R-37B-DED"
+    ]
+  }
+}

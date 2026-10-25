@@ -1,0 +1,66 @@
+{
+  "id": "C03",
+  "title": "C03",
+  "as_of": "2026-04-30",
+  "setup": {
+    "events": [
+      {
+        "id": "EVT-PENS",
+        "name": "EVT-PENS",
+        "date": "2026-04-29",
+        "type_declared": "promo_item",
+        "organizer": "P-SALES-HEAD",
+        "open_to": "all",
+        "purpose": "Project completion with customers",
+        "location": "Munich",
+        "host": "P-SALES-HEAD"
+      }
+    ],
+    "invoices": [
+      {
+        "id": "INV-PENS",
+        "event": "EVT-PENS",
+        "vendor": "V-RST",
+        "entity": "ENT-DE",
+        "invoice_date": "2026-04-29",
+        "delivery_date": "2026-04-29",
+        "received_at": "2026-04-29",
+        "net": "2500",
+        "vat": "475",
+        "gross": "2975",
+        "occasion": "Project completion with customers",
+        "host": "P-SALES-HEAD",
+        "place": "Munich",
+        "participants": [],
+        "lines": [
+          {
+            "category": "promo_item",
+            "net": "2500",
+            "vat": "475",
+            "gross": "2975",
+            "vat_rate": "0.19",
+            "qty": 1000,
+            "unit_net": "2.50"
+          }
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "type": "process_event",
+      "event": "EVT-PENS"
+    }
+  ],
+  "expect": {
+    "decision": "classify_and_book",
+    "classification": "promo_item",
+    "deductible": "2500.00",
+    "vat_recoverable": "475.00",
+    "flat_tax_37b": "0.00",
+    "flags": [],
+    "approvers": [
+      "policy"
+    ]
+  }
+}
