@@ -8,6 +8,8 @@ It runs with no human input until approvals. Running it again finds what is alre
 from __future__ import annotations
 
 import json
+import time
+from concurrent.futures import ThreadPoolExecutor
 import sqlite3
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -15,7 +17,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from vouch.agent import claims, questions, templates
-from vouch.agent.policy import PolicyFailed
+from vouch.agent.policy import PolicyFailed, Unreachable
 from vouch.agent.tools import MONEY_WORDS, Toolbox, instruction_flags
 from vouch.calc import fx
 from vouch.calc.pay import YTD_KEYS, calculate_pay
@@ -25,12 +27,25 @@ from vouch.money import ZERO, fmt
 from vouch.recon.run import reconcile
 from vouch.recon.sources import Sources
 
+RETRY_WAITS = (10, 30, 60)       # seconds before each further try of cases the model could not be reached for
+
 NOT_OWED = {"paid_not_in_hr", "paid_after_exit", "entity_differs_from_hr"}   # people left out of the accrual
 
 
 def ensure(conn: sqlite3.Connection) -> None:
     gates.ensure(conn)
     conn.executescript(Path(__file__).with_name("schema.sql").read_text(encoding="utf-8"))
+    if "budget_usd" not in [r[1] for r in conn.execute("PRAGMA table_info(agent_runs)")]:
+        conn.execute("ALTER TABLE agent_runs ADD COLUMN budget_usd TEXT")       # databases made before the cap
+    conn.commit()
+
+
+def _save_usage(conn, run_id: str, policy) -> None:
+    """The run's tokens and cost so far, so the dashboard shows what a live run is spending as it goes."""
+    usage = policy.usage
+    conn.execute("UPDATE agent_runs SET input_tokens = ?, output_tokens = ?, cache_read_tokens = ?, cost_usd = ? "
+                 "WHERE run_id = ?", (usage.input_tokens, usage.output_tokens, usage.cache_read_tokens,
+                                      str(usage.cost(policy.model or "")), run_id))
     conn.commit()
 
 
@@ -44,9 +59,11 @@ def run_close(conn: sqlite3.Connection, policy) -> dict:
     src = Sources(conn)
     month = src.open_month
     run_id = f"RUN-{conn.execute('SELECT COUNT(*) FROM agent_runs').fetchone()[0] + 1:03d}"
-    conn.execute("INSERT INTO agent_runs (run_id, close_period, mode, model, started_at, status) VALUES (?, ?, ?, ?, ?, "
-                 "'running')", (run_id, month, policy.mode, policy.model,
-                                datetime.now(timezone.utc).isoformat(timespec="seconds")))
+    budget = getattr(policy, "budget", None)
+    conn.execute("INSERT INTO agent_runs (run_id, close_period, mode, model, started_at, status, budget_usd) VALUES "
+                 "(?, ?, ?, ?, ?, 'running', ?)", (run_id, month, policy.mode, policy.model,
+                                                   datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                                                   None if budget is None else str(budget)))
     audit.log(conn, VOUCH, "close_started", month, "done", f"{policy.mode} run {run_id}",
               {"run": run_id, "mode": policy.mode, "model": policy.model})
 
@@ -92,28 +109,69 @@ def run_close(conn: sqlite3.Connection, policy) -> dict:
     toolbox = Toolbox(conn)
     toolbox.call("list_cases", {})
     failures = {}
-    for case in cases:
+
+    retry: list[dict] = []
+
+    def work_one(case, retrying: bool = False) -> None:
         cid = case["finding_id"]
-        status = conn.execute("SELECT status FROM cases WHERE case_id = ?", (cid,)).fetchone()[0]
-        if status == "resolved":
-            audit.log(conn, VOUCH, "case_skipped", cid, "done", "already resolved; nothing left to do")
-            continue
-        started = _work_started(conn, cid)
-        if started:
-            # Someone (an earlier run, or a colleague) started this case: keep what is done, finish the rest.
-            audit.log(conn, VOUCH, "earlier_work_found", cid, "done",
-                      f"found earlier work ({', '.join(started)}); finishing only what is missing", {"work": started})
-        tool_calls = len(toolbox.corpus)
+        with toolbox.lock:
+            status = conn.execute("SELECT status FROM cases WHERE case_id = ?", (cid,)).fetchone()[0]
+            if status == "resolved":
+                audit.log(conn, VOUCH, "case_skipped", cid, "done", "already resolved; nothing left to do")
+                return
+            started = _work_started(conn, cid)
+            if started:
+                # Someone (an earlier run, or a colleague) started this case: keep what is done, finish the rest.
+                audit.log(conn, VOUCH, "earlier_work_found", cid, "done",
+                          f"found earlier work ({', '.join(started)}); finishing only what is missing",
+                          {"work": started})
+        toolbox.working_on(cid)
         try:
             policy.work(toolbox.cases[cid], toolbox)
+        except Unreachable as failure:
+            if not retrying:
+                with toolbox.lock:
+                    retry.append(case)
+                    audit.log(conn, VOUCH, "case_retry_later", cid, "done",
+                              f"{failure}; will try this case once more at the end of the step")
+                return
+            with toolbox.lock:
+                failures[cid] = str(failure)
+                gates.set_case(conn, VOUCH, cid, "held", f"held: {failure}", {"failure": str(failure)})
+                _save_usage(conn, run_id, policy)
+            return
         except PolicyFailed as failure:
-            failures[cid] = str(failure)
-            gates.set_case(conn, VOUCH, cid, "held", f"held: {failure}", {"failure": str(failure)})
-            continue
-        broken = [json.loads(r)["error"] for r in toolbox.corpus[tool_calls:] if json.loads(r).get("tool_error")]
-        if broken:
-            failures[cid] = broken[0]
-            gates.set_case(conn, VOUCH, cid, "held", f"held: {broken[0]}", {"tool_errors": broken})
+            with toolbox.lock:
+                failures[cid] = str(failure)
+                gates.set_case(conn, VOUCH, cid, "held", f"held: {failure}", {"failure": str(failure)})
+                _save_usage(conn, run_id, policy)
+            return
+        with toolbox.lock:
+            broken = [json.loads(r)["error"] for r in toolbox.case_results(cid) if json.loads(r).get("tool_error")]
+            if broken:
+                failures[cid] = broken[0]
+                gates.set_case(conn, VOUCH, cid, "held", f"held: {broken[0]}", {"tool_errors": broken})
+            _save_usage(conn, run_id, policy)
+
+    workers = max(1, int(getattr(policy, "parallel_cases", 1)))
+    if workers == 1:
+        for case in cases:
+            work_one(case)
+    else:
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="vouch-case") as pool:
+            list(pool.map(work_one, cases))           # list() re-raises anything unexpected; nothing is swallowed
+    # A dropped connection can last a minute or two. Wait, then work the cases again one at a time; the last
+    # round holds any case that still cannot get through, with the plain reason.
+    for round_no, wait in enumerate(RETRY_WAITS, 1):
+        if not retry:
+            break
+        audit.log(conn, VOUCH, "retry_round", f"round {round_no}", "done",
+                  f"{len(retry)} case(s) could not reach the model; waiting {wait}s before trying again")
+        conn.commit()
+        time.sleep(wait)
+        waiting, retry[:] = list(retry), []
+        for case in waiting:
+            work_one(case, retrying=round_no == len(RETRY_WAITS))
     conn.commit()
     _step(conn, 5, "work_cases", f"{len(cases) - len(failures)} cases worked, {len(failures)} held after a failure",
           {"failures": failures})

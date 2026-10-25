@@ -9,7 +9,10 @@ SCHEMA_FILES = ["schema.sql", "ledger.sql", "periods.sql"]
 
 
 def connect(path: Path | str = DEFAULT_DB) -> sqlite3.Connection:
-    conn = sqlite3.connect(path)
+    # A connection may be used from another thread than the one that opened it (the dashboard's server opens
+    # and uses a request's connection on different workers; a close may work several cases at once). Code that
+    # shares a connection between threads takes turns (Toolbox.lock); nothing uses one from two at once.
+    conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn

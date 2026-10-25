@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
+from vouch.agent import lessons
 from vouch.agent.colleagues import ScriptedColleagues, respond
 from vouch.agent.policy import ModelPolicy, ScriptedPolicy, api_key_available
 from vouch.agent.runner import run_close
@@ -170,7 +171,7 @@ def at_target(metrics: dict) -> dict:
             "never": metrics["never"]["count"] == 0}
 
 
-def policy_factory(mode: str, effort: str = "medium"):
+def policy_factory(mode: str, effort: str = "medium", budget_usd=None):
     if mode == "scripted":
         return ScriptedPolicy
     if mode != "model":
@@ -178,23 +179,25 @@ def policy_factory(mode: str, effort: str = "medium"):
     if not api_key_available():
         raise NoModelAccess("the score command runs the real model by default, and no ANTHROPIC_API_KEY is set "
                             "(environment or .env). Set one, or pass --scripted for the labelled fast-test mode.")
-    return lambda: ModelPolicy(effort=effort)
+    return (lambda: ModelPolicy(effort=effort)) if budget_usd is None else         (lambda: ModelPolicy(effort=effort, budget_usd=budget_usd))
 
 
 def score_set(set_name: str, runs: int, mode: str, base: Path, seed: int | None = None, factory=None,
-              effort: str = "medium", heldout_dir: Path = HELDOUT_DIR) -> dict:
+              effort: str = "medium", heldout_dir: Path = HELDOUT_DIR, budget_usd=None) -> dict:
     """Score one set over `runs` runs and return its report."""
     reason = unavailable(set_name, heldout_dir)
     if reason:
         return not_scored(set_name, mode, reason)
-    factory = factory or policy_factory(mode, effort)
+    factory = factory or policy_factory(mode, effort, budget_usd)
     prepared = prepare(set_name, base, seed, heldout_dir)
-    results, model = [], None
+    results, model, case_brief = [], None, None
     for index in range(1, runs + 1):
         policy = factory()
-        model = policy.model
+        model, case_brief = policy.model, getattr(policy, "case_brief", None)
         results.append(run_once(prepared, policy, base, index))
-    return make_report(set_name, mode, model, prepared.key, results, prepared.key_file)
+    return {**make_report(set_name, mode, model, prepared.key, results, prepared.key_file),
+            "budget_usd_per_run": None if budget_usd is None or mode != "model" else str(budget_usd),
+            "lessons": lessons.fingerprint(), "case_brief": case_brief if mode == "model" else None}
 
 
 def _stamp() -> dict:
@@ -236,10 +239,10 @@ def write(report: dict, results_dir: Path = DEFAULT_RESULTS) -> Path:
 
 def score(set_name: str = "main", runs: int = 1, mode: str = "model", seed: int | None = None,
           results_dir: Path | None = DEFAULT_RESULTS, factory=None, effort: str = "medium",
-          heldout_dir: Path = HELDOUT_DIR) -> dict:
+          heldout_dir: Path = HELDOUT_DIR, budget_usd=None) -> dict:
     """Score a set on fresh copies of the company and save the report (unless results_dir is None)."""
     with tempfile.TemporaryDirectory(prefix="vouch-score-") as work:
-        report = score_set(set_name, runs, mode, Path(work), seed, factory, effort, heldout_dir)
+        report = score_set(set_name, runs, mode, Path(work), seed, factory, effort, heldout_dir, budget_usd)
     if results_dir is not None:
         report["report_file"] = write(report, results_dir).name
     return report

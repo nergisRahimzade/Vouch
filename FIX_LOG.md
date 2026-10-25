@@ -142,3 +142,24 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause:** `questions.answer` raised `Refused` directly instead of going through `gates.refuse`, which logs (and commits) the refusal before raising it.
 - **What changed:** both checks call `gates.refuse` with the rule and the question. Test added to `tests/test_u_dashboard.py`.
 - **Kind of problem handled:** every refusal now goes through the one gate that logs it; no `raise Refused(` is left outside `gates.py` and the tool dispatcher (which logs its own refusals).
+
+## 2026-10-24 — the dashboard sometimes answered 500: a connection used from another thread
+
+- **Failing check:** repeating the dashboard render check against a live server failed in 4 of 6 runs; the server log showed `sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread` (HTTP 500 on the ledger, case and other endpoints).
+- **Root cause:** the page loads several views at once; for each request the server opens the database connection in one worker thread and uses it in another, and `sqlite3` refuses that by default. It showed only under concurrent requests, which is why the earlier single-request checks passed.
+- **What changed:** `vouch.db.connect` opens connections with `check_same_thread=False`. Each request still uses its connection one call at a time; code that shares a connection between threads (the parallel close, later) takes turns with a lock. Tests: `test_the_page_can_ask_for_many_things_at_once`, `test_a_connection_can_be_used_from_another_thread`.
+- **Kind of problem handled:** any connection opened and used on different threads, by the server or by the close.
+
+## 2026-10-24 — the live agent asked questions it shouldn't, and did not route an accrual to the controller
+
+- **Failing check:** the first live scores (main set, 3 runs): false holds 6.61% in every run (limit 5%), and the self-approved accrual case missed in 3 of 3 runs. A scripted score of the same set is 14/14 with 0 false holds, and the live run from before the efficiency work behaved the same way.
+- **Root cause:** a case carries a `proposed_action`, but nothing told the model how each maps onto its tools, or that a question is for facts the system of record cannot settle. For a half-cleared payment batch it asked Treasury a question as well as requesting funding; the case names 39 people, and every one counts as questioned. For a self-approved accrual it asked the controller a question instead of sending the accrual request that routes it.
+- **What changed:** a generic paragraph in `SYSTEM` (`vouch/agent/policy.py`): follow the proposed action with the matching tool; a funding or approval request already reaches the right colleague, so do not also ask about the same thing; ask only for facts the trusted source cannot settle. It names no person, payment, grant, month or planted case.
+- **Kind of problem handled:** any case whose recommended route is a request, not a question. Live check: both cases right in 3 of 3 tries each (before: 0 of 3 and 0 of 3).
+
+## 2026-10-24 — my first fix to the agent's instructions broke four other cases
+
+- **Failing check:** the live score after the previous fix: Evidence complete fell from 14/14 to 11/14 (HR, the stock admin and Treasury no longer asked on three kinds of case) and the backdated-raise case was uncaught (no correction drafted).
+- **Root cause:** the previous paragraph said to ask only for facts the trusted source cannot settle, which told the model to skip confirmations those cases need; and its "hold_* then ask" rule applied to the backdated-raise action, whose name starts with `hold_` but which needs a draft and an arrears request.
+- **What changed:** the instructions give that action its own line, and tell the model to ask the colleague the case names for what only they can confirm (the exception: a colleague just sent a request). Verified live on all six affected kinds (12 of 12 tries), then by a full live score: caught 14/14, evidence 14/14, false holds 0%, money correct, never 0, 3 of 3 runs at target.
+- **Kind of problem handled:** any case where the recommended route and the person to ask are both needed; a broad "ask less" rule must be checked against every kind of case, not only the one that prompted it.
