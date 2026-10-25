@@ -16,3 +16,7 @@ __pycache__/
 
 fx_refresh.log
 /sealed/
+
+# Local API run databases and validation process logs
+/.vouch/
+/results/checkpoints/

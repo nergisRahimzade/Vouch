@@ -85,3 +85,17 @@ Company data is simulated; rules and policies follow VOUCH_DE_EVENT_TAX_SPEC.md.
 - Live checkpoint: claude-opus-5-5, medium effort, 2026-10-25; public suite 15 cases ? 3 runs and P11 ? 5 consecutive runs. Expected tax amounts and thresholds were not changed.
 - Root-cause changes are recorded in FIX_LOG.md. The obsolete payroll tests were adapted with your explicit approval; later failing assertions were left fixed while production code was repaired.
 
+## T9 ? Performance implementation and validation gates
+
+### In simple words
+- What: Added measured concurrency, caching controls, and effort selection; kept unproven options opt-in.
+- Why: A faster run must keep its accuracy and controls.
+- How: Use source snapshots for parallel reads, isolated databases for concurrent cases, stable prefix caching, bounded retries, and measured reports.
+- Tests: Included in the successful integration checkpoint: 206 passed, 0 failed, 0 skipped (189 deterministic and 17 live tests).
+- Needs your approval: Owner holdout and cost-saving validation remain pending; T9 is partial.
+
+### In software and finance terms
+- The medium-effort public suite passed all 15 cases in all 3 runs in 86.21 seconds total with zero safety violations and USD 1.933234 calculated cost. The 60% cost-reduction and owner-holdout gates remain pending; no unsupported saving is claimed.
+- Live checkpoint: claude-opus-5-5, medium effort, 2026-10-25; public suite 15 cases ? 3 runs and P11 ? 5 consecutive runs. Expected tax amounts and thresholds were not changed.
+- Root-cause changes are recorded in FIX_LOG.md. The obsolete payroll tests were adapted with your explicit approval; later failing assertions were left fixed while production code was repaired.
+
