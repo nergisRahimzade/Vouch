@@ -9,7 +9,7 @@ its T5 when v3 superseded it; its domain-neutral work is reused here.
 | T1 | `v3-t1-mapping` | `MAPPING.md` + legacy tags | Every module mapped | done |
 | T2 | `v3-t2-schema` | Schema, rules table, base fixtures, employee generator, time travel (reuse) | Seed reproducible | done |
 | T3 | `v3-t3-engine` | Event tax engine + unit tests (§6.1, POL-ROUND) | All rules hand-checked | done |
-| T4 | `v3-t4-ledgers` | Per-person ledgers, optimizer, corrections + tests | Retro cases pass in unit tests | |
+| T4 | `v3-t4-ledgers` | Per-person ledgers, optimizer, corrections + tests | Retro cases pass in unit tests | done |
 | T5 | `v3-t5-detectors` | Entries, period lock, detectors, routing | Unit tests pass | |
 | T6 | `v3-t6-scenarios` | Scenario loader updates, public cases P01–P11 + C01–C04, scorer fields, holdout loader | Scorer runs on public set | |
 | T7 | `v3-t7-bench` | Bench baseline | `perf_baseline.json` | |
