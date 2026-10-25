@@ -7,7 +7,7 @@ replaced by the backup, recorded in the audit trail; if both fail the run pauses
 import json
 import os
 
-PROVIDERS = {"deepseek": ("https://api.deepseek.com", "deepseek-v4-pro"),
+PROVIDERS = {"jev": ("https://api.typesafe.ai/v1", "jev-latest"), "deepseek": ("https://api.deepseek.com", "deepseek-v4-pro"),
              "kimi": ("https://api.moonshot.ai/v1", "kimi-k2.6")}
 PAUSED = "paused: model unavailable"
 MODEL_ERROR = "hold: model error"

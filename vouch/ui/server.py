@@ -209,7 +209,10 @@ def create_app(db_path=DEFAULT_DB, *, run_root=None, scenarios_dir=None, results
             from vouch.calc import eventtax as et
             gift_ledger=et.gift_ledger(person_gifts,year,src.rules).to_dict()
             limit=src.rules.value("R-GIFT-VER",f"{year}-12-31")
-            return {"person_id":person_id,"year":year,"rows":rows,"gifts":gift_ledger,
+            person=next(p for p in src.data["employees"]+src.data["business_partners"] if p["id"]==person_id)
+            return {"person_id":person_id,"name":person.get("name"),"year":year,
+                    "kind":"employee" if person_id in {e["id"] for e in src.data["employees"]} else "business_partner",
+                    "unit":person.get("cost_center") or person.get("company"),"rows":rows,"gifts":gift_ledger,
                     "allowance_assignment":ledger.assignment.get(person_id,[]),
                     "totals":{"taxable":fmt(sum((row["taxable"] for (person,_),row in ledger.rows.items() if person==person_id),Decimal(0))),
                               "gift_value":gift_ledger.get("total","0.00"),
@@ -273,7 +276,10 @@ def create_app(db_path=DEFAULT_DB, *, run_root=None, scenarios_dir=None, results
     def entries(from_year: int | None=None,to_year: int | None=None):
         with open_db() as conn:
             first,last,_=year_window(conn,from_year,to_year)
-            return [{**dict(r),"lines":[dict(l) for l in conn.execute("SELECT * FROM journal_lines WHERE entry_id=?",(r["entry_id"],))]}
+            voids=conn.execute("SELECT 1 FROM sqlite_master WHERE name='entry_voids'").fetchone()
+            voided={row[0] for row in conn.execute("SELECT entry_id FROM entry_voids")} if voids else set()
+            return [{**dict(r),"voided":r["entry_id"] in voided,
+                     "lines":[dict(l) for l in conn.execute("SELECT * FROM journal_lines WHERE entry_id=?",(r["entry_id"],))]}
                     for r in conn.execute("SELECT * FROM journal_entries WHERE entry_date>=? AND entry_date<=? ORDER BY entry_date,entry_id",
                                           (f"{first:04d}-01-01",f"{last:04d}-12-31"))]
 

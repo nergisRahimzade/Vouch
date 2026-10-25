@@ -14,6 +14,12 @@ def main():
         from vouch.agent.policy import load_credentials
         from vouch.agent.chat_backend import configured, preflight
         load_credentials()
+        import os
+        if os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY") or os.environ.get("VOUCH_PROVIDER") == "jev":
+            from vouch.agent.jev_backend import preflight as jev_preflight
+            results = jev_preflight()
+            for name,ok,reason in results: print(("GREEN " if ok else "RED   ")+name+("" if ok else ": "+reason))
+            sys.exit(0 if all(ok for _,ok,_ in results) else 1)
         if not configured():
             print("RED: no model provider configured (set VOUCH_PROVIDER=deepseek and VOUCH_API_KEY in .env)");sys.exit(1)
         results=preflight()

@@ -71,3 +71,5 @@ and unmet validation gates. The current task status is in [PLAN.md](PLAN.md).
 The Books page defaults to the last ten calendar years relative to the scenario's as_of date.
 It displays actual entries and labels years without recorded history. The supplied company currently
 has 2026 records; earlier financial history is not invented.
+
+Jev uses the official TypeSafe decision API rather than Chat Completions. Set `JEV_API_KEY` (or `TYPESAFE_API_KEY`) locally; absent an explicit provider/model selection, this selects `jev-latest` for live runs. Explicit configuration is also supported: `VOUCH_PROVIDER=jev`, `VOUCH_BASE_URL=https://api.typesafe.ai/v1`, `VOUCH_MODEL=jev-latest`, `VOUCH_API_KEY=...`. Run `python -m vouch preflight` before live evaluation. A rejected key pauses the case safely; it is not an accuracy score. No Anthropic effort or prompt-cache settings are sent to Jev.

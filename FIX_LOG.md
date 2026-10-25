@@ -324,3 +324,10 @@ was changed to pass. Consequence recorded: the holdout is no longer an unseen me
 - `/api/scores` adds the latest holdout aggregate, never per-case details (§10).
 - Rule sources: each rule's `checked` field records what was verified (22 verified; R-BV-DEF's
   more-than-half test and R-BEW-DOC's EUR 250 host rule were not found in the statute text). No value changed.
+
+## Jev adapter / UI execution blockers (2026-10-25)
+- Failure: Jev key HTTP 401 at official TypeSafe endpoint. Root cause: rejected provider credential, before any model decision. Fixed the execution path to audit a sanitized status and pause safely; active key still required for live accuracy validation.
+- Failure: three unchanged chat-provider tests selected Jev after adding its key. Root cause: credential-based default outranked explicit provider configuration. Fixed model/provider precedence in production; all three passed unchanged.
+- Failure: two unchanged UI contract checks lost descriptive copy in supplied UI changes. Restored accurate document metadata for event accounting and ten-year books; both passed unchanged.
+- Failure: person lookup used form.id (the form element's ID string), not its input. Fixed to elements.namedItem('id').value.
+- Verification: 214 non-live tests passed. Added regressions for unlisted typed decisions, sanitized authenticated failure with no postings, and resolved model/token accounting. Mocked adapter demo scores are explicitly not live accuracy scores.

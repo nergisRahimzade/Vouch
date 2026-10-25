@@ -79,6 +79,8 @@ class Usage:
         self.cache_write_tokens += getattr(usage, "cache_creation_input_tokens", 0) or 0
 
     def cost(self, model):
+        if model.startswith("jev"):
+            return Decimal(self.input_tokens) * Decimal("0.042") / 1_000_000
         prices = {"claude-opus-5-5": ("4", "20", "0.20", "5"),
                   "claude-sonnet-5-5": ("2", "10", "0.10", "2.50"),
                   "gpt-6.1-sol": ("2", "10", "0.10", "2.50"),
@@ -96,13 +98,16 @@ def load_credentials():
     if path.exists():
         for line in path.read_text(encoding="utf-8").splitlines():
             key, sep, value = line.partition("=")
-            if sep and (key.strip() in {"ANTHROPIC_API_KEY", "OPENAI_API_KEY"} or key.strip().startswith("VOUCH_")):
+            if sep and (key.strip() in {"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "JEV_API_KEY", "TYPESAFE_API_KEY"} or key.strip().startswith("VOUCH_")):
                 os.environ.setdefault(key.strip(), value.strip().strip(chr(34)).strip(chr(39)))
 
 
 def api_key_available(model=None):
     load_credentials()
     from vouch.agent import chat_backend
+    selected_jev = (model or os.environ.get("VOUCH_MODEL", "")).startswith("jev") or os.environ.get("VOUCH_PROVIDER") == "jev" or (model is None and not chat_backend.configured() and (os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY")))
+    if selected_jev:
+        return bool(os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY") or os.environ.get("VOUCH_API_KEY"))
     if chat_backend.configured():
         return any(c["api_key"] for c in chat_backend.configured())
     selected = model or os.environ.get("VOUCH_MODEL", MODEL)
@@ -226,7 +231,9 @@ class ModelPolicy:
 
     def __init__(self, model=None, effort="high", client=None, timeout=90, cache_conversation=False, batch_actions=False):
         load_credentials()
-        self.model = model or os.environ.get("VOUCH_MODEL", MODEL)
+        from vouch.agent import chat_backend
+        configured_primary = chat_backend.config("VOUCH_")
+        self.model = model or (configured_primary["model"] if configured_primary else None) or os.environ.get("VOUCH_MODEL") or ("jev-latest" if client is None and (os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY")) else MODEL)
         self.effort, self.cache_conversation = effort, cache_conversation
         self.system = SYSTEM + ("\nWhen a proposal is ready, request draft_entries, draft_payroll_export, draft_recipient_notice, "
             "and request_approval together in that order in one turn. Code executes these dependent actions sequentially. "
@@ -236,9 +243,12 @@ class ModelPolicy:
         from vouch.agent import chat_backend
         primary = chat_backend.config("VOUCH_")
         self.backups = [c for c in [chat_backend.config("VOUCH_BACKUP_")] if c]
-        self.provider = "chat" if primary and (model is None or model == primary["model"]) else \
+        self.provider = "jev" if self.model.startswith("jev") else "chat" if primary and (model is None or model == primary["model"]) else \
             "openai" if self.model.startswith("gpt-") else "anthropic"
-        if self.provider == "chat":
+        if self.provider == "jev":
+            self.effort = None
+            self.client = client
+        elif self.provider == "chat":
             # OpenAI-compatible providers: no Anthropic prompt caching, no effort setting.
             self.effort = None
             self.tools = chat_backend.tools(SPECS)
@@ -266,6 +276,9 @@ class ModelPolicy:
                 self.client = None
 
     def work(self, case, toolbox):
+        if self.provider == "jev":
+            from vouch.agent.jev_backend import work
+            return work(self, case, toolbox)
         if self.provider == "chat":
             from vouch.agent.chat_backend import work
             return work(self, case, toolbox)

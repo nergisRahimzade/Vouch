@@ -1,0 +1,12 @@
+/* The few utilities and controls Vouch needs beyond the copied Lovable stylesheet. */
+[hidden]{display:none!important}
+.overflow-x-auto{overflow-x:auto}
+.whitespace-pre-wrap{white-space:pre-wrap}
+.break-all{overflow-wrap:anywhere}
+.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mt-3{margin-top:.75rem}
+.control{height:2rem;border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);background:var(--card);padding:0 .6rem;font:inherit;color:inherit}
+.control:focus{outline:2px solid var(--ring);outline-offset:1px}
+pre.evidence{max-height:18rem;overflow:auto;background:var(--muted);border-radius:calc(var(--radius) - 2px);padding:.6rem;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:11px}
+details>summary{cursor:pointer}
+.step-dot{width:.375rem;height:.375rem;border-radius:9999px;margin-top:.45rem;flex-shrink:0}
