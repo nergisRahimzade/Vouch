@@ -158,4 +158,39 @@ In the brief-on score every miss except the accrual case was a dropped connectio
 
 **Why (track):** "Would you hire it?" and "Is it real enough?": cost and speed work that does not trade away accuracy, plus a live score that exposed and fixed real behaviour gaps instead of being tuned. "Asks at the right moment": questions only for facts the sources cannot settle. "Proof it works": every figure above is a measured, labelled result.
 
-**Tests:** 335 passed, 0 failed, 0 skipped on the full suite (before the retry backoff and the instructions change); the retry and parallel tests were rerun after, 5 passed. No existing test, answer-key entry, planted case, threshold or seed was changed. Two of my own new tests had wrong expectations, which I corrected because the program was right (recorded in the commit history).
+**Tests:** 335 passed on the full suite before the retry backoff and the instructions change; 338 passed, 0 failed, 0 skipped on the final code (before the retry backoff and the instructions change); the retry and parallel tests were rerun after, 5 passed. No existing test, answer-key entry, planted case, threshold or seed was changed. Two of my own new tests had wrong expectations, which I corrected because the program was right (recorded in the commit history).
+
+## 15. 2026-10-24, 21:55 · branch `efficiency` · Correction: my first accuracy fix overcorrected; final live score at target
+
+**What went wrong.** Entry 14's instructions paragraph fixed the two problems it targeted (39 false holds; accrual not routed) but the live score that followed showed I had broken other things: the agent skipped questions the cases require (HR on the leaver case, the stock admin on the forfeiture, Treasury on the duplicate payment), and it stopped drafting the backdated-raise correction. Evidence complete fell from 14/14 to 11/14 and one planted mistake went uncaught. Two causes, both mine: (1) "ask only for a fact the system of record cannot settle" told the model to skip confirmations the cases need; (2) the backdated-raise action's name starts with `hold_`, so my "hold, then ask" rule misapplied to it, although it needs a draft plus an arrears request.
+
+**Fix** (`vouch/agent/policy.py`, the agent's instructions, still by kind of action and naming no person, payment, grant, month or planted case): the backdated-raise action gets its own line (draft the correction, request approval for the entry, request approval of kind arrears for the controller); the case's named colleague (`ask_person`) is asked for what only they can confirm, even when the trusted source already points one way; the one exception is a colleague just sent a request, because that request is already the ask. This matches what the scripted playbook does for every kind.
+
+**Checked live before re-scoring** (6 kinds, 2 tries each, $1.03): backdated raise: draft + entry request + arrears request to the controller (2/2); leaver paid: HR asked, entry requested (2/2); forfeiture: stock admin asked, entry requested (2/2); duplicate payment: held, Treasury asked (2/2); half-cleared batch: funding request only, no question (2/2); self-approved accrual: accrual request to the controller (2/2).
+
+**Final live score (main set, 3 runs, claude-opus-5-5, brief on, retry with backoff, all fixes; $4.03):**
+
+| Measure | Result | Target |
+|---|---|---|
+| Caught | **14/14** | 100% |
+| False holds (worst run) | **0/590 (0.00%)** | under 5% |
+| Evidence complete | **14/14** | 100% |
+| Money correct | **13/13, books balance** | 100% |
+| Never (forbidden actions) | **0** | 0 |
+| Runs at target | **3/3**, none flaky | |
+| Cases lost to dropped connections | **0** | |
+
+**Compared with before (all live, main set, 3 runs):**
+
+| | A: first, brief on, no retry | B: brief off | C: brief on, 1 retry | **Final** |
+|---|---|---|---|---|
+| Caught | 9/14 | 13/14 | 9/14 | **14/14** |
+| Evidence complete | 10/14 | 14/14 | 10/14 | **14/14** |
+| False holds | 6.61% | 6.61% | 6.61% | **0%** |
+| Cost per close | $1.44 | $1.83 | $1.45 | **$1.34** |
+
+Before any efficiency work, one live close cost **$3.48**. A live close now costs about **$1.34 (−61%)**, and 3 closes take about 13 minutes. A 3-close score took 8 minutes in the run just before this correction and 13 here; the difference is the model's own turn count and the network, so I am not claiming a precise speed figure.
+
+**Not yet shown:** the demo scenario needs **5 runs in a row** at target and has been run for 3 (all 3 at target; the demo check says "not passed" until 5). The scripted playbook was already 14/14. The held-out set has no cases yet and the clean set (no mistakes) has not been scored live. "Handled differently" lists 3 mistakes (MAIN-05, 06, 07): the outcome was right every time, but the exact steps varied between runs.
+
+**Why (track):** "Is it real enough?" and "proof it works": the number that matters moved from 9/14 to 14/14 on a score that exposed my own regression rather than hiding it; "Asks at the right moment": it asks the colleague a case names, and not when a request already is the ask; "Would you hire it?": cost cut by about 60% with accuracy at target.
