@@ -297,3 +297,16 @@ Score-selection fix: `/api/scores` now prefers the latest complete public suite 
 
 ### In software and finance terms
 - DEMO_VIDEO_SCRIPT.md preserves all measured claims, accounting controls and real-versus-simulated disclosures. Only presentation order and corresponding navigation instructions changed.
+
+## Merge completed code into main — 2026-10-25
+
+### In simple words
+- What: Brought all completed v3 work into local main and left main checked out.
+- Why: The finished backend, agent, frontend, tests and demo documents now share the main branch.
+- How: Fetched remote main, created local main from it and fast-forwarded the 74 completed commits. Every local v3 task branch is included; no merge conflict or code rewrite was needed.
+- Tests: 225 deterministic tests passed, 0 failed; 21 billed live tests were not selected for this merge-only verification. Both frontend JavaScript syntax checks passed.
+- Needs your approval: nothing for the local merge. No remote push was performed. The user's untracked demo-video.mp4 remains untouched and uncommitted.
+
+### In software and finance terms
+- origin/main was the initial commit and an ancestor of v3-t12-demo. git merge --ff-only integrated the complete task history without rewriting commits or resolving conflicts. Local main tracks origin/main. Ancestry checks confirm all v3 task heads are ancestors of main; the application tree matched the completed branch before this documentation update.
+- Accounting calculations, role gates, source records and model settings were unchanged by the merge. Post-merge verification: pytest -m 'not live' returned 225 passed, 21 deselected in 56.81 seconds; node --check passed for app.js and icons.js. Prior live reports remain preserved; no new live score is claimed for this merge.
