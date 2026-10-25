@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 import sqlite3
+import threading
 from decimal import Decimal
 
 from vouch.agent import claims, questions, templates
@@ -114,9 +115,27 @@ class Toolbox:
         # Everything Vouch was given or got back this run; the claim check reads it.
         self.corpus: list[str] = [json.dumps(c, default=str, ensure_ascii=False) for c in self.cases.values()]
         self.names = [p["name"] for p in self.src.content["directory"]["people"]]
+        # Several cases may be worked at once. The model's thinking runs in parallel; tool calls take turns, so
+        # writes, numbering (REQ-, Q-), the hash chain and the evidence list never interleave.
+        self.lock = threading.RLock()
+        self._local = threading.local()          # which case this thread is working on
+        self._by_case: dict[str, list[str]] = {}
+
+    def working_on(self, case_id: str | None) -> None:
+        self._local.case = case_id
+
+    def case_results(self, case_id: str) -> list[str]:
+        """Every tool result returned while this case was being worked (on any thread's turn for it)."""
+        return list(self._by_case.get(case_id, []))
 
     # -- dispatch -----------------------------------------------------------------
-    def call(self, name: str, args: dict) -> dict:
+    def call(self, name: str, args: dict, prefetched: bool = False) -> dict:
+        """Run one tool and log it. `prefetched` marks a call Vouch's code made to prepare a case brief (not one
+        the model asked for), so the audit trail can tell the two apart."""
+        with self.lock:
+            return self._call(name, args, prefetched)
+
+    def _call(self, name: str, args: dict, prefetched: bool) -> dict:
         handler = getattr(self, f"t_{name}", None)
         target = args.get("case_id") or args.get("employee_id") or args.get("grant_id") or args.get("entry_id") or name
         if handler is None:
@@ -135,9 +154,13 @@ class Toolbox:
         result.setdefault("warnings", [])
         text = json.dumps(result, default=str, ensure_ascii=False)
         self.corpus.append(text)
+        current = getattr(self._local, "case", None)
+        if current:
+            self._by_case.setdefault(current, []).append(text)
         audit.log(self.conn, VOUCH, f"tool:{name}", str(target), "done" if result["ok"] else
                   ("refused" if result.get("refused") else "failed"),
-                  result.get("error", "ok"), {"input": args, "result": text[:4000]})
+                  result.get("error", "ok"), {"input": args, "result": text[:4000],
+                                              **({"prefetched": True} if prefetched else {})})
         self.conn.commit()
         return result
 

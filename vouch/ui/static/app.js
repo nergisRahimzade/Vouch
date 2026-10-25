@@ -293,6 +293,7 @@ function needsChain(r) {
 }
 async function renderReview() {
   const data = await api("/api/inbox");
+  const les = await api("/api/lessons").catch(() => null);
   const role = S.role, open = (r) => r.status === "pending" || r.status === "escalated";
   const f = S.review.filter;
   const requests = data.requests.filter((r) => f === "mine" ? open(r) && r.assigned_role === role : f === "open" ? open(r) : !open(r));
@@ -344,6 +345,16 @@ async function renderReview() {
         <p class="why" style="margin-top:0">Release every open-month payment that is not held. Held payments are refused one by one by the controls.</p>
         <button class="btn pri" id="payRun">${role === "treasury" ? "Release unheld payments" : `Try as ${esc(roleLabel(role))}`}</button>${outcome("payrun")}</div></div>
     </div>
+    ${les ? `<div class="card"><h2>Lessons Vouch proposes <span class="muted" style="font-weight:400">${les.approved.length} approved · used by every close and score</span></h2>
+      <div class="body" style="display:flex;flex-direction:column;gap:10px">
+        <div class="why">After a live close, code turns Vouch's own dead ends (a promise it could not keep, a step the tools refused) into lessons about a kind of case, with every name and ID taken out. A lesson does nothing until the controller approves it. Lessons are learned only from the ${esc(les.learn_from)} set${les.world_set !== les.learn_from ? ` (this company is the ${esc(les.world_set)} set, so none can be proposed)` : ""}.</div>
+        <div class="row-actions"><button class="btn" id="proposeLessons">Propose lessons from the last live close</button>${outcome("lessons")}</div>
+      </div>
+      ${les.lessons.map((l) => `<div class="req ${l.status === "proposed" ? "" : "closed"}"><div><h3>${esc(cap(l.kind))} ${pill(l.status === "proposed" ? "pending" : l.status)} <span class="mono muted">${esc(l.lesson_id)}</span></h3>
+          <div>${esc(l.text)}</div><div class="why">From ${esc(l.from_run)} · audit rows ${esc(l.evidence.join(", "))}${l.decided_by ? ` · ${esc(l.status)} by ${esc(l.decided_by)}: “${esc(l.note)}”` : ""}</div></div>
+        <div class="acts">${l.status === "proposed" ? `<textarea id="lnote-${esc(l.lesson_id)}" placeholder="Note (required)" aria-label="Note for ${esc(l.lesson_id)}"></textarea>
+          <div class="row-actions"><button class="btn pri" data-lesson="approve" data-id="${esc(l.lesson_id)}">${role === "controller" ? "Approve" : `Try to approve as ${esc(roleLabel(role))}`}</button>
+          <button class="btn dng" data-lesson="reject" data-id="${esc(l.lesson_id)}">Reject</button></div>` : ""}${outcome(l.lesson_id)}</div></div>`).join("")}</div>` : ""}
     <div class="card"><h2>Active holds <span class="muted" style="font-weight:400">${data.holds.length}</span></h2>
       ${data.holds.length ? `<div class="scroll"><table><thead><tr><th>Hold</th><th>On</th><th>Reason</th><th>Placed</th><th></th></tr></thead><tbody>
         ${data.holds.map((h) => `<tr><td class="mono">#${h.hold_id}<div class="why"><a href="#" data-case="${esc(h.case_id)}">${esc(h.case_id)}</a></div></td><td class="mono">${esc(h.target_kind)}:${esc(h.target_ref)}</td>
@@ -377,6 +388,13 @@ async function renderReview() {
   panel.querySelectorAll("[data-release]").forEach((b) => b.addEventListener("click", () => {
     const id = b.dataset.release;
     act(`hold-${id}`, () => post(`/api/holds/${id}/release`, { role, note: $(`hnote-${id}`).value }), () => `Hold #${esc(id)} released.`);
+  }));
+  $("proposeLessons")?.addEventListener("click", () => act("lessons", () => post("/api/lessons/propose", {}),
+    (r) => `${r.proposed.length} new lesson${r.proposed.length === 1 ? "" : "s"} proposed.`));
+  panel.querySelectorAll("[data-lesson]").forEach((b) => b.addEventListener("click", () => {
+    const id = b.dataset.id;
+    act(id, () => post(`/api/lessons/${encodeURIComponent(id)}/decide`, { role, decision: b.dataset.lesson, note: $(`lnote-${id}`).value }),
+      (r) => `${esc(id)} ${esc(r.status)} by ${esc(r.by)}.`);
   }));
   $("payRun").addEventListener("click", () => act("payrun", () => post("/api/payments/release", { role }),
     (r) => `${r.released} payments released; ${r.refused.length} refused because they are held.`));

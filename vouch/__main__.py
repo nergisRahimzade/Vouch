@@ -25,6 +25,12 @@ def main() -> None:
     c.add_argument("--effort", default="medium", choices=["low", "medium", "high", "xhigh", "max"])
     c.add_argument("--budget", default=str(DEFAULT_BUDGET_USD), help="spending cap in USD for this run (default %(default)s)")
     c.add_argument("--yes", action="store_true", help="start the live model without asking first")
+    c.add_argument("--record", type=Path, help="also save the model's replies to this file (for free replays)")
+    c.add_argument("--replay", type=Path, help="replay a recorded live run for free instead of calling the model")
+    t = sub.add_parser("try-case", help="work one kind of case live on a throwaway copy and show what it decided")
+    t.add_argument("kind", help="a kind of case, e.g. bank_details_differ_from_hr")
+    t.add_argument("--budget", default="1.00", help="spending cap in USD (default %(default)s)")
+    t.add_argument("--yes", action="store_true")
     g = sub.add_parser("colleagues", help="demo: simulated approvers answer questions and decide requests")
     g.add_argument("--scripted", action="store_true", help="scripted colleagues instead of the model")
     g.add_argument("--budget", default=str(DEFAULT_BUDGET_USD), help="spending cap in USD (default %(default)s)")
@@ -78,6 +84,15 @@ def main() -> None:
         if not args.scripted:
             print(f"cost ${policy.usage.cost(policy.model)} (cap ${policy.budget})")
         return
+    if args.command == "try-case":
+        from vouch.agent.trycase import try_case
+        budget = clamp_budget(args.budget)
+        print(f"one {args.kind} case, live model, on a throwaway copy of {args.db.name}; spending cap ${budget}")
+        if not args.yes and (not sys.stdin.isatty() or input("Start? [y/N] ").strip().lower() != "y"):
+            print("not started" + ("" if sys.stdin.isatty() else " (not a terminal: pass --yes to start)"))
+            sys.exit(2)
+        print(json.dumps(try_case(args.db, args.kind, budget), indent=1))
+        return
     if args.command == "rebuild":
         world = build(DEFAULT_ROOT)
         print(f"world: {world['files']} files, {world['plants']} planted mistakes, {world['noise']} noise items")
@@ -86,13 +101,26 @@ def main() -> None:
         from vouch.agent.policy import ModelPolicy, ScriptedPolicy
         from vouch.agent.runner import run_close
         conn = connect(args.db)
+        if args.replay:
+            from vouch.agent.policy import replay_policy
+            result = run_close(conn, replay_policy(args.replay, effort=args.effort))
+            print(f"{result['run_id']}: REPLAY of a recorded live run (no model called, cost $0.00); "
+                  f"{result['cases']} cases, {len(result['failures'])} held after failures, {len(result['drafts'])} drafts")
+            print(result["report"] or result["report_problems"][0])
+            return
         if not args.scripted:
             budget, guess = clamp_budget(args.budget), estimate_close(conn if args.db.exists() else None)
             print(f"live model {args.effort} effort: estimated ${guess['usd']} ({guess['basis']}); spending cap ${budget}")
             if not args.yes and (not sys.stdin.isatty() or input("Start the live close? [y/N] ").strip().lower() != "y"):
                 print("not started" + ("" if sys.stdin.isatty() else " (not a terminal: pass --yes to start)"))
                 sys.exit(2)
-        policy = ScriptedPolicy() if args.scripted else ModelPolicy(effort=args.effort, budget_usd=budget)
+        if args.scripted:
+            policy = ScriptedPolicy()
+        elif args.record:
+            from vouch.agent.policy import recording_policy
+            policy = recording_policy(args.record, effort=args.effort, budget_usd=budget)
+        else:
+            policy = ModelPolicy(effort=args.effort, budget_usd=budget)
         result = run_close(conn, policy)
         label = "SCRIPTED run (fast-test playbook, not the model)" if args.scripted else f"model {result['model']}"
         print(f"{result['run_id']}: {label}; {result['cases']} cases, {len(result['failures'])} held after failures, "

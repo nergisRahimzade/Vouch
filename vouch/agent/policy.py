@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 
+from vouch.agent import brief
+from vouch.agent.replay import NotRecorded, RecordingClient, ReplayClient
 from vouch.agent.cost import DEFAULT_BUDGET_USD
 from vouch.agent.tools import SPECS, Toolbox
 
@@ -29,6 +31,18 @@ How you work:
 - You have a junior accountant's access. You can hold, ask, draft and request. You cannot approve, post, reopen a
   month, release a hold or move money, and you must not try to get around that.
 - When money could go to the wrong place or the wrong person, hold it first, then ask.
+- Every case carries a proposed_action: reconciliation's recommended route. Take it with the matching tool, and add
+  only what the facts need:
+    - a hold_* action: hold what the case names, then ask who it says to ask;
+    - a draft_*, recompute_* or reverse_* action: draft_correction, then request_approval for the entry;
+    - request_release_of_unpaid_lines_only: request_funding for only the payments the case lists. That request
+      already reaches the colleague who releases money, so do not also ask a question about the same payments: a
+      question about a case that names many people interrupts the colleague and exposes every one of them;
+    - refuse_and_route_to_controller: request_approval (kind accrual) so the controller decides. The request is
+      the route; a question alone is not;
+    - ask_*: ask the colleague named.
+- Ask only for a fact the system of record cannot settle. If the trusted source already answers the case, act on it
+  rather than asking someone to confirm it.
 - Ask well: name the right colleague's role, the exact fact you need, at least two sources that disagree, and the
   next step for a yes, a no and a partial answer.
 - Respect precedents: if an earlier ruling decided this kind of case, follow it and say so.
@@ -40,6 +54,20 @@ Finish every case with record_decision: the status (held, waiting or resolved) a
 Every number, date, rule ID and name in it must come from a tool result."""
 
 CASE_PROMPT = """Work this case. Start from its findings, check what you need with the tools, act, then record your
+decision.
+
+<case>
+{case}
+</case>
+
+Below is Vouch's own preparation for this case, fetched with the same tools you have and logged in the audit trail:
+the full text of every rule the case cites, the earlier rulings about this kind of case, and the case's state right
+now. Do not look these up again. When you do need other lookups (a person, a grant, a payment, the bank), ask for all
+the independent ones in a single turn.
+
+{brief}"""
+
+PLAIN_CASE_PROMPT = """Work this case. Start from its findings, check what you need with the tools, act, then record your
 decision.
 
 <case>
@@ -61,6 +89,26 @@ Plain English, a short paragraph or a few bullet points."""
 
 class PolicyFailed(RuntimeError):
     """The policy could not finish a case; the case is held with this plain reason."""
+
+
+def replay_policy(path, **kwargs) -> "ModelPolicy":
+    """A policy that replays a recorded live run. Labelled: mode 'replay', model 'replay of <model>', cost $0."""
+    client = ReplayClient(path)
+    policy = ModelPolicy(client=client, budget_usd=None, **kwargs)
+    policy.mode, policy.model = "replay", f"replay of {client.model}"
+    return policy
+
+
+def recording_policy(path, **kwargs) -> "ModelPolicy":
+    """A live policy that also saves every reply to `path`, for free replays later."""
+    policy = ModelPolicy(**kwargs)
+    policy.client = RecordingClient(policy.client, path)
+    return policy
+
+
+class Unreachable(PolicyFailed):
+    """The model could not be reached for a moment (network, timeout, rate limit, overloaded). Nothing about the
+    case is wrong, so the close tries the case once more before holding it."""
 
 
 class BudgetReached(PolicyFailed):
@@ -134,17 +182,24 @@ def _cache_conversation(messages: list[dict]) -> None:
     last["content"][-1]["cache_control"] = {"type": "ephemeral"}
 
 
+PARALLEL_CASES = 4          # cases worked at once in a live close: speed only; each case is worked exactly as alone
+
+
 class ModelPolicy:
     mode = "model"
 
     def __init__(self, model: str = MODEL, effort: str = "medium", client=None, timeout: float = 180.0,
-                 budget_usd: Decimal | float | str | None = DEFAULT_BUDGET_USD):
+                 budget_usd: Decimal | float | str | None = DEFAULT_BUDGET_USD, parallel_cases: int = PARALLEL_CASES,
+                 case_brief: bool | None = None):
         import anthropic
         _load_dotenv()
         self.anthropic = anthropic
         self.client = client or anthropic.Anthropic(timeout=timeout, max_retries=2)
         self.model, self.effort, self.usage = model, effort, Usage()
         self.budget = None if budget_usd is None else Decimal(str(budget_usd))
+        self.parallel_cases = parallel_cases
+        # The case brief is on unless switched off for a comparison (VOUCH_CASE_BRIEF=0); every score records it.
+        self.case_brief = case_brief if case_brief is not None else os.environ.get("VOUCH_CASE_BRIEF", "1") != "0"
         self.tools = model_tools()
 
     def spent(self) -> Decimal:
@@ -160,13 +215,17 @@ class ModelPolicy:
                 model=self.model, max_tokens=16000, output_config=output_config,
                 betas=["server-side-fallback-2026-07-01"], fallbacks="default", **kwargs)
         except self.anthropic.APITimeoutError as error:
-            raise PolicyFailed(f"the model did not answer in time ({error})") from error
+            raise Unreachable(f"the model did not answer in time ({error})") from error
         except self.anthropic.RateLimitError as error:
-            raise PolicyFailed("the model API is rate-limiting this run") from error
+            raise Unreachable("the model API is rate-limiting this run") from error
         except self.anthropic.APIStatusError as error:
+            if error.status_code >= 500:                     # overloaded or a server error: try again later
+                raise Unreachable(f"the model API returned an error ({error.status_code})") from error
             raise PolicyFailed(f"the model API returned an error ({error.status_code})") from error
         except self.anthropic.APIConnectionError as error:
-            raise PolicyFailed("the model API could not be reached") from error
+            raise Unreachable("the model API could not be reached") from error
+        except NotRecorded as error:
+            raise PolicyFailed(str(error)) from error
         self.usage.add(response.usage)
         if response.stop_reason == "refusal":
             raise PolicyFailed("the model declined this case")
@@ -176,7 +235,9 @@ class ModelPolicy:
 
     def work(self, case: dict, toolbox: Toolbox) -> str:
         messages = [{"role": "user", "content": [
-            {"type": "text", "text": CASE_PROMPT.format(case=json.dumps(case, indent=1, default=str))}]}]
+            {"type": "text", "text": (CASE_PROMPT.format(case=json.dumps(case, indent=1, default=str),
+                                                        brief=brief.build(toolbox, case)) if self.case_brief else
+                                      PLAIN_CASE_PROMPT.format(case=json.dumps(case, indent=1, default=str)))}]}]
         system = [{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}]
         for _ in range(MAX_TURNS):
             _cache_conversation(messages)
@@ -262,8 +323,9 @@ class ScriptedPolicy:
     mode = "scripted"
     model = None
 
-    def __init__(self):
+    def __init__(self, parallel_cases: int = 1):
         self.usage = Usage()
+        self.parallel_cases = parallel_cases
 
     def work(self, case: dict, toolbox: Toolbox) -> str:
         cid, subject = case["finding_id"], case["subject"]

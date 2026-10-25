@@ -62,10 +62,19 @@ def test_the_cap_stops_further_model_calls_and_holds_what_is_left(fresh):
 def test_the_cost_so_far_is_saved_while_the_run_is_still_going(fresh):
     conn, _ = fresh
     client = _PricedClient(conn, input_tokens=100_000)           # $0.40 a call, far below the cap
-    run_close(conn, ModelPolicy(client=client, budget_usd="6.00"))
+    run_close(conn, ModelPolicy(client=client, budget_usd="6.00", parallel_cases=1))
     assert client.saved_before_call[0] == "0.00"
-    assert client.saved_before_call[1] == "0.4000"                # the first case's cost was saved before the second
+    assert client.saved_before_call[1] == "0.4000"                # one at a time: saved before the next case
     assert Decimal(client.saved_before_call[2]) == Decimal("0.8000")
+
+
+def test_with_cases_worked_at_once_the_cost_still_climbs_during_the_run(fresh):
+    conn, _ = fresh
+    client = _PricedClient(conn, input_tokens=100_000)
+    result = run_close(conn, ModelPolicy(client=client, budget_usd="6.00", parallel_cases=4))
+    seen = [Decimal(x) for x in client.saved_before_call if x is not None]
+    assert seen == sorted(seen) and seen[-1] > 0                  # saved as cases finish, never going down
+    assert Decimal(result["cost_usd"]) == Decimal("0.40") * client.calls
 
 
 def test_a_run_without_a_cap_is_allowed_only_when_asked_for(fresh):

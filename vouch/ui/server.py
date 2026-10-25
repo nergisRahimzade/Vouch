@@ -41,6 +41,12 @@ class Answer(BaseModel):
     note: str = ""
 
 
+class LessonDecision(BaseModel):
+    role: str
+    decision: str
+    note: str = ""
+
+
 class AsRole(BaseModel):
     role: str
     note: str = ""
@@ -92,11 +98,12 @@ def _has(conn, table: str) -> bool:
 
 def _prepare(path: Path) -> None:
     """Make sure the controls and agent tables exist, and let reads run while a close writes."""
-    from vouch.agent import runner
+    from vouch.agent import lessons, runner
     conn = _open(path)
     try:
         conn.execute("PRAGMA journal_mode = WAL")
         runner.ensure(conn)
+        lessons.ensure(conn)
     finally:
         conn.close()
 
@@ -472,6 +479,38 @@ def create_app(db: Path = DEFAULT_DB, world: Path = DEFAULT_WORLD, results: Path
         conn.commit()
         return {"released": len(released), "refused": refused}
 
+    # ---- lessons (the learning loop) ----
+    @app.get("/api/lessons")
+    def lessons_list(conn=Depends(get_conn)):
+        from vouch.agent import lessons
+        lessons.ensure(conn)
+        rows = [{**r, "evidence": _json(r["evidence"], [])} for r in _rows(conn.execute(
+            "SELECT * FROM lessons ORDER BY CASE status WHEN 'proposed' THEN 0 ELSE 1 END, proposed_at DESC"))]
+        return {"world_set": lessons.world_set(conn), "learn_from": lessons.LEARN_FROM_SET,
+                "lessons": rows, "approved": lessons.load_all(), "fingerprint": lessons.fingerprint()}
+
+    @app.post("/api/lessons/propose")
+    def lessons_propose(conn=Depends(get_conn), _=Depends(idle)):
+        from vouch.agent import lessons
+        from vouch.controls.gates import Refused
+        try:
+            return {"proposed": lessons.propose(conn)}
+        except Refused as refusal:
+            return _refused(refusal)
+
+    @app.post("/api/lessons/{lesson_id}/decide")
+    def lessons_decide(lesson_id: str, body: LessonDecision, conn=Depends(get_conn), _=Depends(idle)):
+        from vouch.agent import lessons
+        from vouch.controls.gates import Refused
+        if body.decision not in ("approve", "reject"):
+            raise HTTPException(400, "a decision is approve or reject")
+        try:
+            return lessons.decide(conn, _actor(conn, body.role), lesson_id, body.decision, body.note)
+        except KeyError:
+            raise HTTPException(404, f"no lesson {lesson_id}")
+        except Refused as refusal:
+            return _refused(refusal)
+
     # ---- ledger ----
     @app.get("/api/ledger")
     def ledger(conn=Depends(get_conn), period: str | None = None, entity: str = "", status: str = "",
@@ -569,6 +608,12 @@ def create_app(db: Path = DEFAULT_DB, world: Path = DEFAULT_WORLD, results: Path
             for line in report({**result, "db": str(db)}).splitlines():
                 log(line)
             _prepare(db)
+            from vouch.agent import lessons
+            conn = _open(db)
+            try:
+                lessons.set_world(conn, body.variant)      # lessons are learned only from the main set
+            finally:
+                conn.close()
             return {"variant": body.variant, "open": result["open"]}
         return start("rebuild", f"Rebuild ({body.variant} set)", work)
 

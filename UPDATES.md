@@ -124,3 +124,38 @@ Entries 1–7 were written after the fact. Their times come from the changed fil
 - **Why (track):** "Would you hire it?": cost discipline with no change to behaviour or limits. Accuracy is unchanged by construction.
 - **Tests:** `tests/test_x_conversation_cache.py` (3, free): only the newest user message is marked, older markers are cleared, the instructions stay cached, the marker count stays within the API's limit of four, and the words sent are the same apart from the marker.
 - **Cost of this check:** $0.28 of live API use.
+
+## 14. 2026-10-24, 20:36 · branch `efficiency` · Phases 2–5, network retry, and two live-agent accuracy fixes
+
+Everything below is measured with the live model unless it says otherwise. Costs are real API charges.
+
+**Phase 2: case brief.** `vouch/agent/brief.py`. Code looks up what the model used to fetch at the start of every case (the full text of each rule the case cites, earlier rulings of its kind, the case's current state) and puts it in the first message. Same tools, so each lookup is audited as "prepared by Vouch"; nothing is summarised. Measured on three cases: 5 model turns each instead of 6–7, about 30% faster per case. It can be switched off (`VOUCH_CASE_BRIEF=0`) for comparisons, and every score records the setting. 4 tests.
+
+**Phase 3: several cases at once.** `ModelPolicy.parallel_cases` (4). The model's thinking runs in parallel; tool calls take turns behind one lock, so database writes, request and question numbers, the hash chain and the evidence list never interleave, and a tool error is counted against its own case only. Decisions are identical to working one at a time (scripted playbook, compared decision by decision). 2 tests. *The speed gain is not yet cleanly measured*: the one 3-run score that finished in 21 minutes ran with the brief on, and the 60-minute one ran while the full test suite was also running, so the two times cannot be compared.
+
+**Phase 4: learning loop.** `vouch/agent/lessons.py`. After a live close, code (free, no model call) turns the agent's own refused or failed steps into proposed lessons about a *kind* of case, with names, IDs and account numbers removed. Only the controller approves (Vouch is refused and logged); an approved lesson joins `lessons/approved.json` and reaches the brief for that kind of case; every score records which lessons it ran with. Lessons are learned only from the main set, never from the scripted playbook. Dashboard: Human review > Lessons. No lesson has been proposed or approved yet. 6 tests.
+
+**Phase 5: selective validation.** `close --record FILE` saves a live run's replies; `close --replay FILE` replays them for free, labelled "replay of <model>" at $0.00 and never a score; a replay asked for something it never recorded stops with a plain reason. `python -m vouch try-case KIND` works one kind of case live on a throwaway copy (the real database is untouched, tested byte for byte) for about a dime. 3 tests.
+
+**Network retry.** A dropped connection, timeout, rate limit or overloaded API (`Unreachable`) no longer holds the case at once: the close waits 10 s, 30 s, then 60 s and works those cases again one at a time, then holds with the plain reason. Real refusals and the spending cap are never retried. The first version retried once, immediately, and the live score showed it was not enough (cases were still lost in 2 of 3 runs). 3 tests.
+
+**Two live-agent accuracy problems the first honest live scores exposed.** A scripted score is 14/14 with 0 false holds, so the planted cases and the scorer are sound. The live model, however, did two things wrong in every run, with the brief on or off, and the earlier live run from before any of this work did the same:
+1. *Half-cleared payment batch:* the agent asked Treasury a question as well as requesting funding. The case names 39 people, so the scorer counted all 39 as questioned: 39 false holds in 590 (6.6%, over the 5% limit).
+2. *Self-approved accrual:* the agent asked the controller a question instead of sending the accrual request that routes it to the controller, so it was not routed (missed in 3 of 3 runs).
+- **Root cause:** the instructions never said how a case's `proposed_action` maps onto the tools, or that a question is for facts the system of record cannot settle. **Fix:** a generic paragraph in the agent's instructions (by kind of action; names no person, payment or planted case): follow the proposed action with the matching tool; when a funding or approval request already reaches the right colleague, do not also ask a question about the same thing; ask only for facts the trusted source cannot settle. It matches what the scripted playbook already does for these actions.
+- **Live check, 3 tries each:** half-cleared batch: no question and a funding request to Treasury, 3 of 3 (before: always asked); self-approved accrual: an accrual request to the controller, 3 of 3 (before: never).
+
+**Live scores so far (main set, 3 runs each, claude-opus-5-5):**
+
+| | Brief off | Brief on | Before this PR |
+|---|---|---|---|
+| Caught | 13/14 | 9/14 | not measured |
+| Evidence complete | 14/14 | 10/14 | not measured |
+| False holds (worst run) | 6.61% | 6.61% | 6.6% (earlier run) |
+| Cost per close | $1.83 | $1.45 | $3.48 |
+
+In the brief-on score every miss except the accrual case was a dropped connection (1 case lost in run 2, 3 in run 3), not a wrong decision, which is what the longer retry addresses. Neither score was run with the accuracy fix above, so neither is the final number. **The final score, with all fixes, is running and will be added here.**
+
+**Why (track):** "Would you hire it?" and "Is it real enough?": cost and speed work that does not trade away accuracy, plus a live score that exposed and fixed real behaviour gaps instead of being tuned. "Asks at the right moment": questions only for facts the sources cannot settle. "Proof it works": every figure above is a measured, labelled result.
+
+**Tests:** 335 passed, 0 failed, 0 skipped on the full suite (before the retry backoff and the instructions change); the retry and parallel tests were rerun after, 5 passed. No existing test, answer-key entry, planted case, threshold or seed was changed. Two of my own new tests had wrong expectations, which I corrected because the program was right (recorded in the commit history).
