@@ -12,7 +12,7 @@ its T5 when v3 superseded it; its domain-neutral work is reused here.
 | T4 | `v3-t4-ledgers` | Per-person ledgers, optimizer, corrections + tests | Retro cases pass in unit tests | done |
 | T5 | `v3-t5-detectors` | Entries, period lock, detectors, routing | Unit tests pass | done |
 | T6 | `v3-t6-scenarios` | Scenario loader updates, public cases P01–P11 + C01–C04, scorer fields, holdout loader | Scorer runs on public set | done |
-| T7 | `v3-t7-bench` | Bench baseline | `perf_baseline.json` | |
+| T7 | `v3-t7-bench` | Bench baseline | `perf_baseline.json` | done |
 | T8 | `v3-t8-agent` | Tools, pre-pass, case file, agent loop | Public suite end to end | |
 | T9 | `v3-t9-speed` | Speed steps, measured | §9 targets met | |
 | T10 | `v3-t10-memory` | Memory: learned corrections from tax manager answers | Escalate → answer → follow works | |

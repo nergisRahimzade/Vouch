@@ -57,3 +57,17 @@ Company data is simulated; rules and policies follow VOUCH_DE_EVENT_TAX_SPEC.md.
 - Live checkpoint: claude-opus-5-5, medium effort, 2026-10-25; public suite 15 cases ? 3 runs and P11 ? 5 consecutive runs. Expected tax amounts and thresholds were not changed.
 - Root-cause changes are recorded in FIX_LOG.md. The obsolete payroll tests were adapted with your explicit approval; later failing assertions were left fixed while production code was repaired.
 
+## T7 ? Measured baseline
+
+### In simple words
+- What: Added and ran the benchmark command.
+- Why: Speed and cost claims need measurements.
+- How: Record time, model calls, tokens, cache tokens, tool time, and calculated API cost per scenario.
+- Tests: Included in the successful integration checkpoint: 206 passed, 0 failed, 0 skipped (189 deterministic and 17 live tests).
+- Needs your approval: Nothing.
+
+### In software and finance terms
+- evaluator/bench.py wrote perf_baseline.json: Opus 5.5, high effort, one 15-case sequential measurement; 15/15 passed, 131.14 seconds summed case time, USD 0.703040. This one-run benchmark is not presented as a repeated score.
+- Live checkpoint: claude-opus-5-5, medium effort, 2026-10-25; public suite 15 cases ? 3 runs and P11 ? 5 consecutive runs. Expected tax amounts and thresholds were not changed.
+- Root-cause changes are recorded in FIX_LOG.md. The obsolete payroll tests were adapted with your explicit approval; later failing assertions were left fixed while production code was repaired.
+
