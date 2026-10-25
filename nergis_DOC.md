@@ -113,3 +113,17 @@ Company data is simulated; rules and policies follow VOUCH_DE_EVENT_TAX_SPEC.md.
 - Live checkpoint: claude-opus-5-5, medium effort, 2026-10-25; public suite 15 cases ? 3 runs and P11 ? 5 consecutive runs. Expected tax amounts and thresholds were not changed.
 - Root-cause changes are recorded in FIX_LOG.md. The obsolete payroll tests were adapted with your explicit approval; later failing assertions were left fixed while production code was repaired.
 
+## T11 ? API and imported frontend
+
+### In simple words
+- What: Fetched origin/frontend and connected its UI to real event-tax runs.
+- Why: You asked for the UI, and the teammate needs the specified API.
+- How: Keep the design, replace sample figures with API data, and expose scenario runs, SSE steps, review, books, payroll drafts, and audit records.
+- Tests: Included in the successful integration checkpoint: 206 passed, 0 failed, 0 skipped (189 deterministic and 17 live tests).
+- Needs your approval: Nothing.
+
+### In software and finance terms
+- ui/server.py and jobs.py implement spec ?10, CORS for localhost:5173, isolated SQLite jobs, custom scenarios, JSON endpoints, and SSE. frontend was imported from prototype commit 0480155; its retired backend changes were not merged.
+- Live checkpoint: claude-opus-5-5, medium effort, 2026-10-25; public suite 15 cases ? 3 runs and P11 ? 5 consecutive runs. Expected tax amounts and thresholds were not changed.
+- Root-cause changes are recorded in FIX_LOG.md. The obsolete payroll tests were adapted with your explicit approval; later failing assertions were left fixed while production code was repaired.
+

@@ -1,79 +1,54 @@
-"""Long-running dashboard actions (rebuild, close, colleagues, follow-up, score) run one at a time
-in a background thread. Each writes to the database through the same functions the CLI uses, so
-the dashboard sees their progress by reading the audit trail while they run."""
-from __future__ import annotations
-
-import subprocess
+"""Background run registry; each run owns its SQLite database and replayable timeline."""
 import threading
-import traceback
-from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
-ROOT = Path(__file__).resolve().parents[2]
+from vouch.agent.policy import ScriptedPolicy, ModelPolicy
+from vouch.agent.runner import run_scenario
+from vouch.db import connect
+from vouch.db.rebuild import rebuild
 
 
-class Busy(RuntimeError):
-    """Another job is still running."""
+class Runs:
+    def __init__(self, root):
+        self.root = Path(root)
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.items, self.latest = {}, None
+        self.lock = threading.Lock()
 
-
-class Jobs:
-    def __init__(self):
-        self._lock = threading.Lock()
-        self.current: dict | None = None
-        self.history: list[dict] = []
-
-    @property
-    def running(self) -> bool:
-        return self.current is not None and self.current["status"] == "running"
-
-    @property
-    def rebuilding(self) -> bool:
-        return self.running and self.current["kind"] == "rebuild"
-
-    def start(self, kind: str, label: str, work) -> dict:
-        """Start `work(log)` in the background. `log(text)` adds a line the dashboard shows."""
-        with self._lock:
-            if self.running:
-                raise Busy(f"{self.current['label']} is still running")
-            job = {"id": len(self.history) + 1, "kind": kind, "label": label, "status": "running",
-                   "started_at": _now(), "finished_at": None, "log": [], "result": None, "error": None}
-            self.current = job
-            self.history.append(job)
-
-        def log(text: str) -> None:
-            job["log"].append({"at": _now(), "text": text})
-
-        def run() -> None:
+    def start(self, scenario, scripted=True, model=None, effort="medium"):
+        run_id = uuid4().hex
+        path = self.root / (run_id + ".db")
+        job = {"run_id": run_id, "status": "running", "timeline": [], "result": None, "error": None,
+               "db": path, "scenario_id": scenario.id}
+        with self.lock:
+            self.items[run_id] = job
+        def emit(step):
+            with self.lock:
+                job["timeline"].append(step)
+        def work():
+            conn = None
             try:
-                job["result"] = work(log)
-                job["status"] = "done"
-            except Exception as error:          # reported to the dashboard as a failed job, with its trace
-                job["status"] = "failed"
-                job["error"] = f"{type(error).__name__}: {error}"
-                log(traceback.format_exc())
+                rebuild(path, scenario)
+                conn = connect(path)
+                conn.execute("PRAGMA journal_mode=WAL")
+                result = run_scenario(conn, scenario, ScriptedPolicy() if scripted else ModelPolicy(model=model,effort=effort), emit)
+                with self.lock:
+                    job["result"], job["status"] = result, "done"
+                    self.latest = path
+            except Exception as error:
+                # Report a failed job; never manufacture a successful result after an exception.
+                with self.lock:
+                    job["error"], job["status"] = f"{type(error).__name__}: {error}", "failed"
             finally:
-                job["finished_at"] = _now()
+                if conn is not None:
+                    conn.close()
+        threading.Thread(target=work, name="vouch-run-" + run_id, daemon=True).start()
+        return run_id
 
-        threading.Thread(target=run, name=f"vouch-job-{job['id']}", daemon=True).start()
-        return job
-
-    def snapshot(self) -> dict:
-        job = self.current
-        return {"running": self.running, "job": None if job is None else {**job, "log": job["log"][-200:]}}
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-def build_world(variant: str, world: Path, log) -> dict:
-    """Generate one of the evaluator's sets with the generator's own command. The dashboard never
-    imports the generator, and only the evaluator knows how each set is built."""
-    from vouch.evaluator.run import build_command
-    log(f"generating the {variant} set from the fixed seed")
-    done = subprocess.run(build_command(variant, world), capture_output=True, text=True, cwd=ROOT)
-    for line in (done.stdout + done.stderr).strip().splitlines():
-        log(line)
-    if done.returncode != 0:
-        raise RuntimeError(f"the generator failed (exit {done.returncode})")
-    return {"variant": variant}
+    def snapshot(self, run_id):
+        with self.lock:
+            job = self.items.get(run_id)
+            if job is None:
+                raise KeyError(run_id)
+            return {k: list(v) if k == "timeline" else v for k,v in job.items() if k != "db"}
