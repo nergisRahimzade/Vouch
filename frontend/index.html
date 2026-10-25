@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vouch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <a href="#overview" class="brand">
+    <span class="mark">V</span>
+    <span><span class="name">Vouch</span><span class="seat">Event vendor payables</span></span>
+  </a>
+  <nav class="tabs" aria-label="Primary">
+    <a href="#overview" data-page="overview">Overview</a>
+    <a href="#books" data-page="books">Books</a>
+    <a href="#audit" data-page="audit">Audit trail</a>
+  </nav>
+  <div class="right">
+    <span class="pill">Next payment run · Fri</span>
+    <span class="avatar" aria-label="Jordan">JM</span>
+  </div>
+</header>
+
+<!-- ============ OVERVIEW ============ -->
+<section id="page-overview" class="wrap" style="padding:0">
+  <div>
+    <p class="hello">Good morning, Jordan</p>
+    <h1 class="big">You have <em id="pendingLabel">3 decisions</em> waiting.</h1>
+  </div>
+
+  <section class="stats" aria-label="Key numbers">
+    <div class="stat blue">
+      <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M16.5 7.5c-.8-1.2-2.4-2-4.5-2-2.6 0-4.2 1.3-4.2 3.1 0 4.4 8.9 2 8.9 6.4 0 1.9-1.8 3.2-4.6 3.2-2.3 0-4-.9-4.8-2.2"/></svg></span>
+      <div><div class="v">$525K</div><div class="l">Event spend this year</div><div class="s">12% over plan</div></div>
+    </div>
+    <div class="stat lime">
+      <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0E1428" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      <div><div class="v">$39.7K</div><div class="l">Saved by checks</div><div class="s">14 issues caught</div></div>
+    </div>
+    <div class="stat orange">
+      <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0E1428" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg></span>
+      <div><div class="v" id="pendingCount">3</div><div class="l">Waiting for you</div><div class="s" id="oldestLabel">Oldest: 2 days</div></div>
+    </div>
+    <div class="stat red">
+      <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+      <div><div class="v" id="frozenCount">1</div><div class="l">Payment frozen</div><div class="s" id="frozenSub">Bank-change check</div></div>
+    </div>
+  </section>
+
+  <div class="cols">
+    <section class="panel main" aria-labelledby="decisions-h">
+      <div class="phead">
+        <h2 id="decisions-h" class="h">Needs your decision</h2>
+        <span class="sub">Vouch drafts · you release</span>
+      </div>
+      <div id="decisions" style="display:flex;flex-direction:column;gap:18px"></div>
+    </section>
+
+    <section class="panel night" aria-labelledby="caught-h">
+      <div>
+        <h2 id="caught-h" class="h">What Vouch caught</h2>
+        <p class="sub">$39.7K held back or fixed this year</p>
+      </div>
+      <div class="bars">
+        <div class="bar"><div class="top-row"><span>Over-billing</span><span>$16.4K</span></div><div class="track"><div class="fill" style="width:100%"></div></div></div>
+        <div class="bar"><div class="top-row"><span>Headcount vs minimum</span><span>$11.3K</span></div><div class="track"><div class="fill" style="width:68.9%"></div></div></div>
+        <div class="bar"><div class="top-row"><span>Duplicate invoices</span><span>$7.2K</span></div><div class="track"><div class="fill" style="width:43.9%"></div></div></div>
+        <div class="bar"><div class="top-row"><span>Service-charge errors</span><span>$4.8K</span></div><div class="track"><div class="fill" style="width:29.3%"></div></div></div>
+      </div>
+    </section>
+  </div>
+
+  <p class="foot">Prototype · all financial data is simulated.</p>
+</section>
+
+<!-- ============ BOOKS ============ -->
+<section id="page-books" class="wrap" style="padding:0" hidden>
+  <div>
+    <p class="hello">Vouch prepares the entries. You post them.</p>
+    <h1 class="big">The books are <em>in order.</em></h1>
+  </div>
+
+  <section class="stats three" aria-label="Key numbers">
+    <div class="stat blue"><div class="v">$55,000</div><div class="l">Deposits held</div><div class="s">Becomes expense when each event happens</div></div>
+    <div class="stat orange"><div class="v">$17,600</div><div class="l">Bills not here yet</div><div class="s">Estimated and booked at July close</div></div>
+    <div class="stat lime"><div class="v">Balanced</div><div class="l">Ledger check</div><div class="s">Debits equal credits</div></div>
+  </section>
+
+  <section class="panel entries" aria-labelledby="entries-h">
+    <h2 id="entries-h" class="h">Recent entries</h2>
+    <p class="lead">Costs delivered in one month and billed in the next are counted in the month they happened, then reversed when the bill arrives.</p>
+    <div class="entry"><span class="d">Jul 11</span><span class="t"><span class="tag ink">Bill</span></span><span class="w">Brightline AV, Customer Day</span><span class="a">$18,240</span></div>
+    <div class="entry"><span class="d">Jul 9</span><span class="t"><span class="tag lime">Expensed</span></span><span class="w">Brightline AV deposit, Customer Day happened</span><span class="a">$9,000</span></div>
+    <div class="entry"><span class="d">Jul 8</span><span class="t"><span class="tag ink">Bill</span></span><span class="w">Harbor Catering, Dev Summit (300 guests)</span><span class="a">$27,000</span></div>
+    <div class="entry"><span class="d">Jul 1</span><span class="t"><span class="tag outline">Reversed</span></span><span class="w">June catering estimate, bill expected</span><span class="a">$27,000</span></div>
+    <div class="entry"><span class="d">Jun 30</span><span class="t"><span class="tag orange">Accrued</span></span><span class="w">June catering at the 300-guest minimum</span><span class="a">$27,000</span></div>
+    <div class="entry"><span class="d">Jun 19</span><span class="t"><span class="tag lime">Expensed</span></span><span class="w">Pier 27 deposit, Dev Summit happened</span><span class="a">$40,000</span></div>
+  </section>
+
+  <p class="foot">Prototype · all financial data is simulated. Vouch can’t post entries, approve its own work or change bank details.</p>
+</section>
+
+<!-- ============ AUDIT TRAIL ============ -->
+<section id="page-audit" class="wrap" style="padding:0" hidden>
+  <div>
+    <p class="hello">Who did what, and why.</p>
+    <h1 class="big">Every decision, <em>on the record.</em></h1>
+  </div>
+
+  <ol class="log">
+    <li><div class="when"><b>Jul 14</b><span>08:52</span></div><div class="body"><div><span class="tag blue">Vouch</span></div>
+      <h2>Asked you to verify Pier 27 by phone</h2><p>The bank-change email did not match the vendor record, so only this payment is held.</p><p class="ev">Evidence: vendor record · contract · email</p></div></li>
+    <li><div class="when"><b>Jul 13</b><span>16:20</span></div><div class="body"><div><span class="tag lime">Marcus Lee · event owner</span></div>
+      <h2>Approved paying Harbor for 300 guests</h2><p>The 40 extra guests ($3,600) go into dispute.</p><p class="ev">Evidence: clause 4.2 · 280 badge scans · INV-1048</p></div></li>
+    <li><div class="when"><b>Jul 13</b><span>14:02</span></div><div class="body"><div><span class="tag blue">Vouch</span></div>
+      <h2>Froze the Pier 27 payment, $84,500</h2><p>The email domain and the new bank account both differ from the records.</p><p class="ev">Evidence: vendor record · contract · email</p></div></li>
+    <li><div class="when"><b>Jul 12</b><span>15:40</span></div><div class="body"><div><span class="tag lime">Dana Ortiz · event owner</span></div>
+      <h2>Approved Brightline AV, $18,240</h2><p>Includes 3 hours of overtime and the $9,000 deposit credit.</p><p class="ev">Evidence: clause 7.1 · crew logs · INV-5520</p></div></li>
+    <li><div class="when"><b>Jul 8</b><span>09:14</span></div><div class="body"><div><span class="tag blue">Vouch</span></div>
+      <h2>Drafted the Harbor payment, $27,000</h2><p>300 guests × $90, the contract minimum, not the 340 billed.</p><p class="ev">Evidence: clause 4.2 · 280 badge scans · INV-1048</p></div></li>
+    <li><div class="when"><b>Jun 30</b><span>10:21</span></div><div class="body"><div><span class="tag blue">Vouch</span></div>
+      <h2>Counted June catering, $27,000</h2><p>Delivered in June, bill due in July, so it was estimated at the 300-guest minimum.</p><p class="ev">Evidence: clause 4.2 · event record</p></div></li>
+  </ol>
+
+  <p class="foot">Prototype · all financial data is simulated. Entries can’t be edited or deleted.</p>
+</section>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>
