@@ -207,6 +207,13 @@ async function casePage() {
   const invoiceTables = invoices.map(inv => section(`Invoice ${inv.id}`, `<table class="w-full"><tbody class="divide-y">${inv.lines.map(l => `<tr><td class="px-4 py-2.5">${esc(l.description || human(l.category))}</td><td class="tabular px-4 text-right">${eur(l.net)}</td></tr>`).join("")}<tr><td class="px-4 py-2.5 text-muted-foreground">VAT</td><td class="tabular px-4 text-right">${eur(inv.vat)}</td></tr><tr class="font-semibold"><td class="px-4 py-2.5">Total</td><td class="tabular px-4 text-right">${eur(inv.gross)}</td></tr></tbody></table>`)).join("");
   const entries = (d.entries || []).map(l => `<tr><td class="px-4 py-2.5">${esc(l.account)}<div class="text-[12px] text-muted-foreground">${esc(l.entry_id)}</div></td><td class="tabular text-right">${num(l.debit) ? eur(l.debit) : ""}</td><td class="tabular px-4 text-right">${num(l.credit) ? eur(l.credit) : ""}</td></tr>`).join("");
   const corrections = (d.corrections || []).map(c => `<li class="flex items-start gap-4 px-4 py-3"><p class="flex-1 leading-relaxed">${esc(human(c.type))} for ${esc(c.ref)}${c.reason ? ` — ${esc(c.reason)}` : ""}</p><span class="tabular">${eur(c.amount)}</span></li>`).join("");
+  const transition = d.cost_transition;
+  const changeCard = transition ? section("What changed when the new invoice arrived", `<div class="p-4">
+    <div class="flex flex-wrap items-center gap-4"><div><div class="text-muted-foreground">Before the new invoice</div><div class="text-2xl font-semibold tabular">${eur(transition.before_per_participant)}</div></div>
+    <span aria-label="changed to">&rarr;</span><div><div class="text-muted-foreground">After the new invoice</div><div class="text-2xl font-semibold tabular">${eur(transition.after_per_participant)}</div></div><span>per participant</span></div>
+    <p class="mt-3">${transition.vat_before_recoverable && !transition.vat_after_recoverable ? "The VAT threshold was crossed: previously recoverable input VAT must be reversed." : "Updated event costs change the recorded treatment."}</p>
+    <p class="mt-3 text-[12px] text-muted-foreground">${esc(transition.basis)} Confirmed participants: ${esc(transition.participants)}. New invoices: ${transition.new_invoice_ids.map(esc).join(", ")}.</p>
+  </div>`) : "";
   const provider = run.provider || run.result?.provider;
   view.innerHTML = title(event?.event?.name || d.matched_event || d.case_id,
       [invoices.map(i => i.vendor).filter(Boolean).join(", "), event?.event?.date, gross ? eur(gross) : ""].filter(Boolean).join(" · "),
@@ -215,7 +222,7 @@ async function casePage() {
            ["Input VAT Recovered", eur(d.vat_recoverable), `${eur(d.vat_blocked)} blocked`],
            ["Taxable Payroll Benefit", eur(d.wage_taxable), d.payroll_method === "none" ? "No payroll impact" : `${d.payroll_method === "flat_40" ? "§40 flat tax" : "Individually taxed"}: ${eur(d.flat_tax_40)}`],
            ["§37b Guest Flat Tax", eur(d.flat_tax_37b), d.per_participant ? `${eur(d.per_participant)} per participant` : "30 % on guest benefits"]]) +
-    checks +
+    changeCard + checks +
     `<div class="grid gap-6 lg:grid-cols-2">${invoiceTables || section("Invoices", empty("No invoice details."))}` +
     section("Draft entries", entries ? `<table class="w-full"><thead class="border-b text-left text-[12px] text-muted-foreground"><tr><th class="px-4 py-2 font-medium">Account</th><th class="text-right font-medium">Debit</th><th class="px-4 text-right font-medium">Credit</th></tr></thead><tbody class="divide-y">${entries}</tbody></table>` : empty(d.decision === "hold" || d.decision === "escalate" ? "Nothing is booked while the case is held." : "No entries drafted.")) +
     `</div>` +

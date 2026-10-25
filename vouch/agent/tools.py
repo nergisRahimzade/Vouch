@@ -684,7 +684,7 @@ class Toolbox:
                # The agent's cites, plus every rule, policy and record the adopted computation rests on.
                "cites": sorted(set(args["cites"]) | set(d["cites"])),
                "chosen_by": "agent"}
-        for key in ("per_participant", "program_deductible"):
+        for key in ("per_participant", "program_deductible", "cost_transition"):
             if d.get(key) is not None:
                 out[key] = d[key]
         lines = []

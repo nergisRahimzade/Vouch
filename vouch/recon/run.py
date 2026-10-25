@@ -242,6 +242,24 @@ def prepass(conn, task, source=None, classification=None):
         allocation = use(et.allocate_staff_event(sum((Decimal(str(i["gross"])) for i in invoices), ZERO),
                                                 attendees, src.rules, event["date"]))
         result["per_participant"] = allocation["per_participant_rounded"]
+        if classification == "staff_event" and new:
+            prior_invoices = [i for i in invoices if i["id"] in booked_ids]
+            if prior_invoices:
+                prior_gross = sum((Decimal(str(i["gross"])) for i in prior_invoices), ZERO)
+                prior_allocation = et.allocate_staff_event(prior_gross, attendees, src.rules, event["date"]).values
+                before_vat = et.staff_event_vat_test(prior_allocation["per_participant"], src.rules, event["date"]).values
+                after_vat = et.staff_event_vat_test(allocation["per_participant"], src.rules, event["date"]).values
+                result["cost_transition"] = {
+                    "before_per_participant": prior_allocation["per_participant_rounded"],
+                    "after_per_participant": allocation["per_participant_rounded"],
+                    "before_gross": prior_gross,
+                    "after_gross": sum((Decimal(str(i["gross"])) for i in invoices), ZERO),
+                    "participants": len(attendees),
+                    "prior_invoice_ids": [i["id"] for i in prior_invoices],
+                    "new_invoice_ids": [i["id"] for i in new],
+                    "vat_before_recoverable": before_vat["recoverable"],
+                    "vat_after_recoverable": after_vat["recoverable"],
+                    "basis": "Previously booked invoices versus all visible invoices, using the current confirmed attendance."}
         ledger = staff_state(src, int(event["date"][:4]))
         rules_used.update(ledger.rules)
         policies.update(ledger.policies)

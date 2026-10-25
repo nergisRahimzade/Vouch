@@ -344,3 +344,8 @@ was changed to pass. Consequence recorded: the holdout is no longer an unseen me
 - Root cause: frontend rendered the fixed simulated audit_log.at and truncated to minutes. Real execution timestamps already existed in audit_log.recorded_at.
 - Fix: render recorded_at in local time with milliseconds in audit and dashboard activity; label scenario at separately and preserve exact ISO execution timestamps. Never fabricate timestamps for legacy records.
 - Evidence: 12 audit/API tests pass; JavaScript syntax/precision checks pass. Fresh browser: 86 rows, 20 distinct displayed execution times, latest matches backend exactly, 3 model_call records, hash chain verified. Initial cached-browser check was corrected with a forced reload.
+
+## Missing Case File before/after comparison (2026-10-25)
+- Root cause: P11's result exposed only current per-participant cost; the UI and video script did not agree about showing the prior value.
+- Fix: derive and persist a generic booked-cost versus updated-cost comparison using Decimal allocation and confirmed attendance; render both amounts and VAT-status change with source references. No event IDs or expected values are hardcoded in production.
+- Verification: 16 existing API/tool tests plus 2 new regressions passed; live Jev HTTP returned 107.43 to 111.40. Browser automation hit a detached-page issue and is not counted as a successful browser check for this change.

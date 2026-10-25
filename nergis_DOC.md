@@ -260,3 +260,16 @@ Score-selection fix: `/api/scores` now prefers the latest complete public suite 
 ### In software and finance terms
 - frontend/app.js uses recorded_at (wall-clock UTC execution time) instead of at (simulated business time), formatted with Intl.DateTimeFormat in local time at millisecond precision. Audit time elements retain the exact ISO value; at remains visibly labeled Scenario.
 - Verified the rendered DOM directly against GET /api/audit, which reads the active run's SQLite audit_log. The earlier browser check used a cached script; a forced reload resolved that and the backend-to-DOM comparison passed. Accounting dates, posting periods, tax rules and append-only hash-chained audit contents are unchanged.
+
+## Visible event-cost transition — 2026-10-25
+
+### In simple words
+- What: Added a Before the new invoice / After the new invoice card in the Case File. P11 now explicitly shows 107.43 to 111.40 per participant and explains the VAT consequence.
+- Why: The previous screen showed only the final amount and correction. The video script described a comparison the UI had not exposed.
+- How: Calculate the comparison from previously booked invoice totals versus all visible invoices, using confirmed attendance. Show invoice references and the calculation basis; never invent a previous amount for a new event.
+- Tests: 16 existing API/tool tests and 2 new regressions passed. A real live Jev HTTP run returned the exact before/after amounts. JavaScript syntax passed. A separate browser automation attempt encountered a detached page, so that attempt is not counted as browser verification.
+- Needs your approval: nothing. The server was restarted; refresh the website and run P11 live again so the new decision carries the comparison.
+
+### In software and finance terms
+- recon/run.py derives optional cost_transition using existing Decimal allocation and VAT-test functions, with booked invoice IDs, new invoices, gross totals and actual attendee count. tools.py preserves it in the submitted decision. frontend/app.js renders the backend-derived comparison and input-VAT status change above the issue list.
+- No expected answers, tax thresholds, calculation formulas, scoring rules or historical records changed. For attendance changes the card states that both cost sets use current confirmed attendance; it does not pretend to reconstruct an unavailable historic attendee list. Regression coverage verifies the transition and absence of fabricated baselines.
