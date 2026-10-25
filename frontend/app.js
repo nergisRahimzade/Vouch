@@ -35,7 +35,14 @@ const primaryBtn = (label, icon, attrs = "") =>
   `<button class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-primary-foreground hover:opacity-90 disabled:opacity-50" ${attrs}>${I(icon)}${esc(label)}</button>`;
 const borderBtn = (label, icon, attrs = "") =>
   `<button class="inline-flex h-8 items-center gap-1.5 rounded-md border bg-card px-3 hover:bg-muted" ${attrs}>${I(icon)}${esc(label)}</button>`;
-const when = at => at ? `${at.slice(0, 10)} ${at.slice(11, 16)}` : "";
+const when = at => {
+  if (!at) return "Execution time unavailable";
+  const value = new Date(at);
+  if (Number.isNaN(value.getTime())) return "Execution time unavailable";
+  return new Intl.DateTimeFormat(undefined, {year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3,
+    timeZoneName: "short", hour12: false}).format(value);
+};
 const human = action => String(action || "").replace(/_/g, " ").replace(/^./, c => c.toUpperCase());
 const actor = name => name === "Vouch" ? "Vouch Agent" : name;
 const chip = cite => `<span class="inline-flex items-center rounded border border-ai/20 bg-ai-soft px-1 font-mono text-[10.5px] font-medium text-ai">${esc(cite)}</span>`;
@@ -116,7 +123,7 @@ async function dashboard() {
   const scenarioOptions = state.scenarios.map(s => `<option value="${esc(s.id)}">${esc(s.id)} · ${esc(s.title)}</option>`).join("");
   const runForm = `<form id="run-form" class="flex flex-wrap items-center gap-2"><select name="scenario" class="control" aria-label="Scenario">${scenarioOptions}</select><select name="mode" class="control" aria-label="Run mode"><option value="model">Live agent (configured provider)</option><option value="scripted">Scripted demo</option></select>${primaryBtn("Process event", "check", 'type="submit"')}</form>`;
   const review = approvals.slice(0, 5).map(a => `<li class="flex items-center justify-between px-4 py-3"><div><div class="font-medium">${esc(a.case_id || a.subject_ref)}</div><div class="text-[12px] text-muted-foreground">${esc(a.subject_ref)} · review by ${esc(a.assigned_role.replace("_", " "))}</div></div><div class="flex items-center gap-3"><span class="tabular">${eur(a.amount)}</span>${badge(a.status === "escalated" ? "Escalated" : "Pending Approval", a.status === "escalated" ? "warning" : "ai")}</div></li>`).join("");
-  const activity = audit.rows.slice(-6).reverse().map(r => `<li class="flex items-start justify-between gap-4 px-4 py-3"><div><div>${esc(human(r.action))}</div><div class="text-[12px] text-muted-foreground">${esc(actor(r.actor))} · ${esc(r.target)}</div></div><span class="shrink-0 text-[12px] text-muted-foreground">${esc(when(r.at))}</span></li>`).join("");
+  const activity = audit.rows.slice(-6).reverse().map(r => `<li class="flex items-start justify-between gap-4 px-4 py-3"><div><div>${esc(human(r.action))}</div><div class="text-[12px] text-muted-foreground">${esc(actor(r.actor))} · ${esc(r.target)}</div></div><span class="shrink-0 text-[12px] text-muted-foreground">${esc(when(r.recorded_at))}</span></li>`).join("");
   view.innerHTML = title("Dashboard", `Year to date · ${year}`, runForm) +
     stats([["VAT reclaimed", eur(net(["1400"])), `${drafts} drafts awaiting approval`],
            ["Deductible expenses", eur(net(deductible)), `${cases} cases`],
@@ -267,10 +274,10 @@ async function booksPage() {
 
 async function auditPage() {
   const audit = await api("/api/audit");
-  const rows = audit.rows.slice(-200).reverse().map(r => `<tr><td class="px-4 py-3 text-muted-foreground">${esc(when(r.at))}</td><td>${esc(actor(r.actor))}</td><td><details><summary>${esc(human(r.action))}</summary><pre class="evidence whitespace-pre-wrap break-all mt-2">${esc(r.reason)}\n\n${esc(JSON.stringify(r.basis, null, 2))}</pre></details></td><td class="text-muted-foreground">${esc(r.target)}</td><td class="px-4 text-right font-mono text-[11px] text-muted-foreground">${esc(r.hash.slice(0, 4))}…${esc(r.hash.slice(-4))}</td></tr>`).join("");
+  const rows = audit.rows.slice(-200).reverse().map(r => `<tr><td class="px-4 py-3 text-muted-foreground"><time title="${esc(r.recorded_at || "Execution time not recorded")}" datetime="${esc(r.recorded_at || "")}">${esc(when(r.recorded_at))}</time><div class="text-[11px]">Scenario: ${esc((r.at || "").replace("T", " "))}</div></td><td>${esc(actor(r.actor))}</td><td><details><summary>${esc(human(r.action))}</summary><pre class="evidence whitespace-pre-wrap break-all mt-2">${esc(r.reason)}\n\n${esc(JSON.stringify(r.basis, null, 2))}</pre></details></td><td class="text-muted-foreground">${esc(r.target)}</td><td class="px-4 text-right font-mono text-[11px] text-muted-foreground">${esc(r.hash.slice(0, 4))}…${esc(r.hash.slice(-4))}</td></tr>`).join("");
   view.innerHTML = title("Audit Log", `Every action is recorded and chained · showing the latest ${Math.min(200, audit.rows.length)} of ${audit.rows.length}`,
       `<span class="flex items-center gap-1.5 ${audit.verified ? "text-success" : "text-danger"}">${I("shield-check")}${audit.verified ? "Chain verified" : "Chain broken"}</span>`) +
-    `<div class="overflow-hidden rounded-lg border bg-card"><table class="w-full"><thead class="border-b text-left text-[12px] text-muted-foreground"><tr><th class="px-4 py-2.5 font-medium">Time</th><th class="font-medium">Actor</th><th class="font-medium">Action</th><th class="font-medium">Case</th><th class="px-4 text-right font-medium">Hash</th></tr></thead><tbody class="divide-y">${rows || `<tr><td class="px-4 py-3 text-muted-foreground" colspan="5">No activity yet.</td></tr>`}</tbody></table></div>`;
+    `<div class="overflow-hidden rounded-lg border bg-card"><table class="w-full"><thead class="border-b text-left text-[12px] text-muted-foreground"><tr><th class="px-4 py-2.5 font-medium">Recorded (local time)</th><th class="font-medium">Actor</th><th class="font-medium">Action</th><th class="font-medium">Case</th><th class="px-4 text-right font-medium">Hash</th></tr></thead><tbody class="divide-y">${rows || `<tr><td class="px-4 py-3 text-muted-foreground" colspan="5">No activity yet.</td></tr>`}</tbody></table></div>`;
 }
 
 // -- routing -------------------------------------------------------------------------------------------

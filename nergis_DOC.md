@@ -247,3 +247,16 @@ Additional final regression: proper German Unicode in a generic meal description
 Final verification: **243 passed, 0 failed, 0 skipped** in 113.65 seconds, including 21 live tests. The subsequent full-suite score-selection regression passed independently. Latest full public Jev result: **15/15 across three repetitions**, exact amounts **15/15**, safety breaks **0**. Dedicated demo **12/12**; supplemental **12/12**. Real HTTP cases had no expected-amount mismatches, P10 resumed with the authorized individual payroll method, and all draft postings passed independent approvals. Exact mid-run endpoint failure check safely paused after one successful call. Local browser verification covered live P11 and all six routes with **0 uncaught JavaScript errors**. Tracked evaluator calls in this session total **USD 0.086609376**, excluding health checks, diagnostic calls and separate HTTP/browser executions; this is not a full account-charge total.
 
 Score-selection fix: `/api/scores` now prefers the latest complete public suite over a newer single-case rehearsal; it does not select by pass rate. A regression verifies a failed complete report remains visible rather than being replaced by a passing one-case run. The owner holdout is still unscored and T9's holdout gate remains pending.
+
+## Audit timestamp display fix — 2026-10-25
+
+### In simple words
+- What: Audit and dashboard activity now show the real execution date/time, with seconds and milliseconds. The audit page separately labels the scenario's accounting date/time.
+- Why: The website was showing the fixed simulation clock, truncated to minutes. Different live actions therefore appeared to have identical timestamps.
+- How: Display the existing recorded_at field in the viewer's local timezone; keep at as the scenario time. No stored audit records or hashes were changed. Older entries without execution timestamps say unavailable.
+- Tests: 12 audit/API tests passed. JavaScript syntax and formatting checks passed. After reloading the cached frontend, the actual browser showed 86 audit rows, 20 distinct execution times, the newest timestamp exactly matching the backend, and 3 real model-call records; the audit chain verified.
+- Needs your approval: nothing. Refresh the page to load the corrected script.
+
+### In software and finance terms
+- frontend/app.js uses recorded_at (wall-clock UTC execution time) instead of at (simulated business time), formatted with Intl.DateTimeFormat in local time at millisecond precision. Audit time elements retain the exact ISO value; at remains visibly labeled Scenario.
+- Verified the rendered DOM directly against GET /api/audit, which reads the active run's SQLite audit_log. The earlier browser check used a cached script; a forced reload resolved that and the backend-to-DOM comparison passed. Accounting dates, posting periods, tax rules and append-only hash-chained audit contents are unchanged.

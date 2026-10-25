@@ -339,3 +339,8 @@ was changed to pass. Consequence recorded: the holdout is no longer an unseen me
 - Live tests had Anthropic-only model/cache assertions. With the user's explicit test-change authorization, adapted protocol assertions to the configured provider and resolved Jev model ID. Every case/amount/control assertion remains unchanged; provider-inapplicable cache expectations are conditional rather than manufactured.
 - Supplemental tests are explicitly agent-authored and separate from VOUCH_HOLDOUT_PATH. A private-expectation canary is excluded from all captured Jev request bodies. No prompt tuning used the supplemental outcomes.
 - Scores summary regression: a newer one-case rehearsal replaced the full public report in /api/scores. Fixed selection to prefer complete suite coverage and then recency, never pass rate. Added a regression with a failing full report and a newer passing subset to prevent accidental result cherry-picking.
+
+## Audit timestamp display (2026-10-25)
+- Root cause: frontend rendered the fixed simulated audit_log.at and truncated to minutes. Real execution timestamps already existed in audit_log.recorded_at.
+- Fix: render recorded_at in local time with milliseconds in audit and dashboard activity; label scenario at separately and preserve exact ISO execution timestamps. Never fabricate timestamps for legacy records.
+- Evidence: 12 audit/API tests pass; JavaScript syntax/precision checks pass. Fresh browser: 86 rows, 20 distinct displayed execution times, latest matches backend exactly, 3 model_call records, hash chain verified. Initial cached-browser check was corrected with a forced reload.
