@@ -2,23 +2,23 @@
 
 **Hard limit: 3:00.** Read only the quoted narration. The screen directions are silent. Use a steady conversational pace; the narration is 320 words, leaving time for clicks and pauses. Rehearse once with a timer.
 
-Open http://127.0.0.1:8080/. Refresh with Ctrl+Shift+R and run P11 live once before recording so its new Before / After card is ready.
+Open http://127.0.0.1:8080/. Refresh with Ctrl+Shift+R and run P11 live once before recording so its new Before / After card is ready. Then return to Dashboard to begin the recording.
 
-## 0:00–0:25 — Open with the catch
-
-**Show:** P11 Case File → Before / After card, then its VAT reversal under Corrections.
-
-> “This late fireworks bill changes the tax treatment of an entire company party. The cost per participant rises from 107 euros and 43 cents to 111 euros and 40 cents. Vouch catches the change and drafts a reversal of 6,175 euros in VAT previously claimed.”
-
-## 0:25–0:50 — Explain Vouch and the problem
+## 0:00–0:25 — Explain Vouch and the problem
 
 **Show:** Dashboard, with the Live agent control visible.
 
 > “Vouch is the event tax accountant on Nordlicht's finance team: it decides the German tax treatment of every company event, from deductibility and VAT to employees' taxable benefits, keeps every person's yearly totals, and never files or pays anything without approval. It connects invoices, attendance and earlier accounting records.”
 
+## 0:25–0:50 — Show the P11 catch
+
+**Do:** Left sidebar → Case File. Show the prepared P11 Case File → Before / After card, then its VAT reversal under Corrections.
+
+> “This late fireworks bill changes the tax treatment of an entire company party. The cost per participant rises from 107 euros and 43 cents to 111 euros and 40 cents. Vouch catches the change and drafts a reversal of 6,175 euros in VAT previously claimed.”
+
 ## 0:50–1:10 — Run the agent live
 
-**Do:** Select P11 → Live agent → Process event. Show its steps and resulting comparison.
+**Do:** Return to Dashboard. Select P11 → Live agent → Process event. Show its steps and resulting comparison.
 
 > “I'm processing that event live. Vouch uses one agent, powered by Jev, to choose the treatment and workflow. Code calculates every amount and enforces the limits. Here are the updated costs, the correction and the supporting rules.”
 
@@ -50,7 +50,7 @@ Open http://127.0.0.1:8080/. Refresh with Ctrl+Shift+R and run P11 live once bef
 
 ## Why this version fits the attached hackathon brief
 
-The PDF asks the video to open with a memorable catch and prove realistic execution, limited authority, collaboration and traceable decisions. P11 supplies the catch and change over time. Approvals and Books show authority limits. P10 shows asking a person and handling the answer. The audit and measured results provide evidence. P01, P03 and the custom-event form are reserved for questions or live judging so the recording stays within three minutes.
+As requested, this version explains Vouch first, then shows the P11 catch. The attached brief emphasizes a memorable catch, realistic execution, limited authority, collaboration and traceable decisions. P11 supplies the catch and change over time. Approvals and Books show authority limits. P10 shows asking a person and handling the answer. The audit and measured results provide evidence. P01, P03 and the custom-event form are reserved for questions or live judging so the recording stays within three minutes.
 
 ## Recording notes — do not read aloud
 

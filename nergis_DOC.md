@@ -285,3 +285,15 @@ Score-selection fix: `/api/scores` now prefers the latest complete public suite 
 
 ### In software and finance terms
 - DEMO_VIDEO_SCRIPT.md now contains seven timed scenes. It retains the required seat line, source-derived event-cost comparison, independent approval/posting controls, authorized ruling/resumption, audit evidence and real-versus-simulated disclosure. Feature selection remains grounded in the supplied Hyphenate judging brief.
+
+## Demo opening reordered — 2026-10-25
+
+### In simple words
+- What: Put the explanation of Vouch first, then the P11 catch, as requested.
+- Why: Introduce the product before demonstrating the example.
+- How: Swap the first two 25-second scenes and clarify the sidebar clicks and starting screen.
+- Checks: Narration remains 320 words; final scene still ends at 3:00. No application code changed.
+- Needs your approval: nothing.
+
+### In software and finance terms
+- DEMO_VIDEO_SCRIPT.md preserves all measured claims, accounting controls and real-versus-simulated disclosures. Only presentation order and corresponding navigation instructions changed.
