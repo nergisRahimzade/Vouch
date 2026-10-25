@@ -3,17 +3,17 @@
     {
       "Set": "main",
       "Mode": "live",
-      "Model": "claude-opus-5-5",
-      "Date": "2026-10-24",
-      "Runs": "5",
-      "Cost (USD)": "18.3642",
-      "report": "main-model-20261024T233423Z.json",
-      "Caught": "14/14 (100.0%)",
+      "Model": "claude-sonnet-4-6",
+      "Date": "2026-10-25",
+      "Runs": "3",
+      "Cost (USD)": "8.6915",
+      "report": "main-model-20261025T022007Z.json",
+      "Caught": "10/14 (71.4%)",
       "False holds": "39/590 (6.61%)",
-      "Evidence complete": "14/14 (100.0%)",
+      "Evidence complete": "13/14 (92.9%)",
       "Money correct": "13/13 (100.0%)",
-      "Never": "0",
-      "Demo (5 in a row)": "not passed (0 in a row)"
+      "Never": "1",
+      "Demo (5 in a row)": "not checked"
     },
     {
       "Set": "heldout",
