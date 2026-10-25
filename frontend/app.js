@@ -134,19 +134,36 @@ async function dashboard() {
             `<a class="flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground" href="#/approvals">View all${I("arrow-right")}</a>`) +
     section("Recent activity", activity ? `<ul class="divide-y">${activity}</ul>` : empty("No activity yet."),
             `<span class="flex items-center gap-1 text-[12px] ${audit.verified ? "text-success" : "text-danger"}">${I("lock")}${audit.verified ? "Tamper-evident" : "Chain broken"}</span>`) +
-    `</div>` + section("Try your own event", `<form id="custom-form" class="flex flex-wrap gap-2 p-4">
-      <input name="name" class="control" placeholder="Event name" aria-label="Event name" required>
-      <input name="date" type="date" class="control" aria-label="Event date" required>
-      <input name="attendees" type="number" min="1" max="450" class="control" placeholder="Actual employees" aria-label="Actual employee count" required>
-      <input name="net" class="control" placeholder="Invoice net, e.g. 100.00" aria-label="Invoice net" required>
-      <input name="vat" class="control" placeholder="VAT, e.g. 19.00" aria-label="Invoice VAT" required>
-      <input name="gross" class="control" placeholder="Gross, e.g. 119.00" aria-label="Invoice gross" required>
-      ${primaryBtn("Process staff event live", "check", 'type="submit"')}</form>`);
+    `</div>`;
+  const judgeForm = section("Try your own scenario", `<p class="px-4 py-3 text-muted-foreground">Create a staff event using your own invoice amounts and actual employee count. Vouch processes it live with the same calculation and approval controls.</p>
+    <form id="custom-form" class="flex flex-wrap gap-2 p-4">
+      <label>Event name<input name="name" class="control" placeholder="Your event" aria-label="Event name" required></label>
+      <label>Event date<input name="date" type="date" class="control" aria-label="Event date" required></label>
+      <label>Actual employees<input name="attendees" type="number" min="1" max="450" step="1" class="control" placeholder="e.g. 2" aria-label="Actual employee count" required></label>
+      <label>Net amount (EUR)<input name="net" class="control" inputmode="decimal" placeholder="e.g. 100.00" aria-label="Invoice net" required></label>
+      <label>VAT amount (EUR)<input name="vat" class="control" inputmode="decimal" placeholder="e.g. 19.00" aria-label="Invoice VAT" required></label>
+      <label>Gross amount (EUR)<input name="gross" class="control" inputmode="decimal" placeholder="e.g. 119.00" aria-label="Invoice gross" required></label>
+      <label>VAT rate as decimal<input name="vat_rate" class="control" inputmode="decimal" value="0.19" aria-label="Invoice VAT rate" required></label>
+      ${borderBtn("Fill example", "edit", 'type="button" id="fill-example"')}
+      ${primaryBtn("Run my scenario live", "check", 'type="submit"')}
+    </form>`);
+  const summary = view.firstElementChild;
+  summary.insertAdjacentHTML("afterend", judgeForm);
+  document.getElementById("custom-form").querySelectorAll("label").forEach(label => {
+    label.style.display = "grid"; label.style.gap = "4px"; label.style.fontSize = "12px";
+  });
+  document.getElementById("fill-example").addEventListener("click", () => {
+    const f = document.getElementById("custom-form").elements;
+    const today = new Date();
+    f.namedItem("name").value = "Judge's staff event";
+    f.namedItem("date").value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+    for (const [name, value] of Object.entries({attendees: "2", net: "100.00", vat: "19.00", gross: "119.00", vat_rate: "0.19"})) f.namedItem(name).value = value;
+  });
   document.getElementById("custom-form").addEventListener("submit", e => {
     e.preventDefault(); const f = e.target.elements;
     startRun(e.target, {mode: "model", custom: {event_type: "staff_event", name: f.namedItem("name").value,
       date: f.namedItem("date").value, attendees: Number(f.namedItem("attendees").value),
-      invoices: [{net: f.namedItem("net").value, vat: f.namedItem("vat").value, gross: f.namedItem("gross").value, vat_rate: "0.19"}]}});
+      invoices: [{net: f.namedItem("net").value, vat: f.namedItem("vat").value, gross: f.namedItem("gross").value, vat_rate: f.namedItem("vat_rate").value}]}});
   });
   document.getElementById("run-form").addEventListener("submit", e => { e.preventDefault(); startRun(e.target); });
 }

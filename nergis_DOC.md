@@ -322,3 +322,16 @@ Score-selection fix: `/api/scores` now prefers the latest complete public suite 
 
 ### In software and finance terms
 - HACKATHON_PITCH.md explains the single-agent case owner; dated deterministic pre-pass; typed Jev decisions and tool validation; Decimal/versioned rules; annual subledger recomputation; retroactive VAT/payroll corrections; locked periods; independent approval/posting; authorized ruling memory; and source-linked hash-chained audit. It maps these to the brief's realism, hireability, novelty and memorable-moment criteria, and distinguishes real execution from simulated company/human roles.
+
+## Judge-owned scenario entry and proof guidance — 2026-10-25
+
+### In simple words
+- What: Made Try your own scenario prominent below the Dashboard heading, added visible field labels and a Fill example button, and wrote JUDGING_PROOF.md with a short proof answer and screen sequence.
+- Why: Judges need to find the form quickly, change the inputs and observe live execution.
+- How: Reused the existing custom staff-event API and live workflow. The form accepts the invoice VAT rate rather than forcing 19%. Monetary values remain exact input strings; accounting is still calculated by backend code.
+- Tests: 10 API/UI checks passed and JavaScript syntax passed. A real browser filled and submitted the form through live Jev, completing a new custom scenario with 59.50 per participant. No prepared-case expected answers were used for that run.
+- Needs your approval: nothing. Refresh the website to load the prominent form. This quick form covers staff events with an actual employee count and invoice amounts.
+
+### In software and finance terms
+- frontend/app.js moves the existing custom-event UI to the top of Dashboard, labels all inputs, sends the user-supplied vat_rate and preserves mode=model. Backend arithmetic, validation, approval gates and single-agent behavior are unchanged. Verified browser model typesafe/jev-1.14-20261014, status done, classify_and_book.
+- JUDGING_PROOF.md distinguishes live execution from simulated fixtures/roles, gives the measured public/demo results and their scope, and emphasizes cent accuracy, retroactive consistency, enforced permissions and source-linked audit evidence. Supplemental cases are not represented as an independent holdout.
