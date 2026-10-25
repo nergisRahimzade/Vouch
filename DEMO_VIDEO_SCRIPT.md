@@ -1,6 +1,6 @@
-﻿# Vouch: three-minute demo script
+# Vouch: three-minute demo script
 
-**Hard limit: 3:00.** Read only the quoted narration. The screen directions are silent. Use a steady conversational pace; the narration is about 330 words, leaving time for clicks and pauses. Rehearse once with a timer.
+**Hard limit: 3:00.** Read only the quoted narration. The screen directions are silent. Use a steady conversational pace; the narration is 320 words, leaving time for clicks and pauses. Rehearse once with a timer.
 
 Open http://127.0.0.1:8080/. Refresh with Ctrl+Shift+R and run P11 live once before recording so its new Before / After card is ready.
 
