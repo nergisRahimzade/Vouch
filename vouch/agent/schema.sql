@@ -1,39 +1,30 @@
--- Layer 6: the agent's own records. Every action it takes also goes to the audit trail.
-
-CREATE TABLE IF NOT EXISTS questions (
-    question_id   TEXT PRIMARY KEY,
-    case_id       TEXT NOT NULL,
-    to_role       TEXT NOT NULL,
-    to_person     TEXT NOT NULL,
-    fact_needed   TEXT NOT NULL,
-    sources       TEXT NOT NULL,               -- JSON: the sources that disagree
-    if_yes        TEXT NOT NULL,               -- what happens on each answer (one of the allowed next steps)
-    if_no         TEXT NOT NULL,
-    if_partial    TEXT NOT NULL,
-    status        TEXT NOT NULL,               -- open | answered
-    answer        TEXT,                        -- yes | no | partial
-    answered_by   TEXT,
-    note          TEXT,
-    asked_at      TEXT NOT NULL,
-    answered_at   TEXT,
-    reminded_at   TEXT,
-    escalated_at  TEXT,
-    follows       TEXT                         -- the question this one follows up
-);
-
 CREATE TABLE IF NOT EXISTS agent_runs (
-    run_id         TEXT PRIMARY KEY,
-    close_period   TEXT NOT NULL,
-    mode           TEXT NOT NULL,              -- model | scripted
-    model          TEXT,
-    started_at     TEXT NOT NULL,
-    finished_at    TEXT,
-    status         TEXT NOT NULL,              -- running | done | failed
-    input_tokens   INTEGER NOT NULL DEFAULT 0,
-    output_tokens  INTEGER NOT NULL DEFAULT 0,
-    cache_read_tokens INTEGER NOT NULL DEFAULT 0,
-    cost_usd       TEXT NOT NULL DEFAULT '0.00',
-    report         TEXT,
-    report_status  TEXT,                       -- accepted | rejected
-    report_problems TEXT
-);
+ run_id TEXT PRIMARY KEY, mode TEXT NOT NULL, model TEXT NOT NULL, started_at TEXT NOT NULL,
+ status TEXT NOT NULL, result TEXT, metrics TEXT NOT NULL DEFAULT '{}');
+CREATE TABLE IF NOT EXISTS decisions (case_id TEXT PRIMARY KEY, decision TEXT NOT NULL, at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS info_requests (
+ request_id TEXT PRIMARY KEY, case_id TEXT NOT NULL, recipient TEXT NOT NULL, about TEXT NOT NULL,
+ status TEXT NOT NULL, created_at TEXT NOT NULL, reminded_at TEXT, escalated_at TEXT,
+ UNIQUE(case_id, recipient, about));
+CREATE TABLE IF NOT EXISTS received_facts (
+ request_id TEXT PRIMARY KEY REFERENCES info_requests(request_id), sender TEXT NOT NULL, data TEXT NOT NULL,
+ received_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS learned_corrections (
+ id TEXT PRIMARY KEY, case_id TEXT NOT NULL, decided_by TEXT NOT NULL, method TEXT NOT NULL,
+ reason TEXT NOT NULL, source TEXT NOT NULL, at TEXT NOT NULL);
+CREATE TRIGGER IF NOT EXISTS facts_immutable BEFORE UPDATE ON received_facts
+BEGIN SELECT RAISE(ABORT, 'received facts are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS facts_no_delete BEFORE DELETE ON received_facts
+BEGIN SELECT RAISE(ABORT, 'received facts are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS memory_immutable BEFORE UPDATE ON learned_corrections
+BEGIN SELECT RAISE(ABORT, 'learned corrections are immutable'); END;
+
+CREATE TABLE IF NOT EXISTS followup_facts (
+ id INTEGER PRIMARY KEY, request_id TEXT NOT NULL REFERENCES info_requests(request_id),
+ sender TEXT NOT NULL, data TEXT NOT NULL, received_at TEXT NOT NULL);
+CREATE TRIGGER IF NOT EXISTS followups_immutable BEFORE UPDATE ON followup_facts
+BEGIN SELECT RAISE(ABORT, 'follow-up facts are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS followups_no_delete BEFORE DELETE ON followup_facts
+BEGIN SELECT RAISE(ABORT, 'follow-up facts are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS memory_no_delete BEFORE DELETE ON learned_corrections
+BEGIN SELECT RAISE(ABORT, 'learned corrections are immutable'); END;

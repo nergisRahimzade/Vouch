@@ -71,3 +71,17 @@ Company data is simulated; rules and policies follow VOUCH_DE_EVENT_TAX_SPEC.md.
 - Live checkpoint: claude-opus-5-5, medium effort, 2026-10-25; public suite 15 cases ? 3 runs and P11 ? 5 consecutive runs. Expected tax amounts and thresholds were not changed.
 - Root-cause changes are recorded in FIX_LOG.md. The obsolete payroll tests were adapted with your explicit approval; later failing assertions were left fixed while production code was repaired.
 
+## T8 ? Pre-pass, typed tools, and agent loop
+
+### In simple words
+- What: Connected every event-tax calculation to the actual request/draft/review workflow.
+- Why: The workflow must handle missing facts and safe failures, not only calculate totals.
+- How: Compute first, ask recorded people, draft only permitted results, request review, and finish through submit_decision.
+- Tests: Included in the successful integration checkpoint: 206 passed, 0 failed, 0 skipped (189 deterministic and 17 live tests).
+- Needs your approval: Nothing.
+
+### In software and finance terms
+- recon/run.py, agent/tools.py, runner.py, policy.py, schema.sql, and CLIs implement trigger dispatch, compact case files, deterministic proposals, Pydantic schemas, idempotent drafts, payroll exports, recipient notices, and actual holds on failure.
+- Live checkpoint: claude-opus-5-5, medium effort, 2026-10-25; public suite 15 cases ? 3 runs and P11 ? 5 consecutive runs. Expected tax amounts and thresholds were not changed.
+- Root-cause changes are recorded in FIX_LOG.md. The obsolete payroll tests were adapted with your explicit approval; later failing assertions were left fixed while production code was repaired.
+

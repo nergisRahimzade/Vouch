@@ -16,8 +16,7 @@ def evidence_for(conn: sqlite3.Connection, case_id: str) -> list[dict]:
 
 
 def _names(conn) -> list[str]:
-    people = json.loads(conn.execute("SELECT content FROM documents WHERE kind = 'directory'").fetchone()[0])["people"]
-    return [p["name"] for p in people]
+    return [p[0] for p in conn.execute("SELECT name FROM people")]
 
 
 def why(conn: sqlite3.Connection, case_id: str, question: str, policy) -> dict:

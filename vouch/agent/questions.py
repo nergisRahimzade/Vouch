@@ -1,177 +1,107 @@
-"""Questions to colleagues. Each names the person, the fact needed, the sources that disagree,
-and what happens on yes, no or a partial answer. Answers are handled in code: the case moves on
-when answered and stays held when not."""
-from __future__ import annotations
-
+"""Structured requests and attributed answers. Free text never becomes executable arguments."""
+import hashlib
 import json
-import sqlite3
 
-from vouch.agent.untrusted import instruction_flags
-from vouch.controls import approvals, audit, clock, gates
-from vouch.controls.gates import VOUCH, Refused
+from vouch.calc.eventtax import vat_arithmetic
+from vouch.controls import audit, clock, gates
 from vouch.db.periods import Actor
 
-# The next steps a question may promise. Releasing a hold is done by the person who answered,
-# never by Vouch.
-NEXT_STEPS = {
-    "release_hold": "the person answering releases the hold and the case is resolved",
-    "keep_hold": "the hold stays; the case stays held",
-    "draft_correction": "Vouch drafts the correcting entry and requests approval",
-    "resolve_case": "the case is resolved with the answer recorded",
-    "ask_follow_up": "Vouch asks a follow-up question for what is still missing",
-    "escalate_to_controller": "the case goes to the controller",
-}
+
+def request_info(conn, case_id, recipient, about):
+    if not recipient:
+        raise ValueError("request needs a recorded recipient")
+    exists = conn.execute("SELECT id FROM people WHERE id = ? UNION SELECT id FROM vendors WHERE id = ?",
+                          (recipient, recipient)).fetchone()
+    if not exists:
+        raise ValueError("recipient is not a visible person or vendor")
+    rid = "INFO-" + hashlib.sha256(json.dumps([case_id, recipient, about]).encode()).hexdigest()[:16]
+    cursor = conn.execute("INSERT OR IGNORE INTO info_requests VALUES (?, ?, ?, ?, 'pending', ?, NULL, NULL)",
+                           (rid, case_id, recipient, about, clock.now(conn)))
+    if cursor.rowcount:
+        audit.log(conn, gates.VOUCH, "request_info", case_id, "requested", about,
+                  {"request": rid, "to": recipient, "about": about})
+    return rid
 
 
-class BadQuestion(ValueError):
-    pass
+def answer(conn, request_id, sender, data):
+    item = conn.execute("SELECT * FROM info_requests WHERE request_id = ?", (request_id,)).fetchone()
+    if not item or item["recipient"] != sender:
+        raise PermissionError("only the recorded recipient can answer")
+    if item["status"] == "answered":
+        return
+    if not isinstance(data, dict):
+        raise ValueError("answer requires structured facts; prose is untrusted data")
+    allowed = {"bewirtung_attendees_occasion": {"participants", "occasion", "host", "place"},
+               "gift_recipient_list": {"recipients", "unknown_count"}, "itemized_invoice": {"lines"},
+               "attendance": {"employees", "business_partners", "companions"},
+               "nonqualifying_event": {"method", "reason"}}
+    if item["about"] not in allowed or set(data) - allowed[item["about"]]:
+        raise ValueError("answer contains unsupported fields")
+    if item["about"] == "gift_recipient_list":
+        from decimal import Decimal
+        from vouch.world.generator import expand
+        recipients = expand(data.get("recipients"))
+        unknown = data.get("unknown_count", 0)
+        if not isinstance(unknown, int) or isinstance(unknown, bool) or unknown < 0:
+            raise ValueError("unknown_count must be an explicitly confirmed non-negative integer")
+        lines = conn.execute("SELECT l.qty FROM invoice_lines l JOIN invoices i ON i.id=l.invoice "
+                             "WHERE l.category='gift' AND (i.id=? OR i.event=?)", (item["case_id"],item["case_id"])).fetchall()
+        if len(lines)!=1 or len(set(recipients))!=len(recipients) or len(recipients)+unknown!=int(Decimal(str(lines[0][0] or 1))):
+            raise ValueError("recipient answer must reconcile to the recorded gift quantity")
+        known={r[0] for r in conn.execute("SELECT id FROM business_partners")}
+        if set(recipients)-known:
+            raise ValueError("recipients must identify recorded business-partner people")
+    if "lines" in data:
+        if not data["lines"] or vat_arithmetic(data["lines"]):
+            raise ValueError("itemized invoice arithmetic is invalid")
+    if "method" in data:
+        person = conn.execute("SELECT role FROM people WHERE id = ?", (sender,)).fetchone()
+        day = conn.execute("SELECT value FROM scenario WHERE key='as_of'").fetchone()[0]
+        delegation = conn.execute("SELECT 1 FROM delegations d JOIN people p ON p.id=d.from_person "
+            "WHERE d.to_person=? AND d.role='tax_manager' AND p.role='tax_manager' AND d.valid_from<=? AND d.valid_to>=?",
+            (sender,day,day)).fetchone()
+        if not person or (person[0] != "tax_manager" and not delegation) or data["method"] not in {"individual", "flat_40"}:
+            raise PermissionError("only the tax manager can decide the payroll method")
+    encoded = json.dumps(data, sort_keys=True)
+    prior = conn.execute("SELECT data FROM received_facts WHERE request_id=?", (request_id,)).fetchone()
+    if prior:
+        if prior[0] == encoded or conn.execute("SELECT 1 FROM followup_facts WHERE request_id=? AND data=?", (request_id, encoded)).fetchone():
+            return
+        conn.execute("INSERT INTO followup_facts (request_id,sender,data,received_at) VALUES (?,?,?,?)",
+                      (request_id,sender,encoded,clock.now(conn)))
+    else:
+        conn.execute("INSERT INTO received_facts VALUES (?, ?, ?, ?)",
+                      (request_id, sender, encoded, clock.now(conn)))
+    complete = True
+    if item["about"] == "bewirtung_attendees_occasion":
+        # A reply is final only when the recomputed documentation check is complete.
+        from vouch.recon.run import prepass
+        current = prepass(conn, {"type":"process_event", "event":item["case_id"]})
+        complete = not any(f["kind"] == "bewirtung_docs_missing" for f in current["findings"])
+    conn.execute("UPDATE info_requests SET status = ? WHERE request_id = ?",
+                  ("answered" if complete else "pending", request_id))
+    role = conn.execute("SELECT role FROM people WHERE id = ?", (sender,)).fetchone()
+    audit.log(conn, Actor(sender, role[0] if role else "vendor"), "answer", item["case_id"], "done",
+              "Structured response recorded", {"request": request_id, "fields": sorted(data)})
+    if "method" in data:
+        conn.execute("INSERT INTO learned_corrections VALUES (?, ?, ?, ?, ?, ?, ?)",
+                      ("MEM-" + request_id, item["case_id"], sender, data["method"], data.get("reason") or "Tax manager ruling",
+                       request_id, clock.now(conn)))
 
 
-def ask(conn: sqlite3.Connection, case_id: str, to_role: str, to_person: str, fact_needed: str,
-        sources: list[str], if_yes: str, if_no: str, if_partial: str, follows: str | None = None,
-        impossible: dict[str, str] | None = None) -> str:
-    """`impossible` maps a next step that cannot be carried out for this case to the reason why."""
-    gates.require(conn, VOUCH, "ask_question", case_id)
-    missing = [name for name, value in (("person", to_person), ("fact needed", fact_needed)) if not str(value).strip()]
-    if len(sources) < 2:
-        missing.append("at least two sources that disagree")
-    for label, step in (("yes", if_yes), ("no", if_no), ("partial", if_partial)):
-        if step not in NEXT_STEPS:
-            missing.append(f"a known next step for {label} (got {step!r})")
-        elif step == "release_hold" and "release_hold" not in gates.PERMISSIONS.get(to_role, set()):
-            missing.append(f"a next step the {to_role} can take for {label} (the {to_role} cannot release holds; "
-                           "use escalate_to_controller)")
-        elif step in (impossible or {}):
-            missing.append(f"a next step this case allows for {label} ({step} is not possible: {impossible[step]})")
-    if missing:
-        raise BadQuestion("a question must name " + ", ".join(missing))
-    duplicate = conn.execute("SELECT question_id FROM questions WHERE case_id = ? AND to_role = ? AND fact_needed = ? "
-                             "AND status = 'open'", (case_id, to_role, fact_needed)).fetchone()
-    if duplicate:
-        return duplicate[0]
-    question_id = f"Q-{conn.execute('SELECT COUNT(*) FROM questions').fetchone()[0] + 1:04d}"
-    conn.execute("INSERT INTO questions (question_id, case_id, to_role, to_person, fact_needed, sources, if_yes, if_no, "
-                 "if_partial, status, asked_at, follows) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)",
-                 (question_id, case_id, to_role, to_person, fact_needed, json.dumps(sources), if_yes, if_no,
-                  if_partial, clock.now(conn), follows))
-    audit.log(conn, VOUCH, "ask", case_id, "requested", fact_needed,
-              {"question": question_id, "to": to_person, "role": to_role, "sources": sources,
-               "if_yes": if_yes, "if_no": if_no, "if_partial": if_partial})
-    gates.set_case(conn, VOUCH, case_id, "waiting", f"asked {to_person}: {fact_needed}", {"question": question_id})
-    return question_id
-
-
-def get(conn, question_id: str) -> dict:
-    row = conn.execute("SELECT * FROM questions WHERE question_id = ?", (question_id,)).fetchone()
-    return {**dict(row), "sources": json.loads(row["sources"])}
-
-
-def open_questions(conn, case_id: str | None = None) -> list[dict]:
-    query = "SELECT question_id FROM questions WHERE status = 'open'" + (" AND case_id = ?" if case_id else "")
-    return [get(conn, r[0]) for r in conn.execute(query, (case_id,) if case_id else ()).fetchall()]
-
-
-def answer(conn: sqlite3.Connection, question_id: str, by: Actor, reply: str, note: str,
-           draft=None) -> dict:
-    """Record an answer and carry out the step the question promised for it.
-    `draft` is a callable(case_id) that drafts and requests approval for a correction."""
-    question = get(conn, question_id)
-    basis = {"question": question_id}                  # a refusal is logged before it is raised, like every gate
-    if question["status"] != "open":
-        gates.refuse(conn, by, "answer", question["case_id"], "FIN-08", "this question was already answered", basis)
-    if by.role != question["to_role"] and by.role != "controller":
-        gates.refuse(conn, by, "answer", question["case_id"], "ROLE",
-                     f"the question was asked of the {question['to_role']}, not the {by.role}", basis)
-    if reply not in ("yes", "no", "partial"):
-        raise ValueError(f"an answer is yes, no or partial, not {reply!r}")
-    conn.execute("UPDATE questions SET status = 'answered', answer = ?, answered_by = ?, note = ?, answered_at = ? "
-                 "WHERE question_id = ?", (reply, by.name, note, clock.now(conn), question_id))
-    audit.log(conn, by, "answer", question["case_id"], "done", note, {"question": question_id, "answer": reply})
-    case_id = question["case_id"]
-    flags = instruction_flags(note)
-    if flags:                         # the note is data: only the yes/no/partial reply decides the next step
-        audit.log(conn, VOUCH, "suspicious_instruction", question_id, "done",
-                  "instruction found in a colleague's note; treated as data and not acted on",
-                  {"question": question_id, "case": case_id, "by": by.name, "words": flags})
-    conflict = conflicting_answers(conn, case_id, by.name, reply)
-    if conflict:
-        return _send_conflict_to_controller(conn, case_id, question_id, reply, by, conflict)
-    step = question[f"if_{reply}"]
-    if step == "release_hold":
-        for hold in gates.active_holds(conn):
-            if hold["case_id"] == case_id:
-                gates.release_hold(conn, by, hold["hold_id"], f"answered {reply}: {note}")
-        gates.set_case(conn, by, case_id, "resolved", f"{by.name} answered {reply}: {note}", {"question": question_id})
-    elif step == "keep_hold":
-        gates.set_case(conn, VOUCH, case_id, "held", f"{by.name} answered {reply}: {note}; the hold stays",
-                       {"question": question_id})
-    elif step == "draft_correction":
-        try:
-            result = draft(case_id) if draft else None
-        except (ValueError, Refused) as failure:          # the promised step cannot be done: hold, never guess
-            reason = getattr(failure, "reason", str(failure))
-            gates.set_case(conn, VOUCH, case_id, "held", f"{by.name} answered {reply}; the promised correction "
-                           f"could not be drafted ({reason})", {"question": question_id, "failure": reason})
-            return {"question": question_id, "answer": reply, "next_step": step, "failed": reason}
-        gates.set_case(conn, VOUCH, case_id, "held", f"{by.name} answered {reply}; correction drafted and sent for "
-                       "approval", {"question": question_id, "draft": result})
-    elif step == "resolve_case":
-        gates.set_case(conn, VOUCH, case_id, "resolved", f"{by.name} answered {reply}: {note}", {"question": question_id})
-    elif step == "ask_follow_up":
-        follow = ask(conn, case_id, question["to_role"], question["to_person"],
-                     f"Still needed after '{note}': {question['fact_needed']}", question["sources"],
-                     question["if_yes"], question["if_no"], "keep_hold", follows=question_id)
-        gates.set_case(conn, VOUCH, case_id, "held", f"partial answer; follow-up {follow} asked",
-                       {"question": question_id, "follow_up": follow})
-    elif step == "escalate_to_controller":
-        gates.set_case(conn, VOUCH, case_id, "held", f"{by.name} answered {reply}; sent to the controller",
-                       {"question": question_id})
-        approvals.request(conn, VOUCH, "escalation", case_id, {"case": case_id, "escalated_from": question_id},
-                          case_id=case_id, reason=f"escalated after {by.name} answered {reply}")
-    return {"question": question_id, "answer": reply, "next_step": step}
-
-
-def conflicting_answers(conn, case_id: str, by: str, reply: str) -> list[dict]:
-    """Earlier answers on the same case from someone else that say the opposite (yes against no)."""
-    if reply not in ("yes", "no"):
-        return []
-    opposite = "no" if reply == "yes" else "yes"
-    return [dict(r) for r in conn.execute(
-        "SELECT question_id, answered_by, answer, note FROM questions WHERE case_id = ? AND status = 'answered' "
-        "AND answer = ? AND answered_by <> ?", (case_id, opposite, by))]
-
-
-def _send_conflict_to_controller(conn, case_id: str, question_id: str, reply: str, by: Actor,
-                                 conflict: list[dict]) -> dict:
-    """Two people disagree: no promised step is taken, anything released is held again, and the
-    controller decides."""
-    for hold in conn.execute("SELECT * FROM holds WHERE case_id = ? AND released_at IS NOT NULL", (case_id,)).fetchall():
-        gates.place_hold(conn, VOUCH, case_id, hold["target_kind"], hold["target_ref"],
-                         f"held again: answers disagree ({hold['reason']})", {"conflict": question_id})
-    who = "; ".join(f"{c['answered_by']} said {c['answer']} ({c['question_id']})" for c in conflict)
-    reason = f"answers disagree: {who}; {by.name} said {reply} ({question_id}); sent to the controller"
-    gates.set_case(conn, VOUCH, case_id, "held", reason, {"question": question_id, "conflict": conflict})
-    approvals.request(conn, VOUCH, "conflict", case_id,
-                      {"case": case_id, "conflict": [c["question_id"] for c in conflict] + [question_id]},
-                      case_id=case_id, reason=reason)
-    return {"question": question_id, "answer": reply, "next_step": "escalate_to_controller", "conflict": conflict}
-
-
-def follow_up(conn: sqlite3.Connection) -> list[dict]:
-    """Unanswered questions: reminder, then escalation to the controller, on the simulated clock."""
-    now, done = clock.now(conn), []
-    for question in open_questions(conn):
-        waited = clock.business_days_between(question["asked_at"], now)
-        if waited >= approvals.ESCALATE_AFTER_BUSINESS_DAYS and not question["escalated_at"]:
-            conn.execute("UPDATE questions SET escalated_at = ?, to_role = 'controller' WHERE question_id = ?",
-                         (now, question["question_id"]))
-            audit.log(conn, VOUCH, "escalate", question["case_id"], "escalated",
-                      f"no answer from {question['to_person']} after {waited} business days; asked the controller",
-                      {"question": question["question_id"]})
-            done.append({"question": question["question_id"], "action": "escalated"})
-        elif waited >= approvals.REMIND_AFTER_BUSINESS_DAYS and not question["reminded_at"]:
-            conn.execute("UPDATE questions SET reminded_at = ? WHERE question_id = ?", (now, question["question_id"]))
-            audit.log(conn, VOUCH, "remind", question["case_id"], "reminded",
-                      f"reminder to {question['to_person']}: {question['fact_needed']}", {"question": question["question_id"]})
-            done.append({"question": question["question_id"], "action": "reminded"})
-    return done
+def follow_up(conn):
+    now, actions = clock.now(conn), []
+    for row in conn.execute("SELECT * FROM info_requests WHERE status = 'pending'").fetchall():
+        days = clock.business_days_between(row["created_at"], now)
+        if days >= 2 and row["reminded_at"] and not row["escalated_at"]:
+            action = "escalate"
+            conn.execute("UPDATE info_requests SET escalated_at = ? WHERE request_id = ?", (now, row["request_id"]))
+        elif days >= 1 and not row["reminded_at"]:
+            action = "remind"
+            conn.execute("UPDATE info_requests SET reminded_at = ? WHERE request_id = ?", (now, row["request_id"]))
+        else:
+            continue
+        audit.log(conn, gates.VOUCH, action, row["case_id"], action + "d", row["about"],
+                  {"request": row["request_id"], "to": "tax_manager" if action == "escalate" else row["recipient"]})
+        actions.append({"request_id": row["request_id"], "action": action})
+    return actions

@@ -9,9 +9,8 @@ from decimal import Decimal, InvalidOperation
 AMOUNT = re.compile(r"(?<![\w.-])-?\d{1,3}(?:,\d{3})+(?:\.\d{2})?(?![\w-])|(?<![\w.-])-?\d+\.\d{2}(?![\w-])")
 DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 MONTH = re.compile(r"\b\d{4}-(?:0[1-9]|1[0-2])\b(?!-\d)")
-RULE = re.compile(r"\b(?:PAY|FIN)-\d{2}\b")
-IDENTIFIER = re.compile(r"\b(?:NL-\d{3,}|G-\d{3,}|PAY-\d{4}-\d{2}-[A-Z]{2}-\d+|BNK-[A-Z]{2}-\d{4}-\d{2}-\d+|EM-\d+|"
-                        r"SC-\d+|AR-\d+|RUL-[\w-]+|REQ-\d+|Q-\d+|F-[0-9a-f]{12}|VCH-[\w-]+|BATCH-[\w-]+)\b")
+RULE = re.compile(r"\b(?:R|POL|TAX)-[A-Z0-9-]+\b")
+IDENTIFIER = re.compile(r"\b(?:E\d{3}|BP-\d{3}|(?:EVT|INV|P|V|INFO|MEM|VCH|REQ)-[A-Za-z0-9-]+)\b")
 
 
 @dataclass
