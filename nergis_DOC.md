@@ -310,3 +310,15 @@ Score-selection fix: `/api/scores` now prefers the latest complete public suite 
 ### In software and finance terms
 - origin/main was the initial commit and an ancestor of v3-t12-demo. git merge --ff-only integrated the complete task history without rewriting commits or resolving conflicts. Local main tracks origin/main. Ancestry checks confirm all v3 task heads are ancestors of main; the application tree matched the completed branch before this documentation update.
 - Accounting calculations, role gates, source records and model settings were unchanged by the merge. Post-merge verification: pytest -m 'not live' returned 225 passed, 21 deselected in 56.81 seconds; node --check passed for app.js and icons.js. Prior live reports remain preserved; no new live score is claimed for this merge.
+
+## Three-minute judge-facing hackathon pitch — 2026-10-25
+
+### In simple words
+- What: Created HACKATHON_PITCH.md with a spoken pitch under three minutes and brief delivery cues.
+- Why: Judges should immediately understand the four event-tax questions and why changing facts create detailed accounting work across time and people.
+- How: Read the supplied four-page Hyphenate brief, verified the project design and recorded results, then built the pitch around P11's catch, person-level consequences, three architecture decisions, human review and measured evidence.
+- Checks: Narration is under 360 words, with a speaking estimate and three-minute rehearsal limit. Claims match the saved Jev report; no new accuracy result is claimed. No application code or tests changed.
+- Needs your approval: nothing.
+
+### In software and finance terms
+- HACKATHON_PITCH.md explains the single-agent case owner; dated deterministic pre-pass; typed Jev decisions and tool validation; Decimal/versioned rules; annual subledger recomputation; retroactive VAT/payroll corrections; locked periods; independent approval/posting; authorized ruling memory; and source-linked hash-chained audit. It maps these to the brief's realism, hireability, novelty and memorable-moment criteria, and distinguishes real execution from simulated company/human roles.
