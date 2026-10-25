@@ -1,18 +1,20 @@
-# PLAN: Vouch v2 (event vendor payables)
+# PLAN: Vouch v3 (German event tax, Nordlicht Maschinenbau GmbH)
 
-Tasks from `VOUCH_EVENT_AP_SPEC.md` §11. One git branch per task, each branched from the one before.
+Tasks from `VOUCH_DE_EVENT_TAX_SPEC.md` §11. One git branch per task (`v3-tN-...`), each branched from
+the one before. The earlier event-AP plan (branches `v2-t1`..`v2-t5`, tag `event-ap-legacy`) stopped at
+its T5 when v3 superseded it; its domain-neutral work is reused here.
 
 | # | Branch | Task | Done when | Status |
 |---|---|---|---|---|
-| T1 | `v2-t1-mapping` | `MAPPING.md` + tag `payroll-legacy` | Every module mapped | done |
-| T2 | `v2-t2-schema` | Schema + base fixtures (Appendix A) + time-travel loader | Seed reproducible; loader unit tests pass | done |
-| T3 | `v2-t3-matching` | Matching engine + unit tests (§5.2, boundaries) | All rules hand-checked | done |
-| T4 | `v2-t4-entries` | Entry types (deposit, release, accrual + reversal, reclass, discount) + period lock | Balance + lock tests pass | done |
-| T5 | `v2-t5-detectors` | Detectors + approval matrix + SoD + delegation + aggregation | Unit tests pass | |
-| T6 | `v2-t6-scenarios` | Scenario loader, public cases P01–P15, C01–C04, scorer updates, holdout loader (aggregates only) | Scorer runs on public set | |
-| T7 | `v2-t7-bench` | Step 0 baseline bench | `perf_baseline.json` saved | |
-| T8 | `v2-t8-agent` | Agent tools (§7) + deterministic pre-pass + case file + loop | Public suite runs end to end | |
-| T9 | `v2-t9-speed` | Speed steps 3–9 one by one, measured | Targets in §9 met, no regressions | |
-| T10 | `v2-t10-memory` | Memory: vendor history, learned corrections | P15 + rejection handling pass | |
-| T11 | `v2-t11-ui` | UI updates | Views in §10 | |
-| T12 | `v2-t12-demo` | Demo: P01 + P02 scripted run, real-vs-simulated slide, P01 passes 5× | Rehearsed | |
+| T1 | `v3-t1-mapping` | `MAPPING.md` + legacy tags | Every module mapped | done |
+| T2 | `v3-t2-schema` | Schema, rules table, base fixtures, employee generator, time travel (reuse) | Seed reproducible | |
+| T3 | `v3-t3-engine` | Event tax engine + unit tests (§6.1, POL-ROUND) | All rules hand-checked | |
+| T4 | `v3-t4-ledgers` | Per-person ledgers, optimizer, corrections + tests | Retro cases pass in unit tests | |
+| T5 | `v3-t5-detectors` | Entries, period lock, detectors, routing | Unit tests pass | |
+| T6 | `v3-t6-scenarios` | Scenario loader updates, public cases P01–P11 + C01–C04, scorer fields, holdout loader | Scorer runs on public set | |
+| T7 | `v3-t7-bench` | Bench baseline | `perf_baseline.json` | |
+| T8 | `v3-t8-agent` | Tools, pre-pass, case file, agent loop | Public suite end to end | |
+| T9 | `v3-t9-speed` | Speed steps, measured | §9 targets met | |
+| T10 | `v3-t10-memory` | Memory: learned corrections from tax manager answers | Escalate → answer → follow works | |
+| T11 | `v3-t11-api` | API (§10) incl. SSE + custom scenario | Frontend can connect | |
+| T12 | `v3-t12-demo` | Demo: P11, P01, P03, P10 scripted; P11 passes 5× | Rehearsed | |

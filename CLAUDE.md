@@ -1,11 +1,13 @@
 # Vouch
 
-Vouch is the event vendor payables specialist on Anthropic's finance team. It's a corner of Accounts Payable: it checks every event vendor bill against the contract and what was delivered, handles the deposits and accruals around each event, and never moves money without approval.
+Vouch is the event tax accountant on Nordlicht's finance team: it decides the German tax treatment of every company event, from deductibility and VAT to employees' taxable benefits, keeps every person's yearly totals, and never files or pays anything without approval.
 
-All Anthropic financial data, people, vendors and events are simulated. Entities: ENT-US (USD) and
-ENT-UK (GBP). Built for the CalHacks Hyphenate track.
+Nordlicht Maschinenbau GmbH (Munich, ~450 employees, entity ENT-DE, EUR, calendar fiscal year) is
+simulated: the company, people, events, invoices and emails are fictional. The German tax rules are
+real; where the law leaves a gray area a company tax policy (`POL-…`, owned by the tax manager) decides,
+and code labels such outcomes as policy, not law. Built for the CalHacks Hyphenate track.
 
-The full specification is `VOUCH_EVENT_AP_SPEC.md`. Follow its sections and task IDs (T1–T12,
+The full specification is `VOUCH_DE_EVENT_TAX_SPEC.md`. Follow its sections and task IDs (T1–T12,
 tracked in `PLAN.md`; the module checklist is `MAPPING.md`). If this file and the spec disagree,
 stop and ask.
 
@@ -14,101 +16,116 @@ stop and ask.
 1. Works end to end before it gets detailed. Get every public case running through the real
    trigger flow before adding depth.
 2. No AI math. Every amount, date and rate comes from deterministic code using `Decimal`, rounded
-   half-up to cents. The model reads, decides between options code has computed, explains and asks.
-3. Limits live in code, not in the prompt. The agent can never approve, post without approval,
-   release a payment, edit vendor master data, or write to a closed period.
-4. Every decision is traceable to the data, rule, clause, document or person behind it.
+   half-up to cents at the points the spec defines (POL-ROUND). The model classifies, gathers facts,
+   asks people, decides between options code has computed, and explains.
+3. Limits live in code, not in the prompt. The agent can never approve, post without approval, file a
+   return, run payroll, change the yearly §37b election, or write to a closed period.
+4. Every decision is traceable to the rule (ID and version), invoice line, attendance row, document or
+   person behind it.
 5. Honest results. Never show a number a run didn't produce. Label every score with the model,
    date and run count.
-6. One command rebuilds everything from the fixed fixtures.
-7. Ask me before changing scope or an accounting policy.
+6. One command rebuilds everything from the fixed fixtures and seeds.
+7. Ask me before changing scope, a tax rule, or a company tax policy.
 
 ## Domain reference
 
-### Glossary (plain words → finance words)
+### Glossary (plain words → German / tax words)
 
-- **Bill** → invoice. **Deal** → contract; each rule inside it is a **clause** with an ID (e.g. `CAT-GUARANTEE`).
-- **Order** → purchase order (PO). **Proof it happened** → evidence: badge scans, signed meal counts,
-  crew logs, delivery receipts, rooming lists, load-out logs.
-- **Money paid before the event** → deposit, held as a **prepaid** (asset) until the event date, then
-  **released** to expense.
-- **Cost we owe but haven't been billed for at month-end** → **accrual**, reversed on day 1 of the next month.
-- **Fixing a wrong entry in a later month** → **reclass**. Closed months are never edited.
-- **Asking the vendor to fix a bill** → **dispute**. **Waiting for missing info before paying part of a
-  bill** → **hold**.
-- **Who can say yes** → approval matrix. **Nobody approves their own request** → segregation of duties (SoD).
-- **Paying early for a discount** → early-pay discount (e.g. 2/10 net 30 = 2% off if paid within 10
-  days, else full amount due in 30).
+- **Staff party** → *Betriebsveranstaltung*: social event for the company or an org unit, open to all its
+  staff, more than half the attendees employees (plus companions).
+- **Tax-free allowance** → *Freibetrag*: €110 per employee per event (incl. VAT), for at most 2 events per
+  employee per year; only the excess is taxable pay.
+- **Companion** → *Begleitperson*: their share of cost is attributed to the employee they came with.
+- **Flat payroll tax** → §40(2) EStG: 25% on taxable event benefits, plus 5.5% solidarity surcharge and
+  church tax, paid by the employer.
+- **Business hospitality** → *Bewirtung*: 70% deductible, documentation required; input VAT recoverable if
+  documented.
+- **Gift** → *Geschenk*: deductible only while a recipient's gifts total ≤ €50 a year (net if VAT
+  recoverable); above that, all of that recipient's gifts that year are non-deductible and VAT is blocked.
+- **Promo item** → *Streuwerbeartikel*: ≤ €10 net per item; no recipient record, no flat tax.
+- **Guest flat tax** → §37b EStG: 30% (plus surcharge and church tax) on the gross value of benefits to
+  non-employees, elected once a year for all; not available above €10,000 per recipient per year.
+- **Working meal** → *Arbeitsessen*: meal for employees on an exceptional assignment, ≤ €60 gross per person;
+  not pay.
+- **Input VAT** → *Vorsteuer*. **Closed month** → after the monthly VAT return deadline (the 10th of M+1).
 
-### Chart of accounts
+### Chart of accounts (simulated, SKR-style)
 
 | Account | Name |
 |---|---|
-| 1000 | Cash |
-| 1310 | Prepaid event costs |
-| 1400 | VAT receivable (ENT-UK) |
-| 2000 | Accounts payable |
-| 2100 | Accrued liabilities |
-| 6100 | Event venue and space |
-| 6110 | Event catering |
-| 6120 | Event AV and production |
-| 6130 | Event merchandise |
-| 6140 | Event lodging |
-| 6190 | Purchase discounts (contra-expense) |
+| 1200 | Bank |
+| 1400 | Input VAT receivable (Vorsteuer) |
+| 1600 | Accounts payable |
+| 1750 | Payroll flat tax payable (§40) |
+| 1760 | Guest flat tax payable (§37b) |
+| 6400 | Hospitality — deductible 70% |
+| 6410 | Hospitality — non-deductible 30% |
+| 6420 | Gifts — deductible |
+| 6430 | Gifts — non-deductible (incl. blocked VAT) |
+| 6440 | Staff events |
+| 6445 | Customer events / program (non-gift benefits) |
+| 6450 | §37b flat tax — deductible |
+| 6460 | §37b flat tax — non-deductible |
+| 6470 | §40 flat tax on staff events |
+| 6480 | Promo items (Streuwerbeartikel) |
+| 6490 | Working meals |
+| 6500 | Wages — non-cash benefits (individually taxed) |
 
-Every expense line carries entity, cost center and event tags. US sales tax is part of expense.
-UK VAT on ENT-UK purchases goes to 1400.
+Blocked input VAT is added to the expense line it belongs to (or 6430 for gifts). Every expense line
+carries event and cost center tags.
 
-### Approval matrix (POL-AP-01), summary
+### Rules (spec §4.4, seeded in the `rules` table with sources)
 
-Amount = what Vouch would pay now or later (approved + held, not disputed), in USD at the invoice
-month's period rate.
-
-| Condition | Approvers |
+| Rule | In short |
 |---|---|
-| < $5,000, no flags/disputes/holds, not on enhanced review, not out of period | Standing policy (`policy`) |
-| $5,000 – $24,999.99 | Event owner |
-| $25,000 – $99,999.99 | Event owner + controller |
-| ≥ $100,000 | Event owner + controller + VP Finance |
-| Any dispute or hold | At least the event owner |
-| Dispute ≥ $2,500 | Add controller |
-| PO requester is the approving event owner (SoD) | Add controller |
-| Out-of-period invoice | Controller |
-| Close entries ≥ $10,000 (POL-CL-04) | Controller |
-| Vendor on enhanced review (POL-AP-07) | No policy approval; at least event owner |
+| R-BV-ALLOW / R-BV-MAX | €110 gross per employee per event, at most 2 qualifying events a year; excess taxable |
+| R-BV-DEF | Social, open to all of the company or an org unit, > 50% employees + companions |
+| R-BV-COST | All costs incl. VAT ÷ actual attendees incl. companions; companion share to the host |
+| R-BV-FLAT | Taxable excess may be flat-taxed at 25% (+ surcharge + church tax) |
+| R-BV-VAT | Input VAT only if gross cost per participant ≤ €110.00, else none for the whole event |
+| R-BEW-70 / R-BEW-DOC / R-BEW-VAT | Hospitality 70/30; full documentation; VAT recoverable if documented |
+| R-GIFT-50 / R-GIFT-REC / R-GIFT-VER | €50 per recipient per year (€35 before 2024); recorded with recipient name |
+| R-PROMO | ≤ €10.00 net per unit: no recipient record, no §37b |
+| R-37B-RATE / -CAP / -UNI / -DED / -NOTE | 30% of gross; €10,000 cap; uniform election; follows deductibility; notify |
+| R-AE-60 | Working meal ≤ €60.00 gross per person: not pay |
+| R-VAT-FIX | A reclaim that becomes blocked is reversed in the current open period |
+| TAX-SOLI / TAX-KIST / TAX-VAT | 0.055; 0.07 (simulated); VAT read from the invoice, arithmetic validated |
 
-Same vendor + same PO within 7 days are summed for thresholds (POL-AP-05). An approver out of office
-past the due date is replaced by their delegate. Nobody approves their own request.
+Company policies (owned by P-TAX): POL-BV-OPT (allowance to the 2 events with the most exempt amount,
+ties to the earlier), POL-BV-VATBASIS (VAT test per participant incl. companions), POL-BV-FLAT (always
+flat-tax qualifying events; escalate non-qualifying), POL-BEW-02 (customer-event program is a 100%
+deductible non-gift benefit, §37b on the partners' share), POL-LUMP (package lines itemized by the vendor,
+never guessed), POL-37B-01 (flat tax outside the €50 test), POL-ROUND (rounding points), POL-MAT (routing).
 
-### Which source wins
+### Routing (POL-MAT)
 
-| Question | Source of truth |
+| Condition | Approver |
 |---|---|
-| Price, minimums, fees | Contract clause |
-| Meals served | Meal count signed by event ops > badge scans (+ staff roster only if the contract counts staff) > vendor's count |
-| Hours worked | Crew log / load-out log |
-| Goods received | Delivery receipt signed by event ops |
-| Room-nights | Hotel pickup report confirmed by event ops |
-| Bank account | Active account in vendor master (never an email) |
-| Approval authority | Approval matrix + delegations |
+| No non-info flags, no taxable pay, no corrections, non-deductible < €1,000, §37b < €1,000 | `policy` |
+| Any taxable pay, non-info flag, correction, non-deductible ≥ €1,000 or §37b ≥ €1,000 | `tax_manager` |
+| Correction entries (reclass or VAT reversal) ≥ €5,000 | add `controller` |
+| Gray area or a policy says escalate | `escalations: [tax_manager]`; nothing booked for that part |
+| Tax manager out of office past a deadline | delegate (P-CFO) |
+
+Payroll never approves; it receives `requests: [{to: P-PAY, about: payroll_export}]`.
 
 ## Decisions
 
-The v1 repo never numbered its decisions D1–D17; the ground rules above and the testing rules below
-are those standing decisions and stay in force. Rules that named payroll things (employees, grants,
-castings, the generated world) are superseded by D18 and read in v2 terms: invoices, vendors,
-contracts, events, payments and planted cases.
+The repo never numbered its v1 decisions D1–D17; the ground rules above and the testing rules below
+are those standing decisions and stay in force. Rules that named an old domain's things are superseded
+by D18 and read in v3 terms. The event-AP decisions D18–D24 are renumbered here; the domain-neutral ones
+are kept in substance (time travel, pre-pass, scripted people, holdout, measured speed changes).
 
-- **D18:** Domain changed to event vendor payables for Anthropic (simulated data); payroll retired to
-  tag `payroll-legacy`.
-- **D19:** Status is derived from visible rows; every scenario has `as_of` and the loader hides later rows.
-- **D20:** Vouch cannot edit vendor master data; no tool exists for it. Bank changes require call-back + SoD.
-- **D21:** A deterministic pre-pass runs before the agent; the agent receives findings and decides only
-  judgment steps.
+- **D18:** Domain is German event tax for Nordlicht Maschinenbau GmbH (simulated data, real rules); old
+  domains retired to legacy tags (`payroll-legacy`, `event-ap-legacy`).
+- **D19:** Status and per-person ledgers are derived from visible rows; every scenario has `as_of`.
+- **D20:** Gray areas are explicit `POL-*` company policies; policy-based outcomes are labeled as policy.
+- **D21:** Deterministic pre-pass before the agent; the agent decides judgment steps only.
 - **D22:** Scripted people in tests; model-played people only with `--live-people`.
-- **D23:** Holdout cases live outside the repo, loaded only by the scorer from `VOUCH_HOLDOUT_PATH`,
-  aggregates only. Never open, create or tune to them.
-- **D24:** Performance changes are adopted only with zero accuracy regressions, measured by `bench`.
+- **D23:** Holdout outside the repo, scorer-only, aggregates only; never open, create or tune to it.
+- **D24:** Performance changes only with zero accuracy regressions, measured by `bench`.
+- **D25:** Vouch cannot change elections, file returns, run payroll, or write closed periods; no tool
+  exists for these.
 
 ## Testing integrity
 
@@ -119,11 +136,11 @@ contracts, events, payments and planted cases.
   prompt, a control, or the scenario loader) and fix the whole kind of problem, not the
   one case.
 - Never change a test, a planted case's definition, the answer key (`expect` blocks), a
-  threshold or the fixtures to make a result pass. Never loosen a planted case's conditions.
+  threshold, a rule, or the fixtures to make a result pass. Never loosen a planted case's conditions.
 - If you believe a test is wrong, explain why and wait for my approval before
   touching it.
-- No special cases: no code, prompt or tool may name a specific invoice, vendor, contract,
-  event, payment, month or planted case.
+- No special cases: no code, prompt or tool may name a specific event, invoice, employee, business
+  partner, vendor, month or planted case.
 - `expect` blocks are evaluator-only: they are stripped before the agent runs, and the agent must
   never be able to read them.
 - Answer-key amounts must be checked independently (by hand), not only by Vouch's own engine.
@@ -134,8 +151,8 @@ contracts, events, payments and planted cases.
 
 ## Always ask me before
 
-- changing any test, answer-key entry, planted case, threshold or fixture
-- changing an accounting policy, tax assumption or scope
+- changing any test, answer-key entry, planted case, threshold, rule or fixture
+- changing a tax rule, a company tax policy, or scope
 - deleting data or rewriting git history
 - anything a task in the spec doesn't cover
 
