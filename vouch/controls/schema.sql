@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
     reason     TEXT NOT NULL,
     basis      TEXT NOT NULL,                   -- JSON: the data, rule, document or person behind it
     prev_hash  TEXT NOT NULL,
-    hash       TEXT NOT NULL
+    hash       TEXT NOT NULL,
+    recorded_at TEXT                            -- real UTC time the row was written (at is business time)
 );
 CREATE TRIGGER IF NOT EXISTS audit_no_update BEFORE UPDATE ON audit_log
 BEGIN SELECT RAISE(ABORT, 'the audit trail is append-only'); END;

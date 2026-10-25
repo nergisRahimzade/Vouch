@@ -14,12 +14,13 @@ def rebuild(db: Path = DEFAULT_DB, scenario: Scenario | None = None, as_of: str 
         Path(str(db) + suffix).unlink(missing_ok=True)
     rows, meta = build(scenario, as_of)
     conn = connect(db)
-    with conn:
-        create(conn)
-        loaded = load(conn, rows, meta)
-    result = {**summary(conn), **loaded, "db": str(db)}
-    conn.close()
-    return result
+    try:          # a refused world still releases the file, so the caller sees the real error
+        with conn:
+            create(conn)
+            loaded = load(conn, rows, meta)
+        return {**summary(conn), **loaded, "db": str(db)}
+    finally:
+        conn.close()
 
 
 def report(result: dict) -> str:

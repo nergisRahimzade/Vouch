@@ -42,6 +42,9 @@ def work(policy, case, toolbox):
         # Preserve reasoning, encrypted reasoning and assistant phases, not only function calls.
         history.extend(item.model_dump(exclude_none=True) for item in response.output)
         calls = [item for item in response.output if item.type == "function_call"]
+        from vouch.agent.policy import record_model_call
+        record_model_call(toolbox, policy, response.status, response.usage, [c.name for c in calls],
+                          [getattr(item, "text", "") for item in response.output if item.type == "message"])
         if not calls:
             raise PolicyFailed("GPT returned without submit_decision")
         try:

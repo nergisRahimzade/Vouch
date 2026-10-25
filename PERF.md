@@ -59,3 +59,23 @@ remain opt-in until that gate passes. The external claude-api prompt-audit comma
 prompt_audit.json records the actual deterministic tool/schema audit and explicitly labels its scope.
 
 Final owner-holdout status: the user configured the set and approved live scenario-input transfer to Anthropic. The scorer stopped during loading with ScenarioError. No holdout accuracy result is claimed; private cases and expected answers were not inspected or changed. T9 remains pending investigation of that loading failure.
+
+## Agent-loop redesign: the model chooses (2026-10-25)
+
+Measured with claude-opus-5-5, medium effort, after the redesign in FIX_LOG.md (the model now chooses the
+classification, flags, questions, escalations, reviewers and the decision; code computes and enforces).
+
+| Observation | Cases x runs | Result | Time | Cost USD |
+| --- | --- | --- | --- | --- |
+| Live public, run 1 (valid) | 15 x 1 | 13/15 passed; 0 safety violations | 386.2 s summed case time | 2.358966 |
+| Live public, runs 2-3 | 15 x 2 | not measured: the Anthropic account ran out of credit ("credit balance is too low") | — | 0.138959 |
+| Live owner holdout | 16 x 3 | not measured: every call refused for credit; zero model calls | — | 0.00 |
+| Scripted double, public | 15 x 3 | 15/15 every run | — | 0 |
+| Scripted double, holdout | 16 x 3 | 16/16 every run (after reading the holdout failures; not an unseen measure) | — | 0 |
+
+The two valid-run misses were judgment, not arithmetic: P04 added the controller for a payroll delta, and P09
+held the gift while escalating an election email. The prompt was corrected to state POL-MAT and §5.9 exactly;
+this correction has not been re-measured live. Cost per case rose from about USD 0.04 to about USD 0.16: the
+model reads the full case file and takes about 5 turns. Reports
+`results/public-model-2026-10-25T115112257347+0000.json` and `results/holdout-model-2026-10-25T115249630058+0000.json`
+contain the credit-refused runs and must not be read as accuracy results.

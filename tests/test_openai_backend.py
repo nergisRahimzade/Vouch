@@ -22,8 +22,12 @@ class Client:
         self.requests.append(kwargs)
         turn=len(self.requests)
         calls=[("get_case_file",{"trigger_id":self.trigger})] if turn==1 else (
-            [(name,{}) for name in ("draft_entries","draft_payroll_export","draft_recipient_notice","request_approval")] if turn==2
-            else [("submit_decision",{})])
+            [(name,{}) for name in ("draft_entries","draft_payroll_export","draft_recipient_notice")]
+            +[("request_approval",{"approvers":["tax_manager","controller"],"reason":"corrections need review"})] if turn==2
+            else [("submit_decision",{"decision":"post_corrections","classification":"staff_event",
+                                      "flags":["event_cost_threshold_crossed","out_of_period"],
+                                      "rationale":"Late costs block the input VAT reclaimed earlier for the event.",
+                                      "cites":["R-BV-VAT","R-VAT-FIX"]})])
         output=[Output(type="reasoning",id=f"reason-{turn}",encrypted_content="opaque-provider-state")]
         output += [Output(type="function_call",name=name,arguments=json.dumps(args),call_id=f"call-{turn}-{n}") for n,(name,args) in enumerate(calls)]
         return SimpleNamespace(status="completed",output=output,usage=SimpleNamespace(input_tokens=1000,

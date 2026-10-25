@@ -10,6 +10,15 @@ from vouch.world.scenario import load_file
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1]=="preflight":
+        from vouch.agent.policy import load_credentials
+        from vouch.agent.chat_backend import configured, preflight
+        load_credentials()
+        if not configured():
+            print("RED: no model provider configured (set VOUCH_PROVIDER=deepseek and VOUCH_API_KEY in .env)");sys.exit(1)
+        results=preflight()
+        for name,ok,reason in results: print(("GREEN " if ok else "RED   ")+name+("" if ok else ": "+reason))
+        sys.exit(0 if all(ok for _,ok,_ in results) else 1)
     if len(sys.argv)>1 and sys.argv[1] in {"score","bench"}:
         from vouch.evaluator.__main__ import main as evaluate
         evaluate(sys.argv[1:]);return

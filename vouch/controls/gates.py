@@ -11,10 +11,12 @@ from vouch.money import fmt
 
 VOUCH = Actor("Vouch", "vouch")
 PERMISSIONS = {
-    "vouch": {"read", "draft_entry", "open_case", "place_hold", "ask_question", "request_approval", "resolve_case"},
-    "tax_manager": {"read", "approve", "answer", "request_approval", "release_hold"},
-    "controller": {"read", "approve", "answer", "post_entry", "lock_period", "request_approval", "release_hold"},
-    "cfo": {"read", "approve", "answer", "request_approval", "release_hold"},
+    "vouch": {"read", "draft_entry", "open_case", "place_hold", "ask_question", "request_approval", "resolve_case",
+              "void_draft"},
+    "tax_manager": {"read", "approve", "answer", "request_approval", "release_hold", "void_draft"},
+    "controller": {"read", "approve", "answer", "post_entry", "lock_period", "request_approval", "release_hold", "void_draft"},
+    "cfo": {"read", "approve", "answer", "request_approval", "release_hold", "void_draft"},
+    "accountant": {"read", "answer", "void_draft"},      # a colleague who drafts and may hand work over half done
     "payroll": {"read", "answer"}, "organizer": {"read", "answer"}, "vendor": {"read", "answer"}}
 
 
@@ -26,6 +28,9 @@ class Refused(PermissionError):
 
 def ensure(conn):
     conn.executescript(Path(__file__).with_name("schema.sql").read_text(encoding="utf-8"))
+    if "recorded_at" not in {r[1] for r in conn.execute("PRAGMA table_info(audit_log)")}:
+        conn.execute("ALTER TABLE audit_log ADD COLUMN recorded_at TEXT")    # databases made before the column
+    conn.executescript((Path(__file__).parents[1] / "db" / "append_only.sql").read_text(encoding="utf-8"))
     clock.now(conn)
 
 
@@ -112,9 +117,11 @@ def draft_entry(conn, actor, entry, case_id=None):
         refuse(conn, actor, "draft_entry", entry.entry_id, "ROLE", "Vouch may only create its own drafts")
     if periods.status(conn, entry.period) == "locked":
         refuse(conn, actor, "draft_entry", entry.entry_id, "PERIOD", "book the correction in the current open period")
-    # One draft per original source/type. Distinct corrections use distinct source_ref values.
+    # One live draft per original source/type. Distinct corrections use distinct source_ref values; a voided
+    # draft no longer counts, so a reviewed and rejected treatment can be replaced by a different one.
     prior = conn.execute("SELECT entry_id FROM journal_entries WHERE source_ref = ? AND type = ? "
-                          "AND origin = 'vouch'", (entry.source_ref, entry.type)).fetchone()
+                          "AND origin = 'vouch' AND entry_id NOT IN (SELECT entry_id FROM entry_voids)",
+                          (entry.source_ref, entry.type)).fetchone()
     if prior and not entry.corrects:
         refuse(conn, actor, "draft_entry", entry.entry_id, "DUPLICATE", f"source already drafted as {prior[0]}")
     post_entry(conn, entry)
@@ -124,8 +131,40 @@ def draft_entry(conn, actor, entry, case_id=None):
     return entry.entry_id
 
 
+def voided(conn, entry_id):
+    return conn.execute("SELECT 1 FROM entry_voids WHERE entry_id = ?", (entry_id,)).fetchone() is not None
+
+
+def void_draft(conn, actor, entry_id, reason, basis=None):
+    """Cancel a draft by appending a void (the books never delete). Its drafter may withdraw their own draft;
+    Vouch may void its own draft once a reviewer rejected it. A posted entry is corrected, never voided."""
+    entry = conn.execute("SELECT * FROM journal_entries WHERE entry_id = ?", (entry_id,)).fetchone()
+    if entry is None or entry["status"] != "draft":
+        refuse(conn, actor, "void_draft", entry_id, "LEDGER", "only an existing draft can be voided")
+    if voided(conn, entry_id):
+        return
+    rejected = conn.execute("SELECT request_id, note FROM approval_requests WHERE kind='entry' AND subject_ref=? "
+                            "AND status='rejected' ORDER BY closed_at DESC LIMIT 1", (entry_id,)).fetchone()
+    require(conn, actor, "void_draft", entry_id)
+    person = conn.execute("SELECT id FROM people WHERE id = ? OR name = ?", (actor.name, actor.name)).fetchone()
+    own = entry["created_by"] in {actor.name, person[0] if person else None}
+    if not ((actor.role == "vouch" and entry["created_by"] == VOUCH.name and rejected) or (actor.role != "vouch" and own)):
+        refuse(conn, actor, "void_draft", entry_id, "SOD", "a draft is voided by its drafter, or by Vouch after a reviewer rejected it")
+    if not reason.strip():
+        refuse(conn, actor, "void_draft", entry_id, "LEDGER", "a void needs a reason")
+    now = clock.now(conn)
+    detail = {**(basis or {}), **({"rejected_request": rejected[0], "reviewer_note": rejected[1]} if rejected else {})}
+    conn.execute("INSERT INTO entry_voids VALUES (?, ?, ?, ?, ?, ?)",
+                 (entry_id, actor.name, actor.role, reason, json.dumps(detail, default=str), now))
+    conn.execute("UPDATE approval_requests SET status = 'withdrawn', closed_at = ? WHERE kind = 'entry' AND "
+                 "subject_ref = ? AND status IN ('pending', 'escalated')", (now, entry_id))
+    audit.log(conn, actor, "void_draft", entry_id, "done", reason, {"drafted_by": entry["created_by"], **detail})
+
+
 def post_approved_entry(conn, actor, entry_id):
     require(conn, actor, "post_entry", entry_id)
+    if voided(conn, entry_id):
+        refuse(conn, actor, "post_entry", entry_id, "LEDGER", "the draft was voided and can never be posted")
     request = conn.execute("SELECT * FROM approval_requests WHERE kind = 'entry' AND subject_ref = ? "
                            "ORDER BY created_at DESC LIMIT 1", (entry_id,)).fetchone()
     if request is None or request["status"] != "approved":

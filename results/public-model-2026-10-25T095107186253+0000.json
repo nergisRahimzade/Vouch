@@ -1,5 +1,5 @@
 {
-  "status": "scored",
+  "status": "invalid_run",
   "set": "public",
   "mode": "model",
   "model": "claude-opus-5-5",
@@ -732,5 +732,6 @@
         }
       }
     ]
-  ]
+  ],
+  "invalid_reason": "more than 10% of model calls were refused by the provider (account credit)"
 }

@@ -82,6 +82,24 @@ def custom_scenario(data):
                   "attendance": [attendance], "invoices": invoices}, "tasks": [{"type": "process_event", "event": event_id}]})
 
 
+REFUSED = ("credit balance", "model API failed", "OpenAI API failed", "paused: model unavailable", "RateLimitError")
+
+
+def invalid_run(report):
+    """A scored run where more than 10% of the case runs were refused by the model provider measures the
+    account, not Vouch: it is kept on disk but never shown as a score."""
+    if report.get("status") == "invalid_run":
+        return True
+    if report.get("mode") != "model" or report.get("status") != "scored":
+        return False
+    rows = [row for batch in report.get("details") or [] for row in batch]
+    if not rows:
+        return report.get("llm_calls_per_case") == 0
+    refused = sum(any(any(m in str(d.get("failure") or "") for m in REFUSED) for d in row["run"]["decisions"])
+                  for row in rows)
+    return refused > 0.10 * len(rows)
+
+
 def create_app(db_path=DEFAULT_DB, *, run_root=None, scenarios_dir=None, results_dir=None):
     app = FastAPI(title="Vouch event tax")
     app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"], allow_methods=["*"], allow_headers=["*"])
@@ -128,7 +146,15 @@ def create_app(db_path=DEFAULT_DB, *, run_root=None, scenarios_dir=None, results
         except KeyError:
             raise HTTPException(404, "run not found")
         result = snapshot.get("result")
-        return {**snapshot, "decision": result["decisions"][0] if result and result["decisions"] else None}
+        decision = dict(result["decisions"][0]) if result and result["decisions"] else None
+        if decision and decision.get("failure"):
+            # Raw provider errors stay in the audit trail and server log, never in the API or UI.
+            decision["failure"] = "model unavailable" if "unavailable" in decision["failure"] else "model error"
+        if result:
+            result = {**result, "decisions": [{**d, "failure": ("model unavailable" if "unavailable" in d["failure"] else "model error")}
+                                              if d.get("failure") else d for d in result["decisions"]]}
+        return {**snapshot, "result": result, "decision": decision,
+                "provider": result.get("provider") if result else None, "model": result.get("model") if result else None}
 
     @app.get("/api/runs/{run_id}/stream")
     def stream(run_id: str):
@@ -263,11 +289,15 @@ def create_app(db_path=DEFAULT_DB, *, run_root=None, scenarios_dir=None, results
 
     @app.get("/api/scores")
     def scores():
-        reports=[]
-        for path in sorted(results_dir.glob("public-*.json")):
-            report=json.loads(path.read_text(encoding="utf-8"))
-            reports.append(report)
-        return max(reports,key=lambda r:r["date"]) if reports else {"status":"not_scored"}
+        def latest(pattern):
+            reports=[r for r in (json.loads(p.read_text(encoding="utf-8")) for p in sorted(results_dir.glob(pattern)))
+                     if not invalid_run(r)]
+            return max(reports,key=lambda r:r["date"]) if reports else None
+        public=latest("public-*.json")
+        holdout=latest("holdout-*.json")
+        # Spec §10: the held-out set is shown as aggregates only, whatever the saved report holds.
+        holdout={k:v for k,v in holdout.items() if k!="details"} if holdout else {"status":"not_scored"}
+        return {**(public or {"status":"not_scored"}),"holdout":holdout}
 
     frontend=ROOT/"frontend"
     if frontend.exists():

@@ -51,6 +51,22 @@ def invoice_entry(invoice, event, treatment, books, *, entry_id=None):
     if treatment.get("decision") in {"hold", "escalate", "reject_duplicate", "no_action"}:
         raise CannotDraft("the treatment is not ready for booking")
     classification = treatment["classification"]
+    amounts = invoice_amounts(invoice, treatment)
+    kind = {"promo_item": "promo", "working_meal_over_limit": "wages", "mixed": "hospitality", "staff_event_nonqualifying": "staff_event"}.get(
+        classification, classification)
+    refs = [SourceRef("invoices", invoice["id"])]
+    refs += [SourceRef("received_facts", line["source_request"]) if line.get("source_request") else
+             SourceRef("invoice_lines", line["id"]) for line in invoice.get("lines", [])]
+    refs += [SourceRef(r["table"],r["id"]) for r in treatment.get("evidence_sources", [])]
+    refs += [SourceRef("rules", r.split(" v")[0]) for r in treatment.get("rules", [])]
+    return make_entry(entry_id or f"VCH-INV-{invoice['id']}", kind, event, invoice["entity"], amounts,
+                      books, invoice.get("delivery_date") or invoice["invoice_date"], refs,
+                      item=invoice["id"], reason=f"Computed {classification} treatment")
+
+
+def invoice_amounts(invoice, treatment):
+    """The signed amount per account that a computed treatment books for one invoice (debit +, credit -)."""
+    classification = treatment["classification"]
     accounts = {"staff_event": "6440", "hospitality": "6400", "gift": "6420",
                 "promo_item": "6480", "working_meal": "6490",
                 "working_meal_over_limit": "6500", "staff_event_nonqualifying": "6440", "mixed": "6400"}
@@ -75,26 +91,17 @@ def invoice_entry(invoice, event, treatment, books, *, entry_id=None):
         amounts["6445"] = program
     amounts["1400"] = recovered
     amounts["1600"] = -Decimal(str(invoice["gross"]))
-    kind = {"promo_item": "promo", "working_meal_over_limit": "wages", "mixed": "hospitality", "staff_event_nonqualifying": "staff_event"}.get(
-        classification, classification)
-    refs = [SourceRef("invoices", invoice["id"])]
-    refs += [SourceRef("received_facts", line["source_request"]) if line.get("source_request") else
-             SourceRef("invoice_lines", line["id"]) for line in invoice.get("lines", [])]
-    refs += [SourceRef(r["table"],r["id"]) for r in treatment.get("evidence_sources", [])]
-    refs += [SourceRef("rules", r.split(" v")[0]) for r in treatment.get("rules", [])]
-    return make_entry(entry_id or f"VCH-INV-{invoice['id']}", kind, event, invoice["entity"], amounts,
-                      books, invoice.get("delivery_date") or invoice["invoice_date"], refs,
-                      item=invoice["id"], reason=f"Computed {classification} treatment")
+    return amounts
 
 
-def flat_tax_entry(entry_id, event, entity, amount, regime, deductible, books, sources):
+def flat_tax_entry(entry_id, event, entity, amount, regime, deductible, books, sources, item=None):
     if regime not in {"40", "37b"}:
         raise CannotDraft("unsupported flat tax regime")
     expense, liability = ("6470", "1750") if regime == "40" else (
         "6450" if deductible else "6460", "1760")
     value = Decimal(str(amount))
     return make_entry(entry_id, f"flat_tax_{regime}", event, entity,
-                      {expense: value, liability: -value}, books, books.as_of.isoformat(), sources)
+                      {expense: value, liability: -value}, books, books.as_of.isoformat(), sources, item=item)
 
 
 def correction_entry(entry_id, correction, event, entity, books, sources):

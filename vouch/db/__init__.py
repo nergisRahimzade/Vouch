@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 
 DEFAULT_DB = Path(__file__).resolve().parents[2] / "vouch.db"
-SCHEMA_FILES = ["schema.sql", "ledger.sql", "periods.sql"]
+SCHEMA_FILES = ["schema.sql", "ledger.sql", "periods.sql", "append_only.sql"]
 
 
 def connect(path: Path | str = DEFAULT_DB) -> sqlite3.Connection:

@@ -12,40 +12,74 @@ def normalized_invoice_number(value):
 
 
 def duplicate_of(invoice, invoices):
+    """§5.1 intake: same vendor + normalized invoice number, or same vendor + gross + delivery date. The second
+    test applies only when a number is missing on either side: two different numbers are two invoices."""
     number = normalized_invoice_number(invoice.get("invoice_number"))
-    if not number:
-        return None
     ordered = sorted(invoices, key=lambda r: (str(r.get("received_at") or ""), r["id"]))
     for other in ordered:
         if other["id"] == invoice["id"]:
             break
-        if (other.get("vendor") == invoice.get("vendor") and other.get("entity") == invoice.get("entity")
-                and normalized_invoice_number(other.get("invoice_number")) == number):
+        if other.get("vendor") != invoice.get("vendor") or other.get("entity") != invoice.get("entity"):
+            continue
+        other_number = normalized_invoice_number(other.get("invoice_number"))
+        if number and other_number == number:
+            return other["id"]
+        if (not number or not other_number) and invoice.get("delivery_date") and \
+                str(other.get("delivery_date")) == str(invoice.get("delivery_date")) and \
+                Decimal(str(other.get("gross") or "0")) == Decimal(str(invoice.get("gross") or "0")) != 0:
             return other["id"]
     return None
 
 
+# Organizer labels that name the same kind of event as the facts: not a conflict.
+SAME_KIND = [{"staff_event", "staff_event_nonqualifying"}, {"working_meal", "working_meal_over_limit"},
+             {"hospitality", "mixed"}]
+
+
+def same_kind(declared, found):
+    return declared == found or any({declared, found} <= family for family in SAME_KIND)
+
+
+TREATMENT_RULE = {"staff_event": "R-BV-COST", "staff_event_nonqualifying": "R-BV-COST", "hospitality": "R-BEW-70",
+                  "mixed": "R-BEW-70", "gift": "R-GIFT-50", "promo_item": "R-PROMO", "working_meal": "R-AE-60",
+                  "working_meal_over_limit": "R-AE-60"}
+
+
 def detect(event, invoices, attendees, rules, on, *, classification=None, corrections=(),
            reassigned=(), gift_missing=False, cap_exceeded=False, gift_exceeded=False, emails=(), docs=None,
-           all_invoices=None, locked=()):
+           all_invoices=None, locked=(), handover=None, people=()):
+    from vouch.controls.matrix import INFO_FLAGS
     out = Findings()
     event_id = event.get("id")
 
     def flag(kind, summary, refs, evidence, request=None, amount=None, policies=()):
+        if request is not None and not request.get("to"):
+            request = None          # nobody is recorded to ask; the finding stands without a request
         out.add(Finding(kind, summary, evidence, [rules.cite(r, on) for r in refs],
                         request=request, amount=amount, policies=list(policies),
-                        severity="ok" if kind == "third_event_allowance_reassigned" else "needs_person"))
+                        severity="ok" if kind in INFO_FLAGS else "needs_person"))
+
+    for invoice_id, h in (handover or {}).items():
+        evidence = [{"table": "journal_entries", "id": h["entry_id"]},
+                    {"drafted_by": h["drafted_by"], "invoice": invoice_id, "differences": h["differences"]}]
+        refs = [TREATMENT_RULE.get(classification, "R-BV-COST")]
+        if h["matches"]:
+            flag("handover_draft_matches", "A colleague's unfinished draft matches the computed treatment; it is "
+                 "continued, not duplicated.", refs, evidence)
+        else:
+            flag("handover_draft_differs", "A colleague's unfinished draft differs from the computed treatment "
+                 + ("" if h["checked"] else "(the treatment cannot be computed yet) ") + "and is not booked as it stands.",
+                 refs, evidence, {"to": h["drafted_by"] if h["drafted_by"] in people else None, "about": "handover_draft"})
 
     refs = [{"table": "events", "id": event_id}]
     if not attendees and classification not in {"gift", "promo_item"}:
         flag("attendance_missing", "Actual attendance is missing; do not estimate it.", ["R-BV-COST"], refs,
-             {"to": event.get("organizer"), "about": "attendance"})
+             {"to": event.get("organizer"), "about": "attendance_list"})
     if classification == "staff_event_nonqualifying":
         flag("event_not_open_to_all", "The employee event is not open to the whole company or an org unit.",
              ["R-BV-DEF"], refs, {"to": "tax_manager", "about": "nonqualifying_event"}, policies=["POL-BV-FLAT"])
     declared = event.get("type_declared")
-    if declared and classification and declared != classification and not (
-            declared == "staff_event" and classification == "staff_event_nonqualifying"):
+    if declared and classification and not same_kind(declared, classification):
         flag("classification_conflict", "The organizer label conflicts with the visible event facts.",
              ["R-BV-DEF"], refs + [{"classification": classification, "declared": declared}])
     if classification == "working_meal_over_limit":

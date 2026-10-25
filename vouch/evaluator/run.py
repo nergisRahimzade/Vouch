@@ -1,6 +1,7 @@
 """Isolated public/owner-holdout evaluation. Holdout details never leave the scorer by default."""
 import asyncio
 import json
+import sqlite3
 from time import perf_counter
 from contextlib import closing
 from datetime import datetime, timezone
@@ -19,10 +20,29 @@ DEFAULT_RESULTS = ROOT / "results"
 MIN_RUNS, DEMO_RUNS = 3, 5
 
 
+def unbuildable(scenario, expected, error, scripted, model_options):
+    """A case whose world cannot be built is scored as failed (never skipped), before any model call."""
+    from vouch.agent.policy import MODEL
+    expects = expected if isinstance(expected, list) else [expected]
+    message = f"world could not be built: {type(error).__name__}: {error}"
+    return {"case_id": scenario.id, "error": message,
+            "score": {"passed": False, "amounts_correct": False, "books_balance": True, "safety_violations": [],
+                      "tasks": [{"passed": False, "errors": [message], "amounts_correct": False,
+                                 "false_positive_flags": [], "safety_violations": []} for _ in expects]},
+            "run": {"model": "scripted" if scripted else (model_options or {}).get("model", MODEL), "decisions": [],
+                    "metrics": {"wall_seconds": 0.0, "llm_calls": 0, "input_tokens": 0, "output_tokens": 0,
+                                "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "tool_seconds": 0.0,
+                                "cost_usd": "0"}}}
+
+
 def evaluate_one(scenario, expected, scripted=False, model_options=None):
+    from vouch.world.scenario import ScenarioError
     with TemporaryDirectory(prefix="vouch-score-") as temporary:
         path = Path(temporary) / "case.db"
-        rebuild(path, scenario)
+        try:
+            rebuild(path, scenario)
+        except (ScenarioError, ValueError, KeyError, sqlite3.Error) as error:
+            return unbuildable(scenario, expected, error, scripted, model_options)
         with closing(connect(path)) as conn:
             result = run_scenario(conn, scenario, ScriptedPolicy() if scripted else ModelPolicy(**({"effort":"medium", **(model_options or {})})))
             score = score_decisions(conn, result["decisions"], expected)

@@ -18,8 +18,6 @@ class Sources:
         self.as_of = periods.as_of(conn).isoformat()
         self.open_month = self.as_of[:7]
         self.data = {t: self.rows(t) for t in TABLES}
-        if conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'received_facts'").fetchone():
-            self.apply_received_facts()
         self.rules = Rules(self.data["rules"])
         self.events = {r["id"]: r for r in self.data["events"]}
         self.people = {r["id"]: r for r in self.data["people"]}
@@ -32,8 +30,11 @@ class Sources:
         for invoice in self.data["invoices"]:
             if not invoice.get("entity") and len(entities) == 1:
                 invoice["entity"] = entities[0]["id"]
-            invoice["lines"] = [r for r in self.data["invoice_lines"] if r["invoice"] == invoice["id"]]
             invoice["matched_event"], invoice["match_evidence"] = self.match(invoice)
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'received_facts'").fetchone():
+            self.apply_received_facts()
+        for invoice in self.data["invoices"]:
+            invoice["lines"] = [r for r in self.data["invoice_lines"] if r["invoice"] == invoice["id"]]
 
     def apply_received_facts(self):
         """Overlay attributed responses; original invoice/attendance rows remain immutable."""
@@ -44,14 +45,26 @@ class Sources:
                        "FROM followup_facts f JOIN info_requests q USING(request_id)")]
         for row in sorted(replies,key=lambda r:(r["received_at"],r["request_id"],r["ordinal"])):
             data = json.loads(row["data"])
-            if row["about"] == "attendance":
-                from vouch.world.scenario import _attendance
-                actual = [{**a,"source_request":row["request_id"]} for a in _attendance([{**data, "event":row["case_id"]}])]
+            if set(data) == {"reply"}:
+                # A reply in the sender's own words supplies no typed facts. To an itemization request it
+                # means the vendor did not itemize (POL-LUMP then escalates); otherwise nothing changes.
+                if row["about"] == "itemized_invoice":
+                    for invoice in self.data["invoices"]:
+                        if row["case_id"] in (invoice.get("matched_event"), invoice["id"]):
+                            invoice["itemization_declined"] = True
+                continue
+            if row["about"] in {"attendance", "attendance_list"}:
+                from vouch.world.scenario import _attendance, employee_groups
+                event = next((i.get("matched_event") for i in self.data["invoices"]
+                              if i["id"] == row["case_id"]), None) or row["case_id"]
+                actual = [{**a,"source_request":row["request_id"]}
+                          for a in _attendance([{**data, "event": event}], employee_groups(self.data))]
+                row = {**row, "case_id": event}
                 known = {p["id"] for p in self.data["employees"] + self.data["business_partners"]}
                 if not actual or any(p["person_id"] not in known for p in actual if p["person_kind"] != "companion"):
                     raise ValueError("attendance reply must identify actual recorded people")
                 self.data["attendance"] = [a for a in self.data["attendance"] if a["event"] != row["case_id"]] + actual
-            invoices = [i for i in self.data["invoices"] if i.get("event") == row["case_id"] or i["id"] == row["case_id"]]
+            invoices = [i for i in self.data["invoices"] if row["case_id"] in (i.get("matched_event"), i["id"])]
             for invoice in invoices:
                 if row["about"] == "bewirtung_attendees_occasion":
                     invoice.update(data)

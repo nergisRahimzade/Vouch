@@ -246,3 +246,81 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - Review finding: the Windows-pipeline replacement-character issue also affected an added generic-purpose literal.
 - Fix: add the proper German character through an ASCII-safe Unicode escape, retaining recognition of degraded legacy text. A dedicated regression asserts that a documented but generic meal still requires a specific business purpose.
 - No threshold, expected tax amount, or private holdout content was used or changed.
+
+## 2026-10-25 — owner holdout: 7 of 16 cases crashed, 2 of 16 passed (user authorized reading the failures)
+
+The user explicitly authorized reading the holdout failures for this fix (an exception to D23). Every fix
+below is general: no code names a holdout case, and no answer key, threshold, rule value or test assertion
+was changed to pass. Consequence recorded: the holdout is no longer an unseen measure.
+
+- **Scenario rows restating an existing id crashed the load** (BP-010/BP-020/BP-030 are generated partners).
+  Root cause: setup rows were always appended. Now a setup row with a known id refines that row
+  (`scenario._add_rows`). Handles any scenario that names a known person, event or vendor with details.
+- **A failed load hid its own error** behind a Windows file lock. Root cause: `rebuild` left the database
+  open on failure. Now it always closes (`db/rebuild.py`). Handles every load failure.
+- **Attendance overrides keyed by event, journal entries without ids, attendance written as `managers`, a
+  gift recipient naming the invoice instead of its line, receipt documentation as one block** were not
+  understood by the loader. Now supported generally (`scenario.py`: event-keyed attendance override,
+  `JE-SETUP-n` ids, named employee groups incl. cost centers and org units, single-line invoice linking,
+  `documentation` and `host_on_invoice` aliases).
+- **YAML `on:` became the boolean True**, so `{person, on: escalation}` replies never matched. Root cause:
+  YAML 1.1 booleans. Only true/false are booleans now. Handles on/off/yes/no anywhere in scenarios.
+- **Two tasks given by `id` were merged into one** by the task de-duplicator. Now every task key is used.
+- **Stage order was not respected:** a rejected duplicate still received downstream flags, and a package
+  invoice got a documentation check before itemization. Now intake rejection stops later stages and
+  documentation follows itemization (§5.1 stages 2, 4, 8).
+- **Labels of the same kind were conflicts** (working meal vs working meal over the limit; hospitality vs a
+  customer event with program). Now a family of kinds is not a conflict.
+- **A declared working meal for an invitation-only employee event** was classified as a non-qualifying
+  staff event, and an over-limit meal sent nothing to payroll. Now the organizer's stated exceptional
+  assignment is a fact when the event is not open to a whole unit, and individual pay goes to payroll.
+- **Replies in people's own words were ignored** (a vendor refusing to itemize, the tax manager's ruling).
+  Now they are stored verbatim as untrusted data; a refusal to itemize escalates (POL-LUMP), and the agent
+  reads the tax manager's ruling and records it (`record_learned_correction`), with authority checked in code.
+- **A request to nobody crashed a tool** (gifts with no organizer). Findings without a recorded recipient
+  carry no request. The attendance request is named `attendance_list`; `attendance` still works.
+- **One crashing case aborted the whole scoring run.** A case whose world cannot be built is now scored as
+  failed, and a trigger whose pre-pass fails ends in a recorded safe hold (§8.3).
+- **A flat-tax line for a gift with no event had no event or item tag** and the ledger refused it. It now
+  carries the invoice it follows.
+
+## 2026-10-25 — the AI chose almost nothing (user-requested redesign of the agent loop)
+
+- **Finding:** scripted and live runs scored identically on the holdout; `submit_decision` took no input.
+- **Root cause:** the pre-pass produced one finished proposal and the tools only executed it.
+- **What changed:** code computes the facts, an option per candidate classification (amounts, corrections,
+  blockers) and detector evidence; the agent chooses the classification, flags, whom to ask, escalations, how
+  to read replies, reviewers and the final decision with its own rationale. Code refuses what breaks a limit:
+  booking a blocked option, a review set below POL-MAT, flags without evidence, rationales or cites that no
+  tool result contains, decisions that contradict the artifacts. The scripted double follows code's
+  recommendation so deterministic tests exercise the same tools.
+- **Test changed (needs owner approval):** `tests/test_openai_backend.py` — only the fake model's tool
+  arguments, to the new contract; no assertion changed.
+
+## 2026-10-25 — working with others, audit detail and append-only books (user request)
+
+- Reminders and escalation are switched on (start of every run, `run_follow_up`, and while a scripted reply's
+  stated delay passes). An overdue question becomes an actual escalation request to the tax manager or the
+  valid delegate; an approval waiting on an absent tax manager moves to the delegate. Audit rows say who was
+  waited on, for how long, and to whom it went (they previously always said "tax_manager").
+- A reviewer's "no" voids the rejected draft (appended, never deleted), holds the case, and the same booking
+  cannot be requested again under a new id. Scripted reviewers answer approval requests.
+- A colleague's unposted draft is compared with the computed treatment: continued if it matches (the
+  colleague is recorded as keyer and cannot approve it), otherwise held and the drafter is asked to
+  withdraw (voided on their authority) or explain (then escalated).
+- The books are append-only in the database: entries, lines, sources, payroll exports and notices cannot be
+  deleted or edited; the only change is draft -> posted; voids are append-only and a voided draft never posts.
+- Audit rows record the real UTC time next to business time (in the hash chain), every model call (model,
+  tokens, stop reason, the agent's notes), every payroll row and notice, reviewer choices against the POL-MAT
+  minimum, voids, rulings, reminders, and which policy/model decided against code's recommendation.
+- **Test changed (needs owner approval):** `tests/test_c1_gates.py::test_altering_a_draft_invalidates_its_approval`
+  now first asserts the database refuses the edit, then drops that guard to simulate a tamperer (as the
+  audit-chain tests do), so the approval-fingerprint defence is still tested.
+
+## 2026-10-25 — spec gaps
+
+- Duplicate intake now also matches same vendor + gross + delivery date when a number is missing (§5.1).
+- Year-end flags flat-taxed payroll rows not yet accepted by payroll against the Feb 28 deadline (§5.1.14).
+- `/api/scores` adds the latest holdout aggregate, never per-case details (§10).
+- Rule sources: each rule's `checked` field records what was verified (22 verified; R-BV-DEF's
+  more-than-half test and R-BEW-DOC's EUR 250 host rule were not found in the statute text). No value changed.

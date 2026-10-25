@@ -34,6 +34,9 @@ def test_altering_a_draft_invalidates_its_approval(controls_db):
     entry=draft(controls_db); gates.draft_entry(controls_db,gates.VOUCH,entry)
     request=approvals.request(controls_db,gates.VOUCH,"entry",entry.entry_id,{})
     approvals.decide(controls_db,person_actor(controls_db,"tax_manager"),request,"approve","Reviewed")
+    with pytest.raises(sqlite3.IntegrityError,match="append-only"):
+        controls_db.execute("UPDATE journal_lines SET debit='1.00' WHERE entry_id=? AND line_no=1",(entry.entry_id,))
+    controls_db.execute("DROP TRIGGER lines_append_only_update")      # a tamperer who bypasses the database guard
     controls_db.execute("UPDATE journal_lines SET debit='1.00' WHERE entry_id=? AND line_no=1",(entry.entry_id,))
     with pytest.raises(gates.Refused,match="changed"):
         gates.post_approved_entry(controls_db,person_actor(controls_db,"controller"),entry.entry_id)

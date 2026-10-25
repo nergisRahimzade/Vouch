@@ -12,6 +12,15 @@ from vouch.recon.sources import Sources
 
 MONEY_FIELDS = ("deductible", "nondeductible", "vat_recoverable", "vat_blocked", "wage_taxable",
                 "flat_tax_40", "flat_tax_37b")
+# Why a computed option cannot be booked yet, by the finding that blocks it.
+BLOCKERS = {"attendance_missing": "actual attendance is missing (never estimated)",
+            "bewirtung_docs_missing": "hospitality documentation is incomplete (R-BEW-DOC)",
+            "lumped_invoice": "a package line must be itemized by the vendor (POL-LUMP)",
+            "gift_recipients_missing": "gift recipients are not named (R-GIFT-REC)",
+            "flat_tax_cap_exceeded": "a recipient exceeds the §37b cap; the tax manager decides (R-37B-CAP)",
+            "duplicate_invoice": "this invoice was already received"}
+# Findings raised at intake (stage 2): a rejected duplicate keeps only these.
+INTAKE_FLAGS = {"duplicate_invoice", "injection_in_document", "injection_in_email", "election_change_request"}
 
 
 def plain(value):
@@ -24,26 +33,51 @@ def plain(value):
     return value
 
 
-def classify(src, event, invoices, attendees):
-    categories = {l.get("category") for i in invoices for l in i["lines"]}
-    if categories and categories <= {"gift", "promo_item"}:
-        return "promo_item" if all(l.get("unit_net") is not None and et.is_promo_item(
-            Decimal(str(l["unit_net"])), src.rules, event["date"]) for i in invoices for l in i["lines"]) else "gift"
-    if not attendees:
-        return event.get("type_declared") or "hospitality"
-    employees = sum(a["person_kind"] == "employee" for a in attendees)
-    companions = sum(a["person_kind"] == "companion" for a in attendees)
-    others = len(attendees) - employees - companions
-    if event.get("exceptional_assignment") and employees and not others and not companions:
-        gross = sum((Decimal(str(i.get("gross") or 0)) for i in invoices), ZERO)
-        return "working_meal" if et.working_meal_test(gross, employees, src.rules, event["date"]).values[
-            "within_limit"] else "working_meal_over_limit"
+CLASSIFICATIONS = ("staff_event", "staff_event_nonqualifying", "hospitality", "mixed", "working_meal",
+                   "working_meal_over_limit", "gift", "promo_item")
+
+
+def event_facts(src, event, invoices, attendees):
+    """The facts the classification rules test, as data the agent can read and cite."""
+    categories = sorted({str(l.get("category")) for i in invoices for l in i["lines"] if l.get("category")})
+    kinds = {k: sum(a["person_kind"] == k for a in attendees) for k in ("employee", "companion", "business_partner", "external")}
     openness = event.get("open_to")
     open_to_all = openness == "all" or (isinstance(openness, str) and openness in src.units)
-    facts = et.qualifies_as_staff_event(open_to_all, employees, companions, others,
-                                       src.rules, event["date"]).values
-    if facts["staff_majority"]:
-        return "staff_event" if facts["qualifies"] else "staff_event_nonqualifying"
+    others = kinds["business_partner"] + kinds["external"]
+    staff = et.qualifies_as_staff_event(open_to_all, kinds["employee"], kinds["companion"], others, src.rules,
+                                        event["date"]).values if attendees else None
+    # An exceptional work assignment is a fact the organizer states: explicitly, or by declaring a working
+    # meal for an employees-only event that is not open to a whole unit (then it cannot be a staff party).
+    exceptional = bool(event.get("exceptional_assignment")) or (
+        event.get("type_declared") == "working_meal" and not open_to_all)
+    gross = sum((Decimal(str(i.get("gross") or 0)) for i in invoices), ZERO)
+    meal = et.working_meal_test(gross, kinds["employee"], src.rules, event["date"]).values \
+        if kinds["employee"] else None
+    units = [Decimal(str(l["unit_net"])) for i in invoices for l in i["lines"] if l.get("unit_net") is not None]
+    return {"organizer_label": event.get("type_declared"), "open_to": openness, "open_to_whole_unit": open_to_all,
+            "purpose": event.get("purpose"), "attendees": kinds, "invoice_categories": categories,
+            "staff_share": str(cents(staff["staff_share"])) if staff else None,
+            "staff_majority": staff["staff_majority"] if staff else None,
+            "exceptional_assignment": exceptional,
+            "working_meal_per_person": fmt(meal["per_person"]) if meal else None,
+            "working_meal_within_limit": meal["within_limit"] if meal else None,
+            "promo_units_within_limit": bool(units) and all(et.is_promo_item(u, src.rules, event["date"]) for u in units)}
+
+
+def classify(src, event, invoices, attendees):
+    f = event_facts(src, event, invoices, attendees)
+    categories = set(f["invoice_categories"])
+    if categories and categories <= {"gift", "promo_item"}:
+        lines = [l for i in invoices for l in i["lines"]]
+        return "promo_item" if all(l.get("unit_net") is not None for l in lines) and f["promo_units_within_limit"] \
+            else "gift"
+    if not attendees:
+        return event.get("type_declared") or "hospitality"
+    k = f["attendees"]
+    if f["exceptional_assignment"] and k["employee"] and not k["business_partner"] + k["external"] + k["companion"]:
+        return "working_meal" if f["working_meal_within_limit"] else "working_meal_over_limit"
+    if f["staff_majority"]:
+        return "staff_event" if f["open_to_whole_unit"] else "staff_event_nonqualifying"
     return "mixed" if categories & {"program", "package"} else "hospitality"
 
 
@@ -103,6 +137,34 @@ def visible_gifts(src, year):
     return gift_rows, missing_invoices
 
 
+def handover_drafts(src, new, treatments):
+    """Work a colleague handed over half done: an unposted, unvoided draft someone else keyed for an invoice this
+    run books. Each is compared, account by account, with the computed treatment."""
+    from vouch.agent.templates import invoice_amounts
+    voided = {r[0] for r in src.conn.execute("SELECT entry_id FROM entry_voids")} \
+        if src.conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'entry_voids'").fetchone() else set()
+    drafts = {e["entry_id"]: e for e in src.data["journal_entries"]
+              if e["status"] == "draft" and e["origin"] == "history" and e["entry_id"] not in voided}
+    out = {}
+    for invoice in new:
+        for entry_id, entry in drafts.items():
+            lines = [l for l in src.data["journal_lines"] if l["entry_id"] == entry_id]
+            if entry.get("source_ref") != invoice["id"] and not any(l.get("item") == invoice["id"] for l in lines):
+                continue
+            keyed = {}
+            for line in lines:
+                keyed[line["account"]] = keyed.get(line["account"], ZERO) + Decimal(line["debit"]) - Decimal(line["credit"])
+            treatment = treatments.get(invoice["id"])
+            computed = {a: v for a, v in invoice_amounts(invoice, treatment).items() if v} if treatment else None
+            differences = [] if computed is None else [
+                {"account": a, "colleague": fmt(keyed.get(a, ZERO)), "computed": fmt(computed.get(a, ZERO))}
+                for a in sorted(set(keyed) | set(computed)) if keyed.get(a, ZERO) != computed.get(a, ZERO)]
+            out[invoice["id"]] = {"entry_id": entry_id, "drafted_by": entry["created_by"],
+                                  "matches": computed is not None and not differences, "differences": differences,
+                                  "checked": computed is not None}
+    return out
+
+
 def benefit_totals(src, year):
     """The ?37b annual cap combines gifts and customer-program benefits for each person."""
     gift_rows, _ = visible_gifts(src, year)
@@ -124,7 +186,10 @@ def benefit_totals(src, year):
     return totals
 
 
-def prepass(conn, task, source=None):
+def prepass(conn, task, source=None, classification=None):
+    """Everything code owns for one trigger. With `classification`, the amounts and blockers that follow if
+    that classification is adopted (an option the agent may choose); without it, the classification the
+    rule tests indicate (code's recommendation, never shown to the agent as a decision)."""
     src = source or Sources(conn)
     kind = task.get("type") or task.get("kind") or "process_event"
     target = task.get("event") or task.get("event_id") or task.get("invoice") or task.get("invoice_id") or task.get("target") or task.get("id")
@@ -140,7 +205,9 @@ def prepass(conn, task, source=None):
     if kind == "process_invoice" and invoice and not event_id:
         invoices = [invoice]
     attendees = src.attendance(event_id) if event_id else []
-    classification = classify(src, event, invoices, attendees)
+    if classification is not None and classification not in CLASSIFICATIONS:
+        raise ValueError(f"unknown classification {classification!r}")
+    classification = classification or classify(src, event, invoices, attendees)
     booked_ids = src.booked_invoices()
     new = [i for i in invoices if i["id"] not in booked_ids]
     result = {"case_id": str(target), "task": str(target), "decision": "classify_and_book",
@@ -229,22 +296,31 @@ def prepass(conn, task, source=None):
         if event_id in booked_events and result["corrections"]:
             result["decision"] = "post_corrections"
     elif classification in {"hospitality", "mixed"}:
-        known_names = {}
-        for person in src.data["employees"] + src.data["business_partners"]:
-            known_names.setdefault(person["name"], set()).add(person["id"])
-        for i in invoices:
-            named = set()
-            for person in i.get("participants") or []:
-                named.add(person)
-                named.update(known_names.get(person, set()))
-            all_named = bool(attendees) and {a["person_id"] for a in attendees} <= named
-            docs[i["id"]] = use(et.hospitality_docs(i.get("occasion") or event.get("purpose"),
-                   all_named, i.get("host") or event.get("host"), Decimal(i["gross"]),
-                   bool(i.get("invoice_date") or i.get("delivery_date")), bool(i.get("place") or event.get("location")),
-                   src.rules, event["date"]))
-        if not all(d["complete"] for d in docs.values()):
-            result["decision"] = "hold"
-        elif any(l["category"] == "package" for i in invoices for l in i["lines"]):
+        packaged = [i for i in invoices if any(l["category"] == "package" for l in i["lines"])]
+        if not packaged:
+            # Stage 8 (documentation) follows stage 4 (itemization): a package is itemized first.
+            known_names = {}
+            for person in src.data["employees"] + src.data["business_partners"]:
+                known_names.setdefault(person["name"], set()).add(person["id"])
+            for i in invoices:
+                named = set()
+                for person in i.get("participants") or []:
+                    named.add(person)
+                    named.update(known_names.get(person, set()))
+                receipt_names_all = str(i.get("participants_named")).lower() in {"1", "true", "yes"}
+                all_named = bool(attendees) and (receipt_names_all or {a["person_id"] for a in attendees} <= named)
+                docs[i["id"]] = use(et.hospitality_docs(i.get("occasion") or event.get("purpose"),
+                       all_named, i.get("host") or event.get("host"), Decimal(i["gross"]),
+                       bool(i.get("invoice_date") or i.get("delivery_date")), bool(i.get("place") or event.get("location")),
+                       src.rules, event["date"]))
+        if packaged:
+            policies.add("POL-LUMP")
+            if any(i.get("itemization_declined") for i in packaged):
+                # POL-LUMP: the vendor declined to itemize; the split is never guessed.
+                result["decision"], result["escalations"] = "escalate", ["tax_manager"]
+            else:
+                result["decision"] = "hold"
+        elif not all(d["complete"] for d in docs.values()):
             result["decision"] = "hold"
         else:
             program_net = program_gross = ZERO
@@ -278,6 +354,8 @@ def prepass(conn, task, source=None):
         rules_used.add(src.rules.cite("R-PROMO" if classification == "promo_item" else "R-AE-60", event["date"]))
         if classification == "working_meal_over_limit":
             result["wage_taxable"], result["payroll_method"] = gross, "individual"
+            payroll_id = next(p["id"] for p in src.data["people"] if p["role"] == "payroll")
+            result["requests"].append({"to": payroll_id, "about": "payroll_export"})
             employees = [a for a in attendees if a["person_kind"] == "employee"]
             # Allocate the final rounding cent deterministically without inventing payroll value.
             remaining = gross
@@ -345,10 +423,22 @@ def prepass(conn, task, source=None):
                 result["decision"] = "post_corrections"
             if cap_exceeded:
                 result["decision"], result["escalations"] = "escalate", ["tax_manager"]
+    handover = handover_drafts(src, new, treatments)
+    if any(not h["matches"] for h in handover.values()) and result["decision"] in {"classify_and_book", "post_corrections"}:
+        result["decision"] = "hold"          # a colleague's differing draft is resolved before anything is booked
     findings = detect(event, new, attendees, src.rules, src.as_of, classification=classification,
                       corrections=result["corrections"], reassigned=reassigned, gift_missing=missing_gifts,
                       cap_exceeded=cap_exceeded, gift_exceeded=gift_exceeded, emails=src.data["emails"], docs=docs,
-                      all_invoices=src.data["invoices"], locked=src.locked)
+                      all_invoices=src.data["invoices"], locked=src.locked, handover=handover,
+                      people={p["id"] for p in src.data["people"]})
+    findings = list(findings)
+    if any(f.kind == "duplicate_invoice" for f in findings):
+        # Stage 2 (intake) rejects a duplicate: later stages never run and nothing is created for it.
+        findings = [f for f in findings if f.kind in INTAKE_FLAGS]
+        result.update({k: ZERO for k in MONEY_FIELDS}, corrections=[], requests=[], escalations=[],
+                      payroll_method="none")
+        result.pop("per_participant", None)
+        payroll, treatments = [], {}
     for correction in result["corrections"]:
         rules_used.update(correction.get("rules", []))
     result["flags"] = sorted({f.kind for f in findings})
@@ -360,7 +450,7 @@ def prepass(conn, task, source=None):
                 result["requests"].append(finding.request)
     if "duplicate_invoice" in result["flags"]:
         result["decision"] = "reject_duplicate"
-    if "lumped_invoice" in result["flags"]:
+    if "lumped_invoice" in result["flags"] and result["decision"] != "escalate":
         result["decision"] = "hold"
     if "election_change_request" in result["flags"]:
         result["escalations"] = ["tax_manager"]
@@ -374,7 +464,22 @@ def prepass(conn, task, source=None):
     policies.add("POL-MAT")
     result["cites"] = sorted({r.split(" v")[0] for r in rules_used} | policies |
                               {i["id"] for i in invoices} | ({event_id} if event_id else set()))
+    blocked_by = []
+    if blocked and result["decision"] != "no_action":
+        blocked_by += ["no visible invoice for this event"] if not invoices else []
+        blocked_by += ["invoice arithmetic does not reconcile: " + "; ".join(problems)] if problems else []
+        blocked_by += [text for kind, text in BLOCKERS.items() if kind in result["flags"]]
+        if classification == "staff_event_nonqualifying" and result["decision"] == "escalate":
+            blocked_by.append("POL-BV-FLAT: whether flat tax may be used for a non-qualifying event is the tax "
+                              "manager's decision; no payroll method is recorded yet")
+        if "lumped_invoice" in result["flags"] and result["decision"] == "escalate":
+            blocked_by.append("POL-LUMP: the vendor declined to itemize; escalate, never guess a split")
+        blocked_by += [f"{h['drafted_by']}'s unfinished draft {h['entry_id']} for {invoice} differs from the computed "
+                       "treatment; the drafter withdraws it or explains it first" for invoice, h in handover.items()
+                       if not h["matches"]]
     return plain({"decision": result, "event": event, "invoices": invoices, "new_invoices": new,
                   "attendance": attendees, "treatments": treatments, "payroll": payroll if not blocked else [],
                   "findings": [f.to_record() for f in findings], "rules": sorted(rules_used),
-                  "policies": sorted(policies), "arithmetic_problems": problems})
+                  "policies": sorted(policies), "arithmetic_problems": problems,
+                  "facts": event_facts(src, event, invoices, attendees), "blocked_by": blocked_by,
+                  "handover": handover})

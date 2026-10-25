@@ -1,7 +1,7 @@
 """Deterministic POL-MAT routing; payroll is a recipient, never an approver."""
 from decimal import Decimal
 
-INFO_FLAGS = {"third_event_allowance_reassigned"}
+INFO_FLAGS = {"third_event_allowance_reassigned", "handover_draft_matches"}
 
 
 def route(*, flags=(), wage_taxable=Decimal(0), nondeductible=Decimal(0),

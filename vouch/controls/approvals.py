@@ -46,6 +46,11 @@ def request(conn: sqlite3.Connection, actor: Actor, kind: str, subject_ref: str,
     print_ = fingerprint(kind, subject_ref, payload)
     rejected = conn.execute("SELECT request_id, note FROM approval_requests WHERE fingerprint = ? AND status = 'rejected'",
                             (print_,)).fetchone()
+    if rejected is None and payload.get("entry_fingerprint"):
+        # The same booking re-drafted under a new id is still the booking the reviewer said no to.
+        rejected = next(((r["request_id"], r["note"]) for r in conn.execute(
+            "SELECT request_id, note, payload FROM approval_requests WHERE kind = 'entry' AND status = 'rejected'")
+            if json.loads(r["payload"]).get("entry_fingerprint") == payload["entry_fingerprint"]), None)
     if rejected:
         refuse(conn, actor, "request_approval", subject_ref, "PRECEDENT",
                f"the same request was rejected before ({rejected[0]}: {rejected[1]}); change it before asking again",
@@ -153,18 +158,33 @@ def follow_up(conn, actor):
     for item in [get(conn, r[0]) for r in conn.execute(
             "SELECT request_id FROM approval_requests WHERE status = 'pending'").fetchall()]:
         waited = clock.business_days_between(item["created_at"], now)
+        waiting_on = conn.execute("SELECT id FROM people WHERE role = ? ORDER BY id", (item["assigned_role"],)).fetchone()
         if waited >= ESCALATE_AFTER_BUSINESS_DAYS and item["reminded_at"] and not item["escalated_at"]:
-            # Do not replace controller approval. An escalation never counts as an approval.
-            conn.execute("UPDATE approval_requests SET status = 'escalated', escalated_at = ? "
-                          "WHERE request_id = ?", (now, item["request_id"]))
-            audit.log(conn, actor, "escalate", item["subject_ref"], "escalated", "no reply after reminder",
-                      {"request": item["request_id"], "to": "tax_manager"})
+            # An escalation never counts as an approval and never replaces the controller's step. A tax
+            # manager out of office past the deadline hands the step to the recorded delegate.
+            from vouch.controls.matrix import delegate
+            reassigned = None
+            if item["assigned_role"] == "tax_manager" and waiting_on:
+                stand_in = delegate(conn, waiting_on[0], now[:10])
+                if stand_in != waiting_on[0]:
+                    reassigned = conn.execute("SELECT role FROM people WHERE id = ?", (stand_in,)).fetchone()[0]
+            escalate_to = "cfo" if item["assigned_role"] == "tax_manager" else "tax_manager"
+            conn.execute("UPDATE approval_requests SET status = 'escalated', escalated_at = ?, assigned_role = ? "
+                          "WHERE request_id = ?", (now, reassigned or item["assigned_role"], item["request_id"]))
+            audit.log(conn, actor, "escalate", item["subject_ref"], "escalated",
+                      f"no reply from the {item['assigned_role']} {waited} business days after the request and a reminder",
+                      {"request": item["request_id"], "waiting_on": item["assigned_role"],
+                       "waiting_on_person": waiting_on[0] if waiting_on else None, "to": escalate_to,
+                       "reassigned_to_role": reassigned, "requested_at": item["created_at"],
+                       "reminded_at": item["reminded_at"], "business_days_waited": waited})
             done.append({"request_id": item["request_id"], "action": "escalated"})
         elif waited >= REMIND_AFTER_BUSINESS_DAYS and not item["reminded_at"]:
             conn.execute("UPDATE approval_requests SET reminded_at = ? WHERE request_id = ?",
                           (now, item["request_id"]))
             audit.log(conn, actor, "remind", item["subject_ref"], "reminded", "waiting for an answer",
-                      {"request": item["request_id"]})
+                      {"request": item["request_id"], "to": item["assigned_role"],
+                       "to_person": waiting_on[0] if waiting_on else None, "requested_at": item["created_at"],
+                       "business_days_waited": waited})
             done.append({"request_id": item["request_id"], "action": "reminded"})
     return done
 
@@ -178,7 +198,7 @@ def inbox(conn, role: str) -> list[dict]:
 __all__ = ["request", "decide", "get", "inbox", "Refused", "needs_for", "fingerprint"]
 
 
-def standing_policy_request(conn, entry_id, computed, case_id):
+def standing_policy_request(conn, entry_id, computed, case_id, keyed_by=None):
     """Apply P-TAX's standing POL-MAT approval only to a verified clean computed proposal."""
     from vouch.controls.matrix import route
     from vouch.controls.gates import VOUCH, stored_fingerprint
@@ -199,9 +219,9 @@ def standing_policy_request(conn, entry_id, computed, case_id):
     now=clock.now(conn)
     approvals_=[{"actor":owner,"role":"policy","at":now,"note":"Standing POL-MAT approval"}]
     conn.execute("INSERT INTO approval_requests (request_id,kind,subject_ref,fingerprint,payload,case_id,requested_by,keyed_by,"
-                 "needs,approvals,status,assigned_role,created_at,closed_at,note) VALUES (?, 'entry', ?, ?, ?, ?, 'Vouch','Vouch',"
+                 "needs,approvals,status,assigned_role,created_at,closed_at,note) VALUES (?, 'entry', ?, ?, ?, ?, 'Vouch',?,"
                  "?,?,'approved','policy',?,?,?)",(rid,entry_id,fingerprint("entry",entry_id,payload),json.dumps(payload),case_id,
-                 json.dumps(["policy"]),json.dumps(approvals_),now,now,"Standing POL-MAT approval"))
+                 keyed_by or "Vouch",json.dumps(["policy"]),json.dumps(approvals_),now,now,"Standing POL-MAT approval"))
     audit.log(conn,VOUCH,"apply_standing_policy",entry_id,"done","Clean proposal covered by P-TAX standing policy",
               {"request":rid,"policy":"POL-MAT","owner":owner,"entry_fingerprint":payload["entry_fingerprint"]})
     return rid

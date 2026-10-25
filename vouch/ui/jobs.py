@@ -9,6 +9,10 @@ from vouch.db import connect
 from vouch.db.rebuild import rebuild
 
 
+FRIENDLY = ("Vouch paused this run: the AI model is not available right now. Nothing was booked or posted; "
+            "the case is on hold and can be run again in a moment.")
+
+
 class Runs:
     def __init__(self, root):
         self.root = Path(root)
@@ -34,12 +38,16 @@ class Runs:
                 conn.execute("PRAGMA journal_mode=WAL")
                 result = run_scenario(conn, scenario, ScriptedPolicy() if scripted else ModelPolicy(model=model,effort=effort), emit)
                 with self.lock:
-                    job["result"], job["status"] = result, "done"
+                    job["result"], job["status"] = result, result.get("status", "done")
+                    if job["status"] != "done":
+                        job["error"] = FRIENDLY
                     self.latest = path
             except Exception as error:
                 # Report a failed job; never manufacture a successful result after an exception.
+                import logging
+                logging.getLogger("vouch").exception("run %s failed", run_id)   # details stay in the server log
                 with self.lock:
-                    job["error"], job["status"] = f"{type(error).__name__}: {error}", "failed"
+                    job["error"], job["status"] = FRIENDLY, "failed"
             finally:
                 if conn is not None:
                     conn.close()

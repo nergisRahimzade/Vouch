@@ -52,9 +52,13 @@ def _history_entry(conn: sqlite3.Connection, row: dict, line_rows: list[dict]) -
     entity = row.get("entity") or (invoice["entity"] if invoice else None) or \
         conn.execute("SELECT id FROM entities ORDER BY id").fetchone()[0]
     day = str(row["entry_date"])[:10]
+    # A colleague's unfinished work arrives as a draft they keyed (status: draft, booked_by: their person id).
+    status = str(row.get("status") or "posted")
+    if status not in {"posted", "draft"}:
+        raise ValueError(f"history entry {row['entry_id']}: unknown status {status!r}")
     return Entry(entry_id=str(row["entry_id"]), entity=str(entity), period=day[:7], entry_date=day,
                  type=str(row.get("type") or "history"), reason=str(row.get("reason") or "booked before Vouch"),
-                 lines=lines, created_by=str(row.get("booked_by") or "history"), origin="history", status="posted",
+                 lines=lines, created_by=str(row.get("booked_by") or "history"), origin="history", status=status,
                  source_ref=row.get("source_ref"), corrects=row.get("corrects"))
 
 

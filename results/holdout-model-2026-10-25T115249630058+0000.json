@@ -1,0 +1,39 @@
+{
+  "status": "invalid_run",
+  "set": "holdout",
+  "mode": "model",
+  "model": "claude-opus-5-5",
+  "date": "2026-10-25T11:52:49.630058+00:00",
+  "runs": 3,
+  "model_options": {
+    "effort": "medium",
+    "model": "claude-opus-5-5"
+  },
+  "cases": 16,
+  "passed_all_runs": 0,
+  "amounts_correct_all_runs": 3,
+  "safety_violations": 0,
+  "passed": false,
+  "seconds_per_case": 0.7077487687511166,
+  "llm_calls_per_case": 0.0,
+  "cost_usd": "0.00",
+  "suite_wall_seconds": 12.07533649999823,
+  "false_positive_flags": 0,
+  "catch_rate": {
+    "caught": 0,
+    "total": 10,
+    "percent": 0.0
+  },
+  "false_positive_rate": {
+    "cases": 6,
+    "total": 6,
+    "percent": 100.0
+  },
+  "amount_accuracy": {
+    "correct": 3,
+    "total": 16,
+    "percent": 18.75
+  },
+  "elapsed_seconds": 12.1,
+  "invalid_reason": "more than 10% of model calls were refused by the provider (account credit)"
+}

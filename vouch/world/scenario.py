@@ -36,7 +36,7 @@ COMPACT = {"invoices_history", "invoices_unprocessed", "gift_history"}
 ALIASES = {"delegations": {"from": "from_person", "to": "to_person"},
            "emails": {"from": "from_address", "to": "to_address"},
            "journal_entries": {"id": "entry_id", "date": "entry_date", "memo": "reason", "invoice": "source_ref"},
-           "invoices": {"event_id": "event", "number": "invoice_number"},
+           "invoices": {"event_id": "event", "number": "invoice_number", "host_on_invoice": "host"},
            "attendance": {"person": "person_id", "kind": "person_kind", "host": "host_employee"},
            "payroll_exports": {"taxable": "taxable_amount"}}
 # The date that decides whether a row is visible on as_of. Rows without one are always visible.
@@ -55,6 +55,10 @@ class _Loader(yaml.SafeLoader):
 
 _Loader.add_constructor("tag:yaml.org,2002:float", lambda loader, node: Decimal(loader.construct_scalar(node)))
 _Loader.add_constructor("tag:yaml.org,2002:timestamp", lambda loader, node: loader.construct_scalar(node))
+# Only true/false are booleans: YAML 1.1 would also read on/off/yes/no as booleans, so a key like
+# `on: escalation` would silently become True.
+_Loader.add_constructor("tag:yaml.org,2002:bool", lambda loader, node: (
+    {"true": True, "false": False}.get(loader.construct_scalar(node).lower(), loader.construct_scalar(node))))
 
 
 def read_yaml(path: Path):
@@ -118,7 +122,10 @@ def event_cost_center(event: dict, units: dict[str, list[str]], employee_units: 
         return str(event["cost_center"])
     if str(event.get("open_to") or "") in units and str(event["open_to"]).startswith("CC-"):
         return str(event["open_to"])
-    organizer = people.get(str(event.get("organizer") or ""), {})
+    organizer_id = str(event.get("organizer") or "")
+    if organizer_id in employee_units and employee_units[organizer_id]:
+        return employee_units[organizer_id]          # an employee organized it
+    organizer = people.get(organizer_id, {})
     if organizer.get("employee_id") in employee_units:
         return employee_units[organizer["employee_id"]]
     return DEFAULT_COST_CENTER
@@ -138,18 +145,42 @@ def to_text(value) -> str | None:
 # -- building the rows -------------------------------------------------------------------------
 def _normalise(table: str, row: dict) -> dict:
     aliases = ALIASES.get(table, {})
-    return {aliases.get(k, k): v for k, v in row.items()}
+    out = {aliases.get(k, k): v for k, v in row.items()}
+    if table == "invoices" and isinstance(out.get("documentation"), dict):
+        # Receipt documentation given as one block: its fields are the invoice's documentation fields.
+        for key, value in out.pop("documentation").items():
+            out.setdefault(aliases.get(key, key), value)
+    return out
+
+
+def _key(table: str, row: dict) -> str | None:
+    """A row's identity, or None for a row that has none (compact attendance, payroll ranges)."""
+    if table == "rules":
+        return f"{row['rule_id']}:{row.get('version', 1)}"
+    key = row.get("entry_id") if table == "journal_entries" else row.get("id")
+    return None if key in (None, "") else str(key)
 
 
 def row_key(table: str, row: dict) -> str:
     """How overrides name a row (spec §8.1): by id, rules by rule_id (or rule_id:version)."""
-    if table == "rules":
-        return f"{row['rule_id']}:{row.get('version', 1)}"
-    if table == "journal_entries":
-        return str(row["entry_id"])
-    if "id" in row:
-        return str(row["id"])
-    raise ScenarioError(f"a {table} row has no id: {row}")
+    key = _key(table, row)
+    if key is None:
+        raise ScenarioError(f"a {table} row has no id: {row}")
+    return key
+
+
+def _add_rows(table: str, existing: list[dict], added: list[dict]) -> None:
+    """Setup rows are new rows, except one that restates a row already present (same id): it refines
+    that row, so a scenario can name a known person or event with the details it needs."""
+    index = {k: i for i, r in enumerate(existing) if (k := _key(table, r)) is not None}
+    for row in added:
+        key = _key(table, row)
+        if key is not None and key in index:
+            existing[index[key]] = _merge(existing[index[key]], row)
+        else:
+            if key is not None:
+                index[key] = len(existing)
+            existing.append(row)
 
 
 def _merge(base, change):
@@ -162,16 +193,34 @@ def _merge(base, change):
     return copy.deepcopy(change)
 
 
-def _attendance(rows: list[dict]) -> list[dict]:
-    """Expand compact attendance: {event, employees: "E001-E300", companions: [{host_range, count_each}],
-    business_partners: "BP-101-BP-220", externals: [...]} into one row per actual attendee."""
+def _people(spec, groups: dict[str, list[str]]) -> list[str]:
+    """Employee ids from ranges, lists, or a named group ('managers', a cost center or org unit id)."""
+    items = spec if isinstance(spec, list) else [spec]
+    out = []
+    for item in items:
+        out += groups[str(item)] if str(item) in groups else expand(item)
+    return out
+
+
+def employee_groups(rows: dict) -> dict[str, list[str]]:
+    """Named groups attendance may use instead of listing employees."""
+    groups = {u["id"]: expand(u.get("members")) for u in rows["cost_centers"] + rows["org_units"]}
+    groups["managers"] = [e["id"] for e in rows["employees"] if str(e.get("is_manager")) in {"1", "True", "true"}]
+    return groups
+
+
+def _attendance(rows: list[dict], groups: dict[str, list[str]] | None = None) -> list[dict]:
+    """Expand compact attendance: {event, employees: "E001-E300" | "managers" | "CC-ENG",
+    companions: [{host_range, count_each}], business_partners: "BP-101-BP-220", externals: [...]} into one
+    row per actual attendee."""
+    groups = groups or {}
     out = []
     for row in rows:
         if "person_id" in row:
             out.append({"id": f"{row['event']}:{row['person_id']}", **row})
             continue
         event = row["event"]
-        for person in expand(row.get("employees")):
+        for person in _people(row.get("employees"), groups):
             out.append({"id": f"{event}:{person}", "event": event, "person_id": person, "person_kind": "employee"})
         for group in row.get("companions") or []:
             hosts = expand(group.get("host_range") or group.get("hosts") or group.get("host"))
@@ -308,6 +357,22 @@ def _gift_history(rows: dict, items: list[dict], tags: _Tags) -> None:
                           {"account": "1760", "credit": flat, **tag}]})
 
 
+def _link_distributions(rows: dict) -> None:
+    """A gift distribution names the invoice line it hands out. One that names the invoice itself is
+    unambiguous only when that invoice has a single line; then it means that line. Each distribution
+    also carries its invoice, so it is visible exactly when the invoice is."""
+    lines = {str(l["id"]): l for l in rows["invoice_lines"]}
+    by_invoice: dict[str, list[dict]] = {}
+    for line in rows["invoice_lines"]:
+        by_invoice.setdefault(str(line["invoice"]), []).append(line)
+    for d in rows["gift_distributions"]:
+        named = str(d.get("invoice_line") or "")
+        if named not in lines and len(by_invoice.get(named, [])) == 1:
+            d["invoice_line"] = by_invoice[named][0]["id"]
+        if not d.get("invoice") and str(d.get("invoice_line")) in lines:
+            d["invoice"] = lines[str(d["invoice_line"])]["invoice"]
+
+
 def _visible(table: str, row: dict, as_of: str, event_dates: dict[str, str]) -> bool:
     if table == "attendance":
         return event_dates.get(str(row["event"]), "") <= as_of
@@ -342,10 +407,13 @@ def rows_for(scenario: Scenario | None = None, as_of: str | None = None) -> tupl
             if table in COMPACT:
                 compact[table] += list(added or [])
             else:
-                rows[table] += [_normalise(table, r) for r in added or []]
+                _add_rows(table, rows[table], [_normalise(table, r) for r in added or []])
     for election in rows["elections"]:
         election.setdefault("id", f"ELEC-{election['year']}-{election['scope']}")
-    rows["attendance"] = _attendance(rows["attendance"])
+    for n, entry in enumerate(rows["journal_entries"], 1):
+        entry.setdefault("entry_id", f"JE-SETUP-{n:03d}")      # booked before Vouch, given without an id
+    groups = employee_groups(rows)
+    rows["attendance"] = _attendance(rows["attendance"], groups)
     rows["payroll_exports"] = _payroll_exports(rows["payroll_exports"])
     for invoice in rows["invoices"]:
         inline = invoice.pop("lines", None)
@@ -369,11 +437,18 @@ def rows_for(scenario: Scenario | None = None, as_of: str | None = None) -> tupl
             if table == "rules":
                 index.update({str(r["rule_id"]): i for i, r in enumerate(rows[table])
                               if sum(1 for x in rows[table] if x["rule_id"] == r["rule_id"]) == 1})
+            events = {str(e["id"]) for e in rows["events"]}
             for key, change in (changes or {}).items():
+                if table == "attendance" and str(key) not in index and str(key) in events:
+                    # An event's attendance is overridden as a whole, in the compact form it was given in.
+                    rows[table] = [r for r in rows[table] if str(r["event"]) != str(key)] + \
+                        _attendance([{**change, "event": str(key)}], groups)
+                    continue
                 if str(key) not in index:
                     raise ScenarioError(f"scenario {scenario.id}: override names no {table} row {key!r}")
                 i = index[str(key)]
                 rows[table][i] = _merge(rows[table][i], _normalise(table, change))
+    _link_distributions(rows)
     event_dates = {str(e["id"]): str(e["date"])[:10] for e in rows["events"]}
     for table in TABLES:
         rows[table] = [r for r in rows[table] if _visible(table, r, as_of, event_dates)]
