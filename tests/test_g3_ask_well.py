@@ -2,7 +2,7 @@
 yes, no or a partial answer; yes, no and partial each lead to the right next step; unanswered stays held."""
 import pytest
 
-from vouch.agent import questions
+from vouch.agent import questions, templates
 from vouch.agent.runner import ensure
 from vouch.agent.tools import Toolbox
 from vouch.controls import clock, gates
@@ -122,3 +122,39 @@ def test_an_unanswered_question_stays_held_is_reminded_then_escalated(held_case)
     assert actions == ["reminded", "escalated"]
     assert questions.get(conn, question_id)["to_role"] == "controller"
     assert status(conn, case_id) in ("held", "waiting") and gates.active_holds(conn, "payment", payment)
+
+
+def test_a_question_cannot_promise_a_correction_for_a_case_that_takes_no_entry(controls_db):
+    ensure(controls_db)
+    for f in reconcile(controls_db).cases():
+        gates.open_case(controls_db, VOUCH, f.finding_id, C.OPEN_MONTH, f.kind, f.summary)
+    toolbox = Toolbox(controls_db)
+    no_entry = [c for c in toolbox.cases.values() if templates.why_no_correction(toolbox.src, c)]
+    takes_entry = [c for c in toolbox.cases.values() if not templates.why_no_correction(toolbox.src, c)]
+    assert no_entry and takes_entry
+    for case in no_entry:
+        result = toolbox.call("ask", {"case_id": case["finding_id"], "to_role": "controller",
+                                      "fact_needed": "Should this be corrected?", "sources_disagree": SOURCES,
+                                      "if_yes": "draft_correction", "if_no": "keep_hold", "if_partial": "keep_hold"})
+        assert result["ok"] is False and "draft_correction is not possible" in result["error"]
+    asked = {r[0] for r in controls_db.execute("SELECT case_id FROM questions")}
+    assert asked.isdisjoint(c["finding_id"] for c in no_entry)
+
+
+def test_a_promised_correction_that_cannot_be_drafted_holds_the_case_with_a_reason(controls_db):
+    ensure(controls_db)
+    for f in reconcile(controls_db).cases():
+        gates.open_case(controls_db, VOUCH, f.finding_id, C.OPEN_MONTH, f.kind, f.summary)
+    toolbox = Toolbox(controls_db)
+    case = next(c for c in toolbox.cases.values() if templates.why_no_correction(toolbox.src, c))
+    # asked before the case changed: the promise was possible then, not now
+    question_id = questions.ask(controls_db, case["finding_id"], "controller", "Amara Okafor", "Correct this?",
+                                SOURCES, "draft_correction", "keep_hold", "keep_hold")
+    result = questions.answer(controls_db, question_id, actor(controls_db, "controller"), "yes", "go ahead",
+                              draft=toolbox.draft_for)
+    assert result["failed"]
+    status, note = controls_db.execute("SELECT status, note FROM cases WHERE case_id = ?",
+                                       (case["finding_id"],)).fetchone()
+    assert status == "held" and "could not be drafted" in note
+    assert not controls_db.execute("SELECT 1 FROM journal_entries WHERE entry_id = ?",
+                                   (f"VCH-{case['finding_id']}",)).fetchone()

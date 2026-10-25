@@ -80,8 +80,23 @@ def test_a_model_timeout_or_refusal_holds_the_case(fresh, behaviour, reason):
     assert len(result["failures"]) == result["cases"] == 14
     notes = [r[0] for r in fresh.execute("SELECT note FROM cases")]
     assert all(n.startswith("held: ") and reason in n for n in notes)
-    assert fresh.execute("SELECT COUNT(*) FROM holds").fetchone()[0] == 0           # nothing guessed, nothing done
     assert fresh.execute("SELECT COUNT(*) FROM journal_entries WHERE entry_id LIKE 'VCH-F-%'").fetchone()[0] == 0
+    # nothing guessed, but nothing moves either: what each failed case is about is held by Vouch
+    holds = gates.active_holds(fresh)
+    assert holds and all(h["placed_by"] == VOUCH.name and reason in h["reason"] for h in holds)
+    held = {(h["target_kind"], h["target_ref"]) for h in holds}
+    for (record,) in fresh.execute("SELECT record FROM findings WHERE disposition = 'case'"):
+        subject = json.loads(record)["subject"]
+        payments = [subject.get("payment_id"), *subject.get("payment_ids", [])]
+        assert {("payment", p) for p in payments if p} <= held
+        if subject.get("grant_id"):
+            assert ("grant", subject["grant_id"]) in held
+        if not any(payments) and not subject.get("grant_id") and subject.get("employee_id"):
+            assert ("person", subject["employee_id"]) in held
+    treasury = actor(fresh, "treasury")
+    payment = next(ref for kind, ref in held if kind == "payment")
+    with pytest.raises(gates.Refused, match="payment is held"):
+        gates.release_payment(fresh, treasury, payment)
 
 
 def test_a_half_finished_handoff_is_finished_not_repeated(fresh):

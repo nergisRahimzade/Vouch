@@ -28,7 +28,9 @@ class BadQuestion(ValueError):
 
 
 def ask(conn: sqlite3.Connection, case_id: str, to_role: str, to_person: str, fact_needed: str,
-        sources: list[str], if_yes: str, if_no: str, if_partial: str, follows: str | None = None) -> str:
+        sources: list[str], if_yes: str, if_no: str, if_partial: str, follows: str | None = None,
+        impossible: dict[str, str] | None = None) -> str:
+    """`impossible` maps a next step that cannot be carried out for this case to the reason why."""
     gates.require(conn, VOUCH, "ask_question", case_id)
     missing = [name for name, value in (("person", to_person), ("fact needed", fact_needed)) if not str(value).strip()]
     if len(sources) < 2:
@@ -39,6 +41,8 @@ def ask(conn: sqlite3.Connection, case_id: str, to_role: str, to_person: str, fa
         elif step == "release_hold" and "release_hold" not in gates.PERMISSIONS.get(to_role, set()):
             missing.append(f"a next step the {to_role} can take for {label} (the {to_role} cannot release holds; "
                            "use escalate_to_controller)")
+        elif step in (impossible or {}):
+            missing.append(f"a next step this case allows for {label} ({step} is not possible: {impossible[step]})")
     if missing:
         raise BadQuestion("a question must name " + ", ".join(missing))
     duplicate = conn.execute("SELECT question_id FROM questions WHERE case_id = ? AND to_role = ? AND fact_needed = ? "
@@ -100,7 +104,13 @@ def answer(conn: sqlite3.Connection, question_id: str, by: Actor, reply: str, no
         gates.set_case(conn, VOUCH, case_id, "held", f"{by.name} answered {reply}: {note}; the hold stays",
                        {"question": question_id})
     elif step == "draft_correction":
-        result = draft(case_id) if draft else None
+        try:
+            result = draft(case_id) if draft else None
+        except (ValueError, Refused) as failure:          # the promised step cannot be done: hold, never guess
+            reason = getattr(failure, "reason", str(failure))
+            gates.set_case(conn, VOUCH, case_id, "held", f"{by.name} answered {reply}; the promised correction "
+                           f"could not be drafted ({reason})", {"question": question_id, "failure": reason})
+            return {"question": question_id, "answer": reply, "next_step": step, "failed": reason}
         gates.set_case(conn, VOUCH, case_id, "held", f"{by.name} answered {reply}; correction drafted and sent for "
                        "approval", {"question": question_id, "draft": result})
     elif step == "resolve_case":

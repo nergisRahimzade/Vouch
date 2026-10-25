@@ -1,4 +1,4 @@
-"""python -m vouch.evaluator score [--set main|heldout|clean|all] [--runs N] [--scripted] [--effort E] [--seed N]
+﻿"""python -m vouch.evaluator score [--set main|heldout|clean|all] [--runs N] [--scripted] [--effort E] [--seed N]
    python -m vouch.evaluator score --demo     the demo scenario: the main set, five runs, all at target in a row
    python -m vouch.evaluator table            regenerate the README results table from results/*.json
 
@@ -23,7 +23,7 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--runs", type=int, default=run.MIN_RUNS, help=f"at least {run.MIN_RUNS}")
     s.add_argument("--demo", action="store_true", help=f"the main set, {run.DEMO_RUNS} runs in a row at target")
     s.add_argument("--scripted", action="store_true", help="fixed playbook instead of the model (fast tests only)")
-    s.add_argument("--effort", default="medium", choices=["low", "medium", "high", "xhigh", "max"])
+    s.add_argument("--effort", default="medium", choices=["low", "medium", "high", "max"])
     s.add_argument("--seed", type=int, default=None, help="default: the generator's fixed seed")
     s.add_argument("--heldout", type=Path, default=run.HELDOUT_DIR, help="directory of the held-out plants")
     s.add_argument("--results", type=Path, default=run.DEFAULT_RESULTS,

@@ -9,11 +9,12 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 
-from vouch.agent.tools import SPECS, Toolbox
+from vouch.agent.tools import ACT_TOOLS, SPECS, Toolbox
 
-MODEL = "claude-opus-5-5"
-PRICES = {MODEL: {"input": Decimal("4.00"), "output": Decimal("20.00"), "cache_read": Decimal("0.20"),
-                  "cache_write": Decimal("5.00")}}   # USD per million tokens (cache writes at 1.25x input)
+MODEL = "claude-sonnet-4-6"
+MAX_STRICT_TOOLS = 20                                 # the API refuses a request with more
+PRICES = {MODEL: {"input": Decimal("3.00"), "output": Decimal("15.00"), "cache_read": Decimal("0.30"),
+                  "cache_write": Decimal("3.75")}}   # USD per million tokens (cache writes at 1.25x input)
 MAX_TURNS = 14
 
 SYSTEM = """You are Vouch, the payroll accountant and equity compensation accountant at Northlight Labs (entities US,
@@ -105,14 +106,17 @@ class ModelPolicy:
         self.anthropic = anthropic
         self.client = client or anthropic.Anthropic(timeout=timeout, max_retries=2)
         self.model, self.effort, self.usage = model, effort, Usage()
-        self.tools = [{**spec, "strict": True} for spec in SPECS]
+        self.tools = [{**spec, "strict": spec["name"] in ACT_TOOLS} for spec in SPECS]
+        if sum(t["strict"] for t in self.tools) > MAX_STRICT_TOOLS:
+            raise ValueError(f"the API accepts at most {MAX_STRICT_TOOLS} strict tools")
 
     def _create(self, output_format: dict | None = None, **kwargs):
         output_config = {"effort": self.effort, **({"format": output_format} if output_format else {})}
         try:
+            # Sonnet 4.6 thinks only when asked; it has no server-side refusal fallback (a refusal is held below)
             response = self.client.beta.messages.create(
-                model=self.model, max_tokens=16000, output_config=output_config,
-                betas=["server-side-fallback-2026-07-01"], fallbacks="default", **kwargs)
+                model=self.model, max_tokens=16000, thinking={"type": "adaptive"}, output_config=output_config,
+                **kwargs)
         except self.anthropic.APITimeoutError as error:
             raise PolicyFailed(f"the model did not answer in time ({error})") from error
         except self.anthropic.RateLimitError as error:

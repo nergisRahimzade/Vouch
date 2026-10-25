@@ -109,12 +109,14 @@ def run_close(conn: sqlite3.Connection, policy) -> dict:
             policy.work(toolbox.cases[cid], toolbox)
         except PolicyFailed as failure:
             failures[cid] = str(failure)
-            gates.set_case(conn, VOUCH, cid, "held", f"held: {failure}", {"failure": str(failure)})
+            held = hold_subject(conn, toolbox.cases[cid], f"held after a failure: {failure}")
+            gates.set_case(conn, VOUCH, cid, "held", f"held: {failure}", {"failure": str(failure), "holds": held})
             continue
         broken = [json.loads(r)["error"] for r in toolbox.corpus[tool_calls:] if json.loads(r).get("tool_error")]
         if broken:
             failures[cid] = broken[0]
-            gates.set_case(conn, VOUCH, cid, "held", f"held: {broken[0]}", {"tool_errors": broken})
+            held = hold_subject(conn, toolbox.cases[cid], f"held after a failure: {broken[0]}")
+            gates.set_case(conn, VOUCH, cid, "held", f"held: {broken[0]}", {"tool_errors": broken, "holds": held})
     conn.commit()
     _step(conn, 5, "work_cases", f"{len(cases) - len(failures)} cases worked, {len(failures)} held after a failure",
           {"failures": failures})
@@ -182,6 +184,19 @@ def run_close(conn: sqlite3.Connection, policy) -> dict:
             "drafts": drafted, "requests": requested, "report": report, "report_ok": check.ok,
             "report_problems": check.problems, "cost_usd": str(usage.cost(policy.model or "")),
             "tokens": {"input": usage.input_tokens, "output": usage.output_tokens, "cache_read": usage.cache_read_tokens}}
+
+
+def hold_subject(conn, case: dict, reason: str) -> list[str]:
+    """A failed case stops what it is about: its payments and grants, or, when it names neither, its
+    people (a hold on a person stops all of their payments). Nothing moves until a person looks."""
+    subject = case["subject"]
+    refs = [("payment", p) for p in [subject.get("payment_id"), *subject.get("payment_ids", [])] if p]
+    refs += [("grant", subject["grant_id"])] if subject.get("grant_id") else []
+    if not refs:
+        refs = [("person", e) for e in [subject.get("employee_id"), *subject.get("employee_ids", [])] if e]
+    for kind, ref in refs:
+        gates.place_hold(conn, VOUCH, case["finding_id"], kind, ref, reason, {"failure": True})
+    return [f"{kind}:{ref}" for kind, ref in refs]
 
 
 def _work_started(conn, case_id: str) -> list[str]:

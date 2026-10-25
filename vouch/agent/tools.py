@@ -89,6 +89,30 @@ SPECS = [
      "input_schema": _schema({"case_id": STR, "status": {"type": "string", "enum": ["held", "waiting", "resolved"]},
                               "explanation": STR})},
 ]
+# Tools that change something. The API enforces their schemas (strict); every tool's input is also checked here.
+ACT_TOOLS = {"open_case", "hold", "ask", "draft_correction", "request_approval", "request_funding", "record_decision"}
+SPEC = {spec["name"]: spec for spec in SPECS}
+
+
+def bad_input(name: str, args: dict) -> str | None:
+    """Why a tool's input does not match its schema, or None when it does."""
+    schema = SPEC[name]["input_schema"]
+    missing = [k for k in schema["required"] if k not in args]
+    extra = [k for k in args if k not in schema["properties"]]
+    if missing or extra:
+        return f"{name} needs exactly {sorted(schema['properties'])}; missing {missing}, unexpected {extra}"
+    for key, value in args.items():
+        prop = schema["properties"][key]
+        items = value if prop["type"] == "array" else [value]
+        if prop["type"] == "array" and not isinstance(value, list):
+            return f"{key} must be a list"
+        allowed = (prop.get("items") or prop).get("enum")
+        for item in items:
+            if not isinstance(item, str):
+                return f"{key} must be text"
+            if allowed and item not in allowed:
+                return f"{key} must be one of {allowed}"
+    return None
 
 
 class Toolbox:
@@ -106,6 +130,8 @@ class Toolbox:
         target = args.get("case_id") or args.get("employee_id") or args.get("grant_id") or args.get("entry_id") or name
         if handler is None:
             result = {"ok": False, "error": f"unknown tool {name}"}
+        elif problem := bad_input(name, args):
+            result = {"ok": False, "error": f"bad input: {problem}"}
         else:
             try:
                 result = {"ok": True, **handler(**args)}
@@ -252,8 +278,9 @@ class Toolbox:
         case = self.case(case_id)
         department = case["subject"].get("department")
         person = self.src.person_with_role(to_role, department if to_role == "department_head" else None)
+        no_entry = templates.why_no_correction(self.src, case)
         question = questions.ask(self.conn, case_id, to_role, person, fact_needed, sources_disagree, if_yes, if_no,
-                                 if_partial)
+                                 if_partial, impossible={"draft_correction": no_entry} if no_entry else None)
         return {"question_id": question, "asked": person}
 
     def draft_for(self, case_id: str) -> str:
@@ -277,7 +304,11 @@ class Toolbox:
         if kind == "entry":
             row = self.conn.execute("SELECT entity FROM journal_entries WHERE entry_id = ?", (subject_ref,)).fetchone()
             if row is None:
-                raise KeyError(f"no draft {subject_ref}; draft it first")
+                logged = [r for r in self.src.rows("approvals_log") if r["request_id"] == subject_ref]
+                what = f"it is a {logged[0]['kind']} request in the approvals log" if logged else "draft it first"
+                routes = "; ".join(f"{k} goes to {' then '.join(approvals.needs_for(self.conn, k, None, None))}"
+                                   for k in REQUEST_KINDS if k != "entry")
+                raise ValueError(f"{subject_ref} is not a draft entry ({what}). Other kinds: {routes}")
             amount = sum((Decimal(r[0]) for r in self.conn.execute(
                 "SELECT debit FROM journal_lines WHERE entry_id = ?", (subject_ref,))), ZERO)
             currency = self.src.currency(row[0])

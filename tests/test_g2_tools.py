@@ -99,3 +99,43 @@ def test_warnings_flag_what_the_agent_should_not_trust(toolbox):
     ghost = case_of(toolbox, "paid_not_in_hr")
     person = toolbox.call("get_person", {"employee_id": ghost["subject"]["employee_id"]})
     assert person["found"] is False and person["warnings"]
+
+
+def test_the_model_is_sent_no_more_strict_tools_than_the_api_accepts():
+    from vouch.agent.policy import MAX_STRICT_TOOLS, ModelPolicy
+    policy = ModelPolicy(client=object())
+    strict = {t["name"] for t in policy.tools if t["strict"]}
+    assert strict == ACT and len(strict) <= MAX_STRICT_TOOLS
+    assert {t["name"] for t in policy.tools} == READ | COMPUTE | ACT
+
+
+@pytest.mark.parametrize("name, args, problem", [
+    ("get_person", {}, "missing ['employee_id']"),
+    ("get_person", {"employee_id": "x", "month": "y"}, "unexpected ['month']"),
+    ("get_person", {"employee_id": 7}, "must be text"),
+    ("hold", {"case_id": "x", "target_kind": "everything", "target_ref": "y", "reason": "z"}, "must be one of"),
+    ("request_funding", {"case_id": "x", "payment_ids": "P-1", "note": "z"}, "must be a list"),
+])
+def test_input_that_breaks_a_tool_schema_gets_a_plain_error_not_a_tool_failure(toolbox, name, args, problem):
+    result = toolbox.call(name, args)
+    assert result["ok"] is False and "tool_error" not in result
+    assert result["error"].startswith("bad input: ") and problem in result["error"]
+    logged = toolbox.conn.execute("SELECT outcome FROM audit_log WHERE action = ? ORDER BY rowid DESC LIMIT 1",
+                                  (f"tool:{name}",)).fetchone()[0]
+    assert logged == "failed"
+
+
+def test_asking_entry_approval_for_something_that_is_not_a_draft_says_what_it_is_and_where_each_kind_goes(toolbox):
+    for case in toolbox.cases.values():
+        ref = case["subject"].get("request_id")
+        if not ref:
+            continue
+        logged = next(r for r in toolbox.src.rows("approvals_log") if r["request_id"] == ref)
+        assert f"{logged['kind']} request" in json.dumps(case["evidence"])           # the evidence says what it is
+        result = toolbox.call("request_approval", {"case_id": case["finding_id"], "kind": "entry",
+                                                   "subject_ref": ref, "note": "send it on"})
+        assert result["ok"] is False and "tool_error" not in result
+        assert f"it is a {logged['kind']} request" in result["error"] and "accrual goes to controller" in result["error"]
+        break
+    else:
+        pytest.fail("no case names an approval request")

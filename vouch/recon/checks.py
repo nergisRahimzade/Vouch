@@ -759,7 +759,8 @@ def approvals_vs_policy(src: Sources, out: Findings) -> None:
                 "approvals_vs_policy", "approval_breaks_policy", row["period"], row["entity"], "approval",
                 {"request_id": row["request_id"], "requested_by": row["requested_by"]},
                 "This approval breaks policy: " + "; ".join(problems),
-                [Evidence.of(row, f"requested by {row['requested_by']}, approved by {row['approved_by']}, "
+                [Evidence.of(row, f"{row['kind']} request ({row['description']}), requested by "
+                                  f"{row['requested_by']}, approved by {row['approved_by']}, "
                                   f"{row['amount']} {row['currency']}"),
                  Evidence("finance_policy", "standing/finance_policy.json", (),
                           " ".join(src.rule(r)["text"] for r in rules))],

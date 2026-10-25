@@ -1,4 +1,4 @@
-"""python -m vouch rebuild              build the world from the seed and load it
+﻿"""python -m vouch rebuild              build the world from the seed and load it
    python -m vouch close [--scripted]   run the open month's close (the real model by default)
    python -m vouch score [...]          score the agent on a fresh copy of the company (see vouch.evaluator)"""
 from __future__ import annotations
@@ -20,7 +20,7 @@ def main() -> None:
     sub.add_parser("rebuild", help="generate the world and rebuild the database")
     c = sub.add_parser("close", help="run the open month's close")
     c.add_argument("--scripted", action="store_true", help="fixed playbook instead of the model (fast tests only)")
-    c.add_argument("--effort", default="medium", choices=["low", "medium", "high", "xhigh", "max"])
+    c.add_argument("--effort", default="medium", choices=["low", "medium", "high", "max"])
     g = sub.add_parser("colleagues", help="demo: simulated approvers answer questions and decide requests")
     g.add_argument("--scripted", action="store_true", help="scripted colleagues instead of the model")
     a = sub.add_parser("audit", help="demo: the auditor asks Vouch to defend a few cases")

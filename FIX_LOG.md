@@ -121,3 +121,31 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause:** only emails were scanned for instructions. A note on an answer or an approval was free text that nobody checked; it never changed a step, but it was not reported either.
 - **What changed:** the instruction detector moved to `vouch/agent/untrusted.py`. An answer whose note carries an instruction is logged as suspicious, and the close report lists every such note, from answers and approval decisions, next to suspicious emails.
 - **Kind of problem handled:** instructions in any colleague's free-text note.
+
+## 2026-10-24 — every live model call was refused (too many strict tools)
+
+- **Failing test:** the first live score (`python -m vouch score`, `results/main-model-20261024T191132Z.json`): all 14 cases failed in all 3 runs with "the model API returned an error (400)". Reproduced with one call: the API answered "Too many strict tools (21). The maximum number of strict tools supported is 20."
+- **Root cause:** `ModelPolicy` marked every tool strict. The tool set grew to 21 in G2, past the API's limit, and no test sent the real tool list to the API (tests use the scripted playbook or a fake client).
+- **What changed:** only the 7 act tools (`ACT_TOOLS`, the ones that change something) are strict. `Toolbox.call` now checks every tool's input against its schema itself (`bad_input`: missing or unexpected fields, text, lists, allowed values) and returns a plain "bad input" error the model can correct, instead of a tool failure. `ModelPolicy` refuses to start with more strict tools than `MAX_STRICT_TOOLS` (20). New tests in `tests/test_g2_tools.py`.
+- **Kind of problem handled:** any tool list over the API's strict limit, now caught before a run, and any malformed tool input, whether or not the API checked it.
+
+## 2026-10-24 — a promised next step that could not be done crashed the score
+
+- **Failing test:** the second live score (`python -m vouch score`) stopped with `CannotDraft: a grant_without_board_approval case is settled by a hold, a question or a request, not an entry`. The model had asked the stock admin a question promising "draft_correction" on yes; the scripted stock admin said yes and the promised draft raised inside `questions.answer`.
+- **Root cause:** `questions.ask` checked that each promised step was a known step and one the answerer's role could take, but not that the case itself allowed it. Only some kinds of case can be settled by a correcting entry. And when a promised step failed at answer time, nothing caught it.
+- **What changed:** `templates.why_no_correction` says why a case can take no correcting entry (the same rule `templates.correction` uses). The ask tool passes it to `questions.ask`, which refuses a question promising `draft_correction` for such a case with a plain error the model can correct. If a promised draft still fails when the answer comes in, the case is held with the reason and the run carries on. New tests in `tests/test_g3_ask_well.py`.
+- **Kind of problem handled:** any question promising a correction for a case that takes no entry, and any promised draft that fails after the question was asked.
+
+## 2026-10-24 — a failed case was "held" in name while its money still moved
+
+- **Failing test:** the first live score (`results/main-model-20261024T191132Z.json`) counted a double payment in every run (Never = 3). Every case had failed, so the duplicate-payment case was marked held, but no hold was placed; treasury releases every payment that is not held, so both payments went out.
+- **Root cause:** after a model failure or a tool error, `run_close` set the case's status to held but put no hold on anything, and the payment release control only looks at holds.
+- **What changed:** `runner.hold_subject` places Vouch's holds on what a failed case is about: its payments and grants, or its people when it names neither. Both failure paths use it, and each hold gives the failure as its reason. The test `tests/test_g6_recover.py::test_a_model_timeout_or_refusal_holds_the_case` asserted that no hold is placed after a failure; with the human's approval (2026-10-24) it now asserts the subject is held and that treasury's release is refused.
+- **Kind of problem handled:** any case the agent fails on, for any reason, now stops its money and grants until a person looks.
+
+## 2026-10-24 — the live agent asked the controller instead of sending the request for approval
+
+- **Failing test:** the live score (`results/main-model-20261024T195936Z.json`) missed MAIN-13 in all 3 runs (check `routed_to_controller`). A one-case live replay showed why: the agent called `request_approval` with kind `entry` on the self-approved request, got "no draft AR-0013; draft it first", and fell back to a question to the controller, which creates no approval request.
+- **Root cause:** the agent could not tell what the logged request was. The approvals-vs-policy finding left out the request's kind and description from the approvals log, so the agent guessed "entry". The error it got named neither what the reference was nor which kind would route it.
+- **What changed:** the finding's evidence now says the request's kind and description, from the approvals log. `request_approval` with kind `entry` on something that is not a draft says what the reference is (its kind in the approvals log, if it is there) and where every other kind goes (from `approvals.needs_for`). A new test is in `tests/test_g2_tools.py`. In a one-case live replay (cost $0.13), the agent then sent an `accrual` request to the controller on its first try.
+- **Kind of problem handled:** any case about a logged approval request, and any approval request whose kind does not match what it refers to.
