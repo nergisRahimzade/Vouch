@@ -158,7 +158,7 @@ In the brief-on score every miss except the accrual case was a dropped connectio
 
 **Why (track):** "Would you hire it?" and "Is it real enough?": cost and speed work that does not trade away accuracy, plus a live score that exposed and fixed real behaviour gaps instead of being tuned. "Asks at the right moment": questions only for facts the sources cannot settle. "Proof it works": every figure above is a measured, labelled result.
 
-**Tests:** 335 passed on the full suite before the retry backoff and the instructions change; 338 passed, 0 failed, 0 skipped on the final code (before the retry backoff and the instructions change); the retry and parallel tests were rerun after, 5 passed. No existing test, answer-key entry, planted case, threshold or seed was changed. Two of my own new tests had wrong expectations, which I corrected because the program was right (recorded in the commit history).
+**Tests:** 335 passed on the full suite before the retry backoff and the instructions change; 338 passed, 0 failed, 0 skipped on the final code (entry 15). No existing test, answer-key entry, planted case, threshold or seed was changed. Two of my own new tests had wrong expectations, which I corrected because the program was right (recorded in the commit history).
 
 ## 15. 2026-10-24, 21:55 · branch `efficiency` · Correction: my first accuracy fix overcorrected; final live score at target
 
