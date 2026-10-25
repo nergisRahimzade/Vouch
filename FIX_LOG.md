@@ -149,3 +149,24 @@ Each fix records the failing test, the root cause, what changed, and the kind of
 - **Root cause:** the agent could not tell what the logged request was. The approvals-vs-policy finding left out the request's kind and description from the approvals log, so the agent guessed "entry". The error it got named neither what the reference was nor which kind would route it.
 - **What changed:** the finding's evidence now says the request's kind and description, from the approvals log. `request_approval` with kind `entry` on something that is not a draft says what the reference is (its kind in the approvals log, if it is there) and where every other kind goes (from `approvals.needs_for`). A new test is in `tests/test_g2_tools.py`. In a one-case live replay (cost $0.13), the agent then sent an `accrual` request to the controller on its first try.
 - **Kind of problem handled:** any case about a logged approval request, and any approval request whose kind does not match what it refers to.
+
+## 2026-10-24 — the dashboard named the held-out set (brought over from the dashboard branch)
+
+- **Failing test:** `tests/test_w6_heldout.py::test_nothing_outside_the_generator_and_evaluator_knows_about_the_heldout_set` (`vouch/ui/jobs.py`), on the dashboard branch.
+- **Root cause:** the dashboard's sandbox built the generator command itself, with the held-out flag spelled out, so code outside the generator and evaluator knew about the held-out set.
+- **What changed:** the evaluator owns the one function that turns a set name into the generator's command (`vouch.evaluator.run.build_command`); `prepare()` and the dashboard's rebuild both use it. The test is unchanged.
+- **Kind of problem handled:** any new caller that needs to build a set goes through the evaluator, so only the generator and evaluator know how the held-out set is built.
+
+## 2026-10-24 — the dashboard's reset failed while the database was open elsewhere (brought over from the dashboard branch)
+
+- **Failing check:** Reset in the dashboard: `PermissionError: [WinError 32]` on `vouch.db` while a second dashboard used it.
+- **Root cause:** the reset deleted `vouch.db` and built a new one; Windows refuses to delete a file another program has open.
+- **What changed:** the dashboard builds the new company in `vouch.db.rebuild` and copies it into `vouch.db` with SQLite's backup, so the live file is never deleted. Test `test_u6_reset_works_while_another_program_holds_the_database_open`.
+- **Kind of problem handled:** a reset while any other program holds the database open.
+
+## 2026-10-24 — two refusals left no trace in the audit trail
+
+- **Failing test:** `tests/test_u_dashboard.py::test_u3_an_answer_leads_to_the_step_the_question_promised` (from the dashboard branch): answering a question as the wrong role, or answering it twice, was refused but no refused row appeared in the audit trail.
+- **Root cause:** `questions.answer` raised `Refused` directly, skipping `gates.refuse`, the helper every other control uses to log a refusal before raising it.
+- **What changed:** both refusals go through `gates.refuse` with the question as the basis. What is allowed or refused is unchanged; the refusal is now recorded. The test is unchanged.
+- **Kind of problem handled:** every refused answer to a question is traceable, like every other refused action.

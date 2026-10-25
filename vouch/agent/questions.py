@@ -76,10 +76,12 @@ def answer(conn: sqlite3.Connection, question_id: str, by: Actor, reply: str, no
     """Record an answer and carry out the step the question promised for it.
     `draft` is a callable(case_id) that drafts and requests approval for a correction."""
     question = get(conn, question_id)
+    basis = {"question": question_id}                  # a refusal is logged before it is raised, like every gate
     if question["status"] != "open":
-        raise Refused("FIN-08", "this question was already answered")
+        gates.refuse(conn, by, "answer", question["case_id"], "FIN-08", "this question was already answered", basis)
     if by.role != question["to_role"] and by.role != "controller":
-        raise Refused("ROLE", f"the question was asked of the {question['to_role']}, not the {by.role}")
+        gates.refuse(conn, by, "answer", question["case_id"], "ROLE",
+                     f"the question was asked of the {question['to_role']}, not the {by.role}", basis)
     if reply not in ("yes", "no", "partial"):
         raise ValueError(f"an answer is yes, no or partial, not {reply!r}")
     conn.execute("UPDATE questions SET status = 'answered', answer = ?, answered_by = ?, note = ?, answered_at = ? "

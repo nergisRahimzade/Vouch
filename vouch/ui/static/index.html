@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vouch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="app">
+  <nav class="rail" role="tablist" aria-label="Sections">
+    <div class="brand">Vouch <small id="companyName">Northlight Labs</small></div>
+    <button class="nav" role="tab" data-tab="overview" aria-selected="true">Overview</button>
+    <button class="nav" role="tab" data-tab="audit" aria-selected="false">Audit trail</button>
+    <button class="nav" role="tab" data-tab="review" aria-selected="false">Human review <span class="badge" id="reviewBadge" hidden></span></button>
+    <button class="nav" role="tab" data-tab="cases" aria-selected="false">Cases <span class="badge" id="casesBadge" hidden></span></button>
+    <button class="nav" role="tab" data-tab="ledger" aria-selected="false">Ledger</button>
+    <button class="nav" role="tab" data-tab="results" aria-selected="false">Results</button>
+    <button class="nav" role="tab" data-tab="run" aria-selected="false">Run &amp; sandbox</button>
+    <div class="rail-foot">Vouch fills the payroll accountant and equity compensation accountant seats at Northlight Labs, closing payroll and stock grants into the right entries every month, by department and entity.</div>
+  </nav>
+
+  <div class="main">
+    <header class="top">
+      <div>
+        <h1 id="title">Overview</h1>
+        <div class="sub" id="subtitle"></div>
+      </div>
+      <div class="ctl">
+        <span class="jobpill" id="jobPill" hidden></span>
+        <label for="role">Acting as <select id="role"></select></label>
+      </div>
+    </header>
+    <div class="notice" id="notice" role="status" hidden></div>
+
+    <section class="panel" id="p-overview"></section>
+    <section class="panel" id="p-audit" hidden></section>
+    <section class="panel" id="p-review" hidden></section>
+    <section class="panel" id="p-cases" hidden></section>
+    <section class="panel" id="p-ledger" hidden></section>
+    <section class="panel" id="p-results" hidden></section>
+    <section class="panel" id="p-run" hidden></section>
+  </div>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>
