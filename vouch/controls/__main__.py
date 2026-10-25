@@ -10,7 +10,7 @@ from pathlib import Path
 
 from vouch.controls import approvals, audit, gates
 from vouch.db import DEFAULT_DB, connect
-from vouch.db.periods import directory_actor
+from vouch.db.periods import person_actor
 
 
 def main() -> None:
@@ -36,7 +36,7 @@ def main() -> None:
                   f"{item['amount'] or '':>12} {item['currency'] or '':<4} from {item['requested_by']} "
                   f"({item['status']}, step {len(item['approvals']) + 1} of {len(item['needs'])})")
     elif args.command == "decide":
-        actor = directory_actor(conn, args.role)
+        actor = person_actor(conn, args.role)
         try:
             result = approvals.decide(conn, actor, args.request_id, args.decision, args.note, args.callback)
         except gates.Refused as refusal:

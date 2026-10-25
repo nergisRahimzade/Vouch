@@ -13,7 +13,7 @@ import re
 
 # Phrases that try to act on approvals, posting, payment or controls.
 INSTRUCTION = re.compile(
-    r"\bsystem\s*:|\bassistant\s*:|\bignore\s+(?:all\s+|any\s+)?(?:previous|prior|the\s+above|your|policy|rules?)"
+    r"\bnote\s+to\s+(?:the\s+)?tax\s+system\s*:|\bno\s+approval\s+needed|\bsystem\s*:|\bassistant\s*:|\bignore\s+(?:all\s+|any\s+)?(?:previous|prior|the\s+above|your|policy|rules?)"
     r"|\bpre-?\s?approved\b|\balready\s+approved\b|\bapproved\s+by\s+(?:the\s+)?(?:controller|cfo|vp|finance|owner)"
     r"|\bper\s+(?:the\s+)?(?:controller|cfo|vp\s+finance|finance\s+team)\b"
     r"|\b(?:post|pay|release|approve|process)\s+(?:this\s+|it\s+|the\s+invoice\s+|in\s+full\s+)?"

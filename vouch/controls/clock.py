@@ -9,12 +9,9 @@ from vouch import dates
 
 
 def start_of_close(conn: sqlite3.Connection) -> datetime:
-    """09:00 on the first business day after the open month ends."""
-    company = json.loads(conn.execute("SELECT content FROM documents WHERE kind = 'company'").fetchone()[0])
-    day = dates.month_end(company["open_month"]) + timedelta(days=1)
-    while day.weekday() >= 5:
-        day += timedelta(days=1)
-    return datetime(day.year, day.month, day.day, 9, 0)
+    """Start at 09:00 on the scenario date, never the host's wall clock."""
+    day = conn.execute("SELECT value FROM scenario WHERE key = 'as_of'").fetchone()[0]
+    return datetime.fromisoformat(day[:10] + "T09:00:00")
 
 
 def now(conn: sqlite3.Connection) -> str:

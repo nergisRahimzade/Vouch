@@ -1,4 +1,4 @@
--- Period close. Month M closes on the 5th of M+1. A locked month accepts no ledger writes;
+-- Period close. Month M closes on the 10th of M+1. A locked month accepts no ledger writes;
 -- only the controller changes status after loading.
 
 CREATE TABLE period_events (

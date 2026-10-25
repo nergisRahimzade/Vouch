@@ -85,3 +85,17 @@ BEGIN SELECT RAISE(ABORT, 'an entry is posted only after its approval request is
 CREATE TRIGGER IF NOT EXISTS posted_is_final BEFORE UPDATE ON journal_entries
 WHEN OLD.status = 'posted'
 BEGIN SELECT RAISE(ABORT, 'a posted entry cannot be changed; book a correction'); END;
+
+CREATE TRIGGER IF NOT EXISTS vouch_must_draft BEFORE INSERT ON journal_entries
+WHEN NEW.origin = 'vouch' AND NEW.status <> 'draft'
+BEGIN SELECT RAISE(ABORT, 'Vouch creates drafts only'); END;
+CREATE TRIGGER IF NOT EXISTS posted_lines_no_update BEFORE UPDATE ON journal_lines
+WHEN (SELECT status FROM journal_entries WHERE entry_id=OLD.entry_id)='posted'
+BEGIN SELECT RAISE(ABORT, 'posted lines are final; book a correction'); END;
+CREATE TRIGGER IF NOT EXISTS posted_lines_no_delete BEFORE DELETE ON journal_lines
+WHEN (SELECT status FROM journal_entries WHERE entry_id=OLD.entry_id)='posted'
+BEGIN SELECT RAISE(ABORT, 'posted lines are final; book a correction'); END;
+CREATE TRIGGER IF NOT EXISTS posted_lines_no_insert BEFORE INSERT ON journal_lines
+WHEN (SELECT status FROM journal_entries WHERE entry_id=NEW.entry_id)='posted'
+ AND (SELECT value FROM scenario WHERE key='loading') IS NULL
+BEGIN SELECT RAISE(ABORT, 'posted lines are final; book a correction'); END;

@@ -29,3 +29,17 @@ Company data is simulated; rules and policies follow VOUCH_DE_EVENT_TAX_SPEC.md.
 - Live checkpoint: claude-opus-5-5, medium effort, 2026-10-25; public suite 15 cases ? 3 runs and P11 ? 5 consecutive runs. Expected tax amounts and thresholds were not changed.
 - Root-cause changes are recorded in FIX_LOG.md. The obsolete payroll tests were adapted with your explicit approval; later failing assertions were left fixed while production code was repaired.
 
+## T5 ? Entries, controls, detectors, and routing
+
+### In simple words
+- What: Replaced retired payroll/AP checks with event-tax entries and approval controls.
+- Why: Correct numbers need balanced accounts, a safe period, and an independent reviewer.
+- How: Use computed treatments, traceable sources, locked-period checks, approval fingerprints, and POL-MAT routing.
+- Tests: Included in the successful integration checkpoint: 206 passed, 0 failed, 0 skipped (189 deterministic and 17 live tests).
+- Needs your approval: Nothing.
+
+### In software and finance terms
+- agent/templates.py, controls/*, and recon/checks.py implement double-entry drafts, VAT reversals, reclasses, role gates, standing policy, valid delegation, and evidence-bearing detectors.
+- Live checkpoint: claude-opus-5-5, medium effort, 2026-10-25; public suite 15 cases ? 3 runs and P11 ? 5 consecutive runs. Expected tax amounts and thresholds were not changed.
+- Root-cause changes are recorded in FIX_LOG.md. The obsolete payroll tests were adapted with your explicit approval; later failing assertions were left fixed while production code was repaired.
+

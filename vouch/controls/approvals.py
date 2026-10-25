@@ -9,7 +9,7 @@ import sqlite3
 from decimal import Decimal
 
 from vouch.controls import audit, clock
-from vouch.controls.gates import Refused, large_entry_limit, refuse, require
+from vouch.controls.gates import Refused, refuse, require
 from vouch.db.periods import Actor
 from vouch.money import fmt
 
@@ -18,21 +18,31 @@ def fingerprint(kind: str, subject_ref: str, payload: dict) -> str:
     return hashlib.sha256(json.dumps([kind, subject_ref, payload], sort_keys=True, default=str).encode()).hexdigest()[:16]
 
 
-def needs_for(conn, kind: str, amount: Decimal | None, currency: str | None) -> list[str]:
-    if kind == "entry":
-        large = amount is not None and currency and amount >= large_entry_limit(conn, currency)
-        return ["finance_manager", "controller"] if large else ["finance_manager"]
-    return {"payment_release": ["treasury"], "funding": ["treasury"], "bank_change": ["hr"],
-            "accrual": ["controller"], "grant": ["stock_admin"], "transfer": ["department_head"],
-            "arrears": ["controller"],
-            "conflict": ["controller"],       # two colleagues answered one case in opposite ways
-            "escalation": ["controller"]}[kind]   # an answer sent the case to the controller
+def needs_for(conn, kind, amount=None, currency=None):
+    if kind not in {"entry", "event", "escalation"}:
+        raise ValueError("unsupported event-tax approval kind")
+    return ["tax_manager"]
 
 
 def request(conn: sqlite3.Connection, actor: Actor, kind: str, subject_ref: str, payload: dict,
             amount: Decimal | None = None, currency: str | None = None, case_id: str | None = None,
-            keyed_by: str | None = None, reason: str = "") -> str:
+            keyed_by: str | None = None, reason: str = "", required_roles: list | None = None) -> str:
     require(conn, actor, "request_approval", subject_ref)
+    if kind == "entry":
+        from vouch.controls.gates import stored_fingerprint
+        payload = {**payload, "entry_fingerprint": stored_fingerprint(conn, subject_ref)}
+    delegated_role = None
+    if kind in {"entry", "event", "escalation"}:
+        from vouch.controls.matrix import delegate
+        tax = conn.execute("SELECT id FROM people WHERE role='tax_manager' ORDER BY id").fetchone()
+        if tax:
+            deadline = payload.get("deadline") or conn.execute("SELECT value FROM scenario WHERE key='as_of'").fetchone()[0]
+            recipient = delegate(conn, tax[0], deadline)
+            if recipient != tax[0]:
+                role = conn.execute("SELECT role FROM people WHERE id=?", (recipient,)).fetchone()
+                if role:
+                    delegated_role = role[0]
+                    payload = {**payload, "delegation":{"from":tax[0],"to":recipient,"role":"tax_manager","deadline":deadline}}
     print_ = fingerprint(kind, subject_ref, payload)
     rejected = conn.execute("SELECT request_id, note FROM approval_requests WHERE fingerprint = ? AND status = 'rejected'",
                             (print_,)).fetchone()
@@ -46,6 +56,20 @@ def request(conn: sqlite3.Connection, actor: Actor, kind: str, subject_ref: str,
     if pending:
         return pending[0]
     needs = needs_for(conn, kind, amount, currency)
+    if required_roles is not None:
+        if not required_roles or set(required_roles) - {"tax_manager", "controller"} or "tax_manager" not in required_roles:
+            raise ValueError("approval roles must include tax_manager and optionally controller")
+        needs = ["tax_manager"] + (["controller"] if "controller" in required_roles else [])
+    if kind == "entry":
+        entry = conn.execute("SELECT type FROM journal_entries WHERE entry_id = ? AND status = 'draft'",
+                             (subject_ref,)).fetchone()
+        if not entry:
+            raise ValueError("entry approval requires an existing draft")
+        # POL-MAT measures correction entries, not all invoice values.
+        if entry[0] in {"reclass", "vat_reversal"} and amount is not None and amount >= Decimal("5000"):
+            if "controller" not in needs:
+                needs.append("controller")
+    assigned_role = delegated_role or needs[0]
     request_id = f"REQ-{conn.execute('SELECT COUNT(*) FROM approval_requests').fetchone()[0] + 1:04d}"
     now = clock.now(conn)
     conn.execute(
@@ -53,7 +77,7 @@ def request(conn: sqlite3.Connection, actor: Actor, kind: str, subject_ref: str,
         "requested_by, keyed_by, needs, status, assigned_role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
         "'pending', ?, ?)",
         (request_id, kind, subject_ref, print_, json.dumps(payload, default=str), fmt(amount) if amount is not None else None,
-         currency, case_id, actor.name, keyed_by or actor.name, json.dumps(needs), needs[0], now))
+         currency, case_id, actor.name, keyed_by or actor.name, json.dumps(needs), assigned_role, now))
     audit.log(conn, actor, "request_approval", subject_ref, "requested", reason or f"{kind} needs {', '.join(needs)}",
               {"request": request_id, "kind": kind, "needs": needs, "case": case_id,
                "amount": fmt(amount) if amount is not None else None, "currency": currency})
@@ -104,51 +128,43 @@ def decide(conn: sqlite3.Connection, actor: Actor, request_id: str, decision: st
     audit.log(conn, actor, "approve", item["subject_ref"], "done", note,
               {"request": request_id, "case": item["case_id"], "step": len(approvals), "of": len(item["needs"]),
                "callback_confirmed": callback_confirmed})
+    if done and item.get("case_id"):
+        from vouch.controls.gates import active_holds, release_hold
+        for hold in active_holds(conn):
+            if hold["case_id"] == item["case_id"]:
+                release_hold(conn, actor, hold["hold_id"], "Evidence reviewed and final approval recorded: " + note)
     return get(conn, request_id)
 
 
-def _store_precedent(conn, actor: Actor, item: dict, note: str) -> None:
-    """A rejection becomes a ruling every later close must respect."""
-    from vouch.recon import rulings
-    conn.executescript(rulings.SCHEMA)
-    kind = json.loads(item["payload"]).get("case_kind") or item["kind"]
-    period = clock.now(conn)[:7]
-    conn.execute("INSERT OR IGNORE INTO rulings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                 (f"RUL-{item['request_id']}", period, clock.now(conn)[:10], kind, None, "rejected", actor.name,
-                  json.dumps([]), f"Rejected: {note}", f"approval:{item['request_id']}"))
+def _store_precedent(conn, actor, item, note):
+    conn.execute("CREATE TABLE IF NOT EXISTS approval_rejections "
+                 "(request_id TEXT PRIMARY KEY, actor TEXT, note TEXT, at TEXT)")
+    conn.execute("INSERT INTO approval_rejections VALUES (?, ?, ?, ?)",
+                 (item["request_id"], actor.name, note, clock.now(conn)))
 
 
-# Follow-up timing on the simulated clock. Operational defaults chosen for the build (the finance
-# policy sets no numbers); awaiting the human's confirmation.
-REMIND_AFTER_BUSINESS_DAYS = 2
-ESCALATE_AFTER_BUSINESS_DAYS = 4
+REMIND_AFTER_BUSINESS_DAYS = 1
+ESCALATE_AFTER_BUSINESS_DAYS = 2
 
 
-def follow_up(conn: sqlite3.Connection, actor: Actor) -> list[dict]:
-    """Remind, then escalate to the controller, every request left unanswered. Nothing is approved
-    by waiting: the request and whatever it holds stay held."""
+def follow_up(conn, actor):
+    require(conn, actor, "request_approval", "follow_up")
     now, done = clock.now(conn), []
     for item in [get(conn, r[0]) for r in conn.execute(
-            "SELECT request_id FROM approval_requests WHERE status = 'pending' ORDER BY request_id").fetchall()]:
+            "SELECT request_id FROM approval_requests WHERE status = 'pending'").fetchall()]:
         waited = clock.business_days_between(item["created_at"], now)
-        if waited >= ESCALATE_AFTER_BUSINESS_DAYS and not item["escalated_at"]:
-            step = len(item["approvals"])
-            needs = list(item["needs"])
-            original, needs[step] = needs[step], "controller"
-            for later in range(step + 1, len(needs)):         # keep two different approvers when one was the controller
-                if needs[later] == "controller":
-                    needs[later] = original
-            conn.execute("UPDATE approval_requests SET status = 'escalated', assigned_role = 'controller', needs = ?, "
-                         "escalated_at = ? WHERE request_id = ?", (json.dumps(needs), now, item["request_id"]))
-            audit.log(conn, actor, "escalate", item["subject_ref"], "escalated",
-                      f"no answer from the {original} after {waited} business days; escalated to the controller",
-                      {"request": item["request_id"], "case": item["case_id"], "waited_business_days": waited})
+        if waited >= ESCALATE_AFTER_BUSINESS_DAYS and item["reminded_at"] and not item["escalated_at"]:
+            # Do not replace controller approval. An escalation never counts as an approval.
+            conn.execute("UPDATE approval_requests SET status = 'escalated', escalated_at = ? "
+                          "WHERE request_id = ?", (now, item["request_id"]))
+            audit.log(conn, actor, "escalate", item["subject_ref"], "escalated", "no reply after reminder",
+                      {"request": item["request_id"], "to": "tax_manager"})
             done.append({"request_id": item["request_id"], "action": "escalated"})
         elif waited >= REMIND_AFTER_BUSINESS_DAYS and not item["reminded_at"]:
-            conn.execute("UPDATE approval_requests SET reminded_at = ? WHERE request_id = ?", (now, item["request_id"]))
-            audit.log(conn, actor, "remind", item["subject_ref"], "reminded",
-                      f"reminder to the {item['assigned_role']}: waiting {waited} business days",
-                      {"request": item["request_id"], "case": item["case_id"], "waited_business_days": waited})
+            conn.execute("UPDATE approval_requests SET reminded_at = ? WHERE request_id = ?",
+                          (now, item["request_id"]))
+            audit.log(conn, actor, "remind", item["subject_ref"], "reminded", "waiting for an answer",
+                      {"request": item["request_id"]})
             done.append({"request_id": item["request_id"], "action": "reminded"})
     return done
 
@@ -160,3 +176,32 @@ def inbox(conn, role: str) -> list[dict]:
 
 
 __all__ = ["request", "decide", "get", "inbox", "Refused", "needs_for", "fingerprint"]
+
+
+def standing_policy_request(conn, entry_id, computed, case_id):
+    """Apply P-TAX's standing POL-MAT approval only to a verified clean computed proposal."""
+    from vouch.controls.matrix import route
+    from vouch.controls.gates import VOUCH, stored_fingerprint
+    actual = route(flags=computed["flags"], wage_taxable=computed["wage_taxable"],
+                   nondeductible=computed["nondeductible"], flat_tax_37b=computed["flat_tax_37b"],
+                   corrections=computed["corrections"], blocked=computed["decision"] != "classify_and_book")
+    if actual["approvers"] != ["policy"]:
+        raise ValueError("proposal does not satisfy standing POL-MAT approval")
+    entry = conn.execute("SELECT status FROM journal_entries WHERE entry_id=?",(entry_id,)).fetchone()
+    if not entry or entry[0] != "draft":
+        raise ValueError("standing policy applies to an existing draft")
+    existing=conn.execute("SELECT request_id FROM approval_requests WHERE subject_ref=? AND kind='entry'",(entry_id,)).fetchone()
+    if existing:
+        return existing[0]
+    payload={"entry":entry_id,"entry_fingerprint":stored_fingerprint(conn,entry_id),"policy":"POL-MAT"}
+    rid=f"REQ-{conn.execute('SELECT COUNT(*) FROM approval_requests').fetchone()[0]+1:04d}"
+    owner=conn.execute("SELECT owner FROM policies WHERE id='POL-MAT'").fetchone()[0]
+    now=clock.now(conn)
+    approvals_=[{"actor":owner,"role":"policy","at":now,"note":"Standing POL-MAT approval"}]
+    conn.execute("INSERT INTO approval_requests (request_id,kind,subject_ref,fingerprint,payload,case_id,requested_by,keyed_by,"
+                 "needs,approvals,status,assigned_role,created_at,closed_at,note) VALUES (?, 'entry', ?, ?, ?, ?, 'Vouch','Vouch',"
+                 "?,?,'approved','policy',?,?,?)",(rid,entry_id,fingerprint("entry",entry_id,payload),json.dumps(payload),case_id,
+                 json.dumps(["policy"]),json.dumps(approvals_),now,now,"Standing POL-MAT approval"))
+    audit.log(conn,VOUCH,"apply_standing_policy",entry_id,"done","Clean proposal covered by P-TAX standing policy",
+              {"request":rid,"policy":"POL-MAT","owner":owner,"entry_fingerprint":payload["entry_fingerprint"]})
+    return rid

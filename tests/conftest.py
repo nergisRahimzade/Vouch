@@ -46,3 +46,31 @@ def scenario_db(tmp_path):
     yield make
     for conn in opened:
         conn.close()
+
+
+@pytest.fixture
+def public_case(tmp_path):
+    """A fresh visible company for a public scenario; expected answers never enter the agent."""
+    from vouch.db import connect
+    from vouch.db.rebuild import rebuild
+    from vouch.world.scenario import load_file
+    from vouch.agent.runner import ensure
+    opened=[]
+    def make(case_id):
+        scenario=load_file(PUBLIC / (case_id + ".yaml"))[0]
+        path=tmp_path / f"{case_id}-{len(opened)}.db"
+        rebuild(path,scenario)
+        conn=connect(path)
+        ensure(conn)
+        opened.append(conn)
+        return conn,scenario
+    yield make
+    for conn in opened:
+        conn.close()
+
+
+@pytest.fixture
+def controls_db(db):
+    from vouch.agent.runner import ensure
+    ensure(db)
+    return db

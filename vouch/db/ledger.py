@@ -123,7 +123,8 @@ def problems(conn: sqlite3.Connection, entry: Entry) -> list[str]:
 # Tables a line may rest on, with their key column.
 SOURCE_TABLES = {"invoices": "id", "invoice_lines": "id", "rules": "rule_id", "policies": "id", "events": "id",
                  "attendance": "id", "gift_distributions": "id", "payroll_exports": "id", "journal_entries": "entry_id",
-                 "emails": "id", "business_partners": "id", "employees": "id"}
+                 "emails": "id", "business_partners": "id", "employees": "id",
+                 "received_facts": "request_id", "followup_facts": "id", "learned_corrections": "id"}
 
 
 def balance(entry: Entry) -> Decimal:
